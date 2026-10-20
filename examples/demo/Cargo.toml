@@ -1,0 +1,13 @@
+[package]
+name = "leptoslate-demo"
+description = "Demo application for leptoslate."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+leptoslate = { path = "../../crates/leptoslate" }
+leptos = { workspace = true, features = ["csr"] }
+console_error_panic_hook = { workspace = true }
+serde_json = { workspace = true }

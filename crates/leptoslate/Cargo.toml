@@ -1,0 +1,40 @@
+[package]
+name = "leptoslate"
+description = "A Slate-inspired rich text editor for Leptos."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+leptoslate-core = { path = "../leptoslate-core" }
+leptos = { workspace = true }
+wasm-bindgen = { workspace = true }
+console_error_panic_hook = { workspace = true }
+serde_json = { workspace = true }
+
+[dependencies.web-sys]
+workspace = true
+features = [
+    "console",
+    "Window",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlDivElement",
+    "Node",
+    "NodeList",
+    "Text",
+    "Selection",
+    "Range",
+    "InputEvent",
+    "KeyboardEvent",
+    "MouseEvent",
+    "ClipboardEvent",
+    "CompositionEvent",
+    "DataTransfer",
+    "Event",
+    "EventTarget",
+    "DomRect",
+    "HtmlSpanElement",
+]
