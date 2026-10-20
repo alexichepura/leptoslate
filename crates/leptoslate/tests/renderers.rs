@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptoslate::Renderers;
+use leptoslate::{FileHandler, Renderers};
 
 #[test]
 fn custom_element_renderers_can_be_registered() {
@@ -19,4 +19,10 @@ fn custom_element_renderers_can_be_registered() {
             let children = ctx.children;
             view! { <div class="todo">{children}</div> }.into_any()
         });
+}
+
+#[test]
+fn file_handlers_are_cloneable() {
+    let handler = FileHandler::new(|_files| {});
+    let _clone = handler.clone();
 }

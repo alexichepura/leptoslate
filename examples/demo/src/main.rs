@@ -1,6 +1,7 @@
 use leptos::prelude::*;
-use leptoslate::{Editable, EditorHandle, Element, Node, Props, Renderers, Text};
+use leptoslate::{Editable, EditorHandle, Element, FileHandler, Node, Props, Renderers, Text};
 use serde_json::{json, Value};
+use wasm_bindgen::JsCast;
 
 fn text(value: &str) -> Node {
     Node::Text(Text::new(value))
@@ -32,6 +33,47 @@ fn callout(value: &str, tone: &str) -> Node {
 
 fn todo(value: &str, checked: bool) -> Node {
     Node::Element(Element::new("todo", vec![text(value)]).with_property("checked", json!(checked)))
+}
+
+fn image(src: &str) -> Node {
+    Node::Element(
+        Element::new("img", vec![Node::empty_text()])
+            .with_property("src", json!(src))
+            .with_property("align", json!("center")),
+    )
+}
+
+fn focus_editor() {
+    if let Some(element) = web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.query_selector(".ls-editor").ok().flatten())
+        .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
+    {
+        let _ = element.focus();
+    }
+}
+
+fn read_image_file(file: web_sys::File, editor: EditorHandle) {
+    if file.size() > 8_000_000.0 {
+        return;
+    }
+    let Ok(reader) = web_sys::FileReader::new() else {
+        return;
+    };
+    let loaded = reader.clone();
+    let onload = wasm_bindgen::closure::Closure::once_into_js(move || {
+        if let Ok(result) = loaded.result() {
+            if let Some(src) = result.as_string() {
+                focus_editor();
+                let image = image(&src);
+                editor.update(|state| {
+                    state.insert_block_after_selection(image);
+                });
+            }
+        }
+    });
+    reader.set_onload(Some(onload.unchecked_ref()));
+    let _ = reader.read_as_data_url(&file);
 }
 
 fn demo_renderers() -> Renderers {
@@ -321,6 +363,16 @@ fn App() -> impl IntoView {
     let show_json = RwSignal::new(false);
     let show_image = RwSignal::new(false);
     let image_url = RwSignal::new(String::new());
+    let files_handler = {
+        let editor = editor.clone();
+        FileHandler::new(move |files| {
+            for file in files {
+                if file.type_().starts_with("image/") {
+                    read_image_file(file, editor.clone());
+                }
+            }
+        })
+    };
 
     let undo_disabled = {
         let editor = editor.clone();
@@ -373,11 +425,8 @@ fn App() -> impl IntoView {
             if src.is_empty() {
                 return;
             }
-            let image = Node::Element(
-                Element::new("img", vec![Node::empty_text()])
-                    .with_property("src", json!(src))
-                    .with_property("align", json!("center")),
-            );
+            focus_editor();
+            let image = image(&src);
             editor.update(|state| {
                 state.insert_block_after_selection(image);
             });
@@ -536,6 +585,34 @@ fn App() -> impl IntoView {
                     >
                         "Insert"
                     </button>
+                    <label class="tool wide file-tool">
+                        "Upload"
+                        <input
+                            class="file-input"
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            on:change={
+                                let files = files_handler.clone();
+                                move |ev: web_sys::Event| {
+                                    let Some(input) = ev
+                                        .target()
+                                        .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
+                                    else {
+                                        return;
+                                    };
+                                    if let Some(files_list) = input.files() {
+                                        let selected = (0..files_list.length())
+                                            .filter_map(|index| files_list.get(index))
+                                            .collect();
+                                        files.call(selected);
+                                    }
+                                    input.set_value("");
+                                }
+                            }
+                        />
+                    </label>
+                    <span class="media-hint">"or paste / drop images"</span>
                     <button
                         class="link-tool"
                         on:mousedown=move |ev| ev.prevent_default()
@@ -548,6 +625,7 @@ fn App() -> impl IntoView {
                 <Editable
                     editor=editor.clone()
                     renderers=renderers
+                    on_files=files_handler
                     placeholder="Start writing…"
                 />
 
