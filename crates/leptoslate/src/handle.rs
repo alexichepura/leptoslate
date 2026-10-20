@@ -154,6 +154,22 @@ impl EditorHandle {
         self.update(|editor| editor.set_block(element_type));
     }
 
+    /// Wrap the current selection in a link, or update the link at the caret.
+    pub fn set_link(&self, href: &str) -> bool {
+        self.update(|editor| editor.set_link(href))
+    }
+
+    /// Remove links intersecting the current selection.
+    pub fn remove_link(&self) -> bool {
+        self.update(Editor::remove_link)
+    }
+
+    /// The href of the link at the current selection, if any.
+    pub fn link_at_selection(&self) -> Option<String> {
+        self.state
+            .with_untracked(|editor| editor.link_at_selection().map(|(_, href)| href))
+    }
+
     pub fn toggle_list(&self, list_type: &str) {
         self.update(|editor| editor.toggle_list(list_type));
     }

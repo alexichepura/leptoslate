@@ -338,6 +338,32 @@ impl Editor {
             return;
         }
 
+        // Delete across inline boundaries (or between adjacent text nodes)
+        // when the previous text leaf belongs to the same block.
+        if let (Some(block), Some(previous_point)) = (
+            self.leaf_block_path(&point),
+            self.previous_text_point(&point),
+        ) {
+            let same_block = self.leaf_block_path(&previous_point).as_ref() == Some(&block);
+            if same_block && previous_point.offset > 0 {
+                if let Some(text) = self.text(&previous_point.path).cloned() {
+                    let start = if word {
+                        word_start_before(&text.text, previous_point.offset)
+                    } else {
+                        previous_point.offset - 1
+                    };
+                    let removed = char_slice(&text.text, start, previous_point.offset).to_string();
+                    let _ = self.apply(Operation::RemoveText {
+                        path: previous_point.path.clone(),
+                        offset: start,
+                        text: removed,
+                    });
+                    self.selection = Some(Range::collapsed(Point::new(previous_point.path, start)));
+                    return;
+                }
+            }
+        }
+
         // Merge with the previous text sibling.
         if let Some(previous) = path::previous(&point.path) {
             if let Some(previous_text) = self.text(&previous).cloned() {
@@ -403,6 +429,33 @@ impl Editor {
                 self.selection = Some(Range::collapsed(point));
             }
             return;
+        }
+
+        // Delete across inline boundaries when the next text leaf belongs to
+        // the same block.
+        if let (Some(block), Some(next_point)) =
+            (self.leaf_block_path(&point), self.next_text_point(&point))
+        {
+            let same_block = self.leaf_block_path(&next_point).as_ref() == Some(&block);
+            if same_block {
+                if let Some(text) = self.text(&next_point.path).cloned() {
+                    if !text.is_empty() {
+                        let end = if word {
+                            word_end_after(&text.text, 0)
+                        } else {
+                            1
+                        };
+                        let removed = char_slice(&text.text, 0, end).to_string();
+                        let _ = self.apply(Operation::RemoveText {
+                            path: next_point.path,
+                            offset: 0,
+                            text: removed,
+                        });
+                        self.selection = Some(Range::collapsed(point));
+                        return;
+                    }
+                }
+            }
         }
 
         // Merge the next text sibling into this leaf.
@@ -511,6 +564,264 @@ impl Editor {
                 }
             }
         });
+    }
+
+    // ---------------------------------------------------------------------
+    // Inline elements and links
+    // ---------------------------------------------------------------------
+
+    /// Wrap the selected text in an inline element, or update the link at the
+    /// current selection when it is already inside one.
+    ///
+    /// Returns `false` when the selection is collapsed outside a link, or spans
+    /// multiple blocks (inline elements must stay within one block).
+    pub fn set_link(&mut self, href: &str) -> bool {
+        let href = href.trim();
+        if href.is_empty() {
+            return false;
+        }
+
+        self.transaction(|editor| {
+            let Some(range) = editor.selection.clone() else {
+                return false;
+            };
+            let start = editor
+                .text_point(range.start())
+                .unwrap_or(range.start().clone());
+            let end = editor
+                .text_point(range.end())
+                .unwrap_or(range.end().clone());
+
+            if let Some(link) = editor.inline_ancestor(&start.path, "a") {
+                if range.is_collapsed()
+                    || editor.inline_ancestor(&end.path, "a").as_ref() == Some(&link)
+                {
+                    let mut properties = Props::new();
+                    properties.insert("href".into(), Value::String(href.to_string()));
+                    let _ = editor.apply(Operation::SetNode {
+                        path: link,
+                        properties: Props::new(),
+                        new_properties: properties,
+                    });
+                    return true;
+                }
+            }
+
+            if range.is_collapsed() {
+                return false;
+            }
+
+            let mut properties = Props::new();
+            properties.insert("href".into(), Value::String(href.to_string()));
+            editor.wrap_inline_inner("a", properties).is_some()
+        })
+    }
+
+    /// Remove links intersecting the current selection.
+    pub fn remove_link(&mut self) -> bool {
+        self.transaction(|editor| {
+            let Some(range) = editor.selection.clone() else {
+                return false;
+            };
+
+            let mut paths = editor.text_paths_in_range(&range);
+            if range.is_collapsed() {
+                paths.push(range.start().path.clone());
+            } else {
+                paths.push(range.start().path.clone());
+                paths.push(range.end().path.clone());
+            }
+
+            let mut links: Vec<Path> = paths
+                .iter()
+                .filter_map(|path| editor.inline_ancestor(path, "a"))
+                .collect();
+            links.sort_by(|a, b| path::compare(b, a));
+            links.dedup();
+
+            if links.is_empty() {
+                return false;
+            }
+
+            for link in links {
+                editor.unwrap_inline_inner(&link);
+            }
+            true
+        })
+    }
+
+    /// The link containing the start of the current selection.
+    pub fn link_at_selection(&self) -> Option<(Path, String)> {
+        let range = self.selection.as_ref()?;
+        let link = self.inline_ancestor(&range.start().path, "a")?;
+        let href = self
+            .element(&link)?
+            .properties
+            .get("href")?
+            .as_str()?
+            .to_string();
+        Some((link, href))
+    }
+
+    fn wrap_inline_inner(&mut self, element_type: &str, properties: Props) -> Option<Path> {
+        let range = self.selection.clone()?;
+        if range.is_collapsed() {
+            return None;
+        }
+
+        self.split_text_boundaries();
+
+        let range = self.selection.clone()?;
+        let start = self.text_point(range.start())?;
+        let end = self.text_point(range.end())?;
+        if start.path.len() < 2 || end.path.len() < 2 {
+            return None;
+        }
+
+        let parent = start.path[..start.path.len() - 1].to_vec();
+        if end.path[..end.path.len() - 1] != parent {
+            return None;
+        }
+        if self
+            .element(&parent)
+            .map(|element| self.schema.is_inline(&element.element_type))
+            .unwrap_or(false)
+        {
+            return None;
+        }
+
+        let mut start_index = *start.path.last()?;
+        let start_len = self.text_len_at(&start.path).unwrap_or(0);
+        if start.offset >= start_len {
+            start_index += 1;
+        }
+
+        let mut end_index = *end.path.last()?;
+        if end.offset == 0 {
+            end_index = end_index.checked_sub(1)?;
+        }
+
+        if start_index > end_index {
+            // The range only covers a boundary between two nodes.
+            return None;
+        }
+        let count = end_index - start_index + 1;
+
+        let children = self.element(&parent)?.children.clone();
+        if start_index + count > children.len() {
+            return None;
+        }
+        let wrapped = &children[start_index..start_index + count];
+        if element_type == "a"
+            && wrapped.iter().any(|node| {
+                node.element_type()
+                    .map(|element_type| element_type == "a")
+                    .unwrap_or(false)
+            })
+        {
+            return None;
+        }
+
+        let wrapper = Node::Element(Element {
+            element_type: element_type.to_string(),
+            properties,
+            children: wrapped.to_vec(),
+        });
+
+        let mut insert_at = parent.clone();
+        insert_at.push(start_index);
+        self.apply(Operation::InsertNode {
+            path: insert_at.clone(),
+            node: wrapper,
+        })
+        .ok()?;
+
+        for _ in 0..count {
+            let mut remove_at = parent.clone();
+            remove_at.push(start_index + 1);
+            self.apply(Operation::RemoveNode { path: remove_at }).ok()?;
+        }
+
+        let first = self.first_text_point_in(&insert_at)?;
+        let last = self.last_text_point_in(&insert_at)?;
+        self.selection = Some(Range::new(first, last));
+        Some(insert_at)
+    }
+
+    fn unwrap_inline_inner(&mut self, link: &[usize]) -> Option<()> {
+        let parent = link[..link.len() - 1].to_vec();
+        let index = *link.last()?;
+        let children = self.element(link)?.children.clone();
+
+        self.apply(Operation::RemoveNode {
+            path: link.to_vec(),
+        })
+        .ok()?;
+
+        for (offset, child) in children.iter().enumerate() {
+            let mut insert_at = parent.clone();
+            insert_at.push(index + offset);
+            self.apply(Operation::InsertNode {
+                path: insert_at,
+                node: child.clone(),
+            })
+            .ok()?;
+        }
+
+        let mut first_at = parent.clone();
+        first_at.push(index);
+        if let (Some(first), Some(last)) = (
+            self.first_text_point_in(&first_at),
+            (if children.is_empty() {
+                None
+            } else {
+                let mut last_at = parent.clone();
+                last_at.push(index + children.len() - 1);
+                self.last_text_point_in(&last_at)
+            }),
+        ) {
+            self.selection = Some(Range::new(first, last));
+        }
+        Some(())
+    }
+
+    fn inline_ancestor(&self, path: &[usize], element_type: &str) -> Option<Path> {
+        for depth in (1..path.len()).rev() {
+            let candidate = &path[..depth];
+            if let Some(element) = self.element(candidate) {
+                if element.element_type == element_type
+                    && self.schema.is_inline(&element.element_type)
+                {
+                    return Some(candidate.to_vec());
+                }
+            }
+        }
+        None
+    }
+
+    fn previous_text_point(&self, at: &Point) -> Option<Point> {
+        let mut path = at.path.clone();
+        while !path.is_empty() {
+            if let Some(previous) = path::previous(&path) {
+                if let Some(point) = self.last_text_point_in(&previous) {
+                    return Some(point);
+                }
+            }
+            path.pop();
+        }
+        None
+    }
+
+    fn next_text_point(&self, at: &Point) -> Option<Point> {
+        let mut path = at.path.clone();
+        while !path.is_empty() {
+            let next = path::next(&path);
+            if let Some(point) = self.first_text_point_in(&next) {
+                return Some(point);
+            }
+            path.pop();
+        }
+        None
     }
 
     /// Format text leaves intersecting the current selection, splitting leaves

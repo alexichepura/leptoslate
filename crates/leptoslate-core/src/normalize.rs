@@ -68,6 +68,17 @@ impl Editor {
     }
 
     fn scan_children(&self, children: &[Node], at: &[usize], is_root: bool) -> Option<Fix> {
+        if !is_root {
+            if let Some(element) = self.element(at) {
+                if self.schema.is_inline(&element.element_type)
+                    && !self.schema.is_void(&element.element_type)
+                    && element.text_len() == 0
+                {
+                    return Some(Fix::RemoveNode { path: at.to_vec() });
+                }
+            }
+        }
+
         if children.is_empty() {
             if is_root {
                 return Some(Fix::InsertNode {
