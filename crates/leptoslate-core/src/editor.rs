@@ -37,6 +37,9 @@ impl PendingBatch {
 pub struct Editor {
     pub children: Vec<Node>,
     pub selection: Option<Range>,
+    /// An explicit block/node selection, used for void blocks such as images.
+    /// Mutually exclusive with a text [`Range`] selection.
+    pub node_selection: Option<path::Path>,
     pub marks: Option<Props>,
     pub schema: Schema,
     pub history: History,
@@ -57,6 +60,7 @@ impl Editor {
         let mut editor = Self {
             children,
             selection: None,
+            node_selection: None,
             marks: None,
             schema: Schema::default(),
             history: History::default(),
@@ -265,6 +269,7 @@ impl Editor {
 
     /// Expand the selection to the whole document.
     pub fn select_all(&mut self) {
+        self.node_selection = None;
         if let (Some(start), Some(end)) = (self.start_point(), self.end_point()) {
             self.selection = Some(Range::new(start, end));
             self.history.break_coalescing();
@@ -273,6 +278,7 @@ impl Editor {
 
     pub fn select(&mut self, range: Range) {
         self.selection = Some(range);
+        self.node_selection = None;
         self.marks = None;
         self.history.break_coalescing();
     }
@@ -283,8 +289,88 @@ impl Editor {
 
     pub fn deselect(&mut self) {
         self.selection = None;
+        self.node_selection = None;
         self.marks = None;
         self.history.break_coalescing();
+    }
+
+    /// Select an element as a block, clearing any text selection.
+    ///
+    /// This is primarily used for void blocks (images, dividers, embeds) that
+    /// have no editable text.
+    pub fn select_node(&mut self, at: &[usize]) {
+        if at.is_empty() || !self.node(at).map(Node::is_element).unwrap_or(false) {
+            return;
+        }
+        self.selection = None;
+        self.marks = None;
+        self.node_selection = Some(at.to_vec());
+        self.history.break_coalescing();
+    }
+
+    pub fn clear_node_selection(&mut self) {
+        self.node_selection = None;
+    }
+
+    pub fn has_node_selection(&self) -> bool {
+        self.node_selection.is_some()
+    }
+
+    pub fn node_selection(&self) -> Option<&[usize]> {
+        self.node_selection.as_deref()
+    }
+
+    /// Delete the selected block and move the caret to a neighbour.
+    pub fn delete_node_selection(&mut self) -> bool {
+        if self.node_selection.is_none() {
+            return false;
+        }
+        self.transaction(|editor| {
+            editor.delete_selected_node_inner();
+        });
+        true
+    }
+
+    /// Move out of a block selection into the previous or next text block.
+    pub fn move_selection_off_node(&mut self, reverse: bool) -> Option<Point> {
+        let path = self.node_selection.take()?;
+        if path.is_empty() {
+            return None;
+        }
+        let parent = path[..path.len() - 1].to_vec();
+        let index = *path.last()?;
+        let is_void = |editor: &Self, path: &[usize]| {
+            editor
+                .node(path)
+                .and_then(Node::as_element)
+                .map(|element| editor.schema.is_void(&element.element_type))
+                .unwrap_or(false)
+        };
+
+        let target = if reverse {
+            index.checked_sub(1).and_then(|previous| {
+                let mut previous_path = parent.clone();
+                previous_path.push(previous);
+                (!is_void(self, &previous_path))
+                    .then(|| self.last_text_point_in(&previous_path))
+                    .flatten()
+            })
+        } else {
+            let mut next_path = parent.clone();
+            next_path.push(index + 1);
+            (!is_void(self, &next_path))
+                .then(|| self.first_text_point_in(&next_path))
+                .flatten()
+        };
+
+        if let Some(point) = target {
+            self.selection = Some(Range::collapsed(point.clone()));
+            self.marks = None;
+            self.history.break_coalescing();
+            Some(point)
+        } else {
+            None
+        }
     }
 
     pub fn selection_string(&self) -> Option<String> {
@@ -496,7 +582,12 @@ impl Editor {
         let inverse = self.inverse_of(&op)?;
         self.apply_value(&op)?;
 
+        if let Some(node) = &self.node_selection {
+            self.node_selection = path::transform_with_affinity(node, &op, Affinity::Forward);
+        }
+
         if let Operation::SetSelection { new_properties, .. } = &op {
+            self.node_selection = None;
             self.selection = new_properties.clone();
         } else if let Some(selection) = &self.selection {
             self.selection = selection.transform(&op, Affinity::Forward);
@@ -523,6 +614,14 @@ impl Editor {
     }
 
     pub(crate) fn sanitize_selection(&mut self) {
+        if let Some(node) = self.node_selection.clone() {
+            if self.node(&node).map(Node::is_element).unwrap_or(false) {
+                self.selection = None;
+                return;
+            }
+            self.node_selection = None;
+        }
+
         let Some(range) = self.selection.clone() else {
             return;
         };
@@ -923,8 +1022,12 @@ impl Editor {
             let _ = self.apply_value(inverse);
         }
         self.selection = batch.before_selection.clone();
+        self.node_selection = None;
         self.marks = None;
         self.sanitize_selection();
+        if self.selection.is_none() {
+            self.selection = self.start_point().map(Range::collapsed);
+        }
         self.history.redo_stack.push(batch);
         true
     }
@@ -941,8 +1044,12 @@ impl Editor {
             let _ = self.apply_value(operation);
         }
         self.selection = batch.after_selection.clone();
+        self.node_selection = None;
         self.marks = None;
         self.sanitize_selection();
+        if self.selection.is_none() {
+            self.selection = self.start_point().map(Range::collapsed);
+        }
         self.history.undo_stack.push(batch);
         true
     }

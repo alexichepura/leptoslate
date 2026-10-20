@@ -3,7 +3,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use leptos::prelude::*;
-use leptoslate_core::{Editor, Node, Props};
+use leptoslate_core::{Editor, Node, Point, Props};
 use serde_json::Value;
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
@@ -160,6 +160,34 @@ impl EditorHandle {
 
     pub fn select_all(&self) {
         self.update(Editor::select_all);
+    }
+
+    /// Select a block/node, clearing any text selection.
+    pub fn select_node(&self, path: &[usize]) {
+        self.update(|editor| editor.select_node(path));
+    }
+
+    pub fn clear_node_selection(&self) {
+        self.update(Editor::clear_node_selection);
+    }
+
+    pub fn has_node_selection(&self) -> bool {
+        self.state
+            .with_untracked(|editor| editor.has_node_selection())
+    }
+
+    /// Reactive check used by custom renderers to style the selected block.
+    pub fn is_node_selected(&self, path: &[usize]) -> bool {
+        self.state
+            .with(|editor| editor.node_selection() == Some(path))
+    }
+
+    pub fn delete_node_selection(&self) -> bool {
+        self.update(Editor::delete_node_selection)
+    }
+
+    pub fn move_selection_off_node(&self, reverse: bool) -> Option<Point> {
+        self.update(|editor| editor.move_selection_off_node(reverse))
     }
 
     pub fn undo(&self) -> bool {

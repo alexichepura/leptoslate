@@ -599,3 +599,94 @@ fn inserting_a_block_inside_a_list_goes_after_the_list() {
     assert_eq!(editor.children[2].element_type(), Some("callout"));
     assert_eq!(editor.children[3].element_type(), Some("p"));
 }
+
+fn image_block() -> Node {
+    Node::Element(Element::new("img", vec![Node::empty_text()]))
+}
+
+#[test]
+fn node_and_text_selections_are_mutually_exclusive() {
+    let mut editor = Editor::new(vec![p("before"), image_block(), p("after")]);
+    editor.select_node(&[1]);
+
+    assert_eq!(editor.node_selection(), Some([1].as_slice()));
+    assert!(editor.selection.is_none());
+
+    editor.select_point(Point::new(vec![0, 0], 1));
+    assert!(editor.node_selection().is_none());
+    assert!(editor.selection.is_some());
+
+    editor.select_node(&[1]);
+    assert!(editor.selection.is_none());
+    assert!(editor.node_selection().is_some());
+}
+
+#[test]
+fn deleting_a_selected_node_moves_the_caret_to_the_next_block() {
+    let mut editor = Editor::new(vec![p("before"), image_block(), p("after")]);
+    editor.select_node(&[1]);
+    editor.delete_backward();
+
+    assert_eq!(editor.children.len(), 2);
+    assert_eq!(editor.children[1].string(), "after");
+    assert!(editor.node_selection().is_none());
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![1, 0], 0)))
+    );
+
+    assert!(editor.undo());
+    assert_eq!(editor.children.len(), 3);
+    assert_eq!(editor.children[1].element_type(), Some("img"));
+}
+
+#[test]
+fn typing_replaces_a_selected_node() {
+    let mut editor = Editor::new(vec![p("before"), image_block(), p("after")]);
+    editor.select_node(&[1]);
+    editor.insert_text("x");
+
+    assert_eq!(editor.children.len(), 2);
+    assert_eq!(editor.children[1].string(), "xafter");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![1, 0], 1)))
+    );
+}
+
+#[test]
+fn node_selection_moves_with_structural_operations() {
+    let mut editor = Editor::new(vec![p("one"), image_block(), p("two")]);
+    editor.select_node(&[1]);
+    editor.insert_node(&[0], p("zero"));
+    assert_eq!(editor.node_selection(), Some([2].as_slice()));
+
+    editor.remove_nodes(&[0], 1);
+    assert_eq!(editor.node_selection(), Some([1].as_slice()));
+
+    editor
+        .apply_op(leptoslate_core::Operation::RemoveNode { path: vec![1] })
+        .unwrap();
+    assert!(editor.node_selection().is_none());
+}
+
+#[test]
+fn moving_off_a_node_selects_adjacent_text() {
+    let mut editor = Editor::new(vec![p("before"), image_block(), p("after")]);
+    editor.select_node(&[1]);
+    let point = editor.move_selection_off_node(false);
+    assert_eq!(point, Some(Point::new(vec![2, 0], 0)));
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![2, 0], 0)))
+    );
+    assert!(editor.node_selection().is_none());
+
+    editor.select_node(&[1]);
+    let point = editor.move_selection_off_node(true);
+    assert_eq!(point, Some(Point::new(vec![0, 0], 6)));
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 0], 6)))
+    );
+}

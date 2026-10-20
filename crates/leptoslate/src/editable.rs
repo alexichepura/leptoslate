@@ -58,6 +58,32 @@ pub fn Editable(
         };
         let root: &Element = root.unchecked_ref();
 
+        if beforeinput_editor.has_node_selection() {
+            ev.prevent_default();
+            match ev.input_type().as_str() {
+                "insertText" | "insertReplacementText" => {
+                    if let Some(data) = ev.data() {
+                        beforeinput_editor.insert_text(&data);
+                    }
+                }
+                "deleteContentBackward"
+                | "deleteContentForward"
+                | "deleteByCut"
+                | "insertParagraph"
+                | "insertLineBreak" => {
+                    beforeinput_editor.delete_node_selection();
+                }
+                "historyUndo" => {
+                    beforeinput_editor.undo();
+                }
+                "historyRedo" => {
+                    beforeinput_editor.redo();
+                }
+                _ => {}
+            }
+            return;
+        }
+
         sync_from_dom(&beforeinput_editor, root);
 
         if beforeinput_composing.get_untracked() {
@@ -121,6 +147,42 @@ pub fn Editable(
         let modifier = ev.meta_key() || ev.ctrl_key();
         let key = ev.key();
         let lower = key.to_ascii_lowercase();
+
+        if keydown_editor.has_node_selection() {
+            match key.as_str() {
+                "Backspace" | "Delete" | "Enter" => {
+                    ev.prevent_default();
+                    keydown_editor.delete_node_selection();
+                    return;
+                }
+                "ArrowLeft" => {
+                    ev.prevent_default();
+                    keydown_editor.move_selection_off_node(true);
+                    return;
+                }
+                "ArrowRight" => {
+                    ev.prevent_default();
+                    keydown_editor.move_selection_off_node(false);
+                    return;
+                }
+                "Escape" => {
+                    ev.prevent_default();
+                    keydown_editor.clear_node_selection();
+                    return;
+                }
+                _ => {
+                    let printable = !modifier
+                        && !ev.alt_key()
+                        && key.chars().count() == 1
+                        && !key.chars().next().map(char::is_control).unwrap_or(true);
+                    if printable {
+                        ev.prevent_default();
+                        keydown_editor.insert_text(&key);
+                        return;
+                    }
+                }
+            }
+        }
 
         if modifier {
             match lower.as_str() {
@@ -256,6 +318,17 @@ pub fn Editable(
         cut_editor.delete_selection();
     };
 
+    let mousedown_editor = editor.clone();
+    let mousedown_ref = content_ref;
+    let handle_mousedown = move |_ev: MouseEvent| {
+        mousedown_editor.clear_node_selection();
+        // `contenteditable="false"` children do not always focus the editor on
+        // click. Keep keyboard input routed to the editor for void/custom blocks.
+        if let Some(root) = mousedown_ref.get() {
+            let _ = root.focus();
+        }
+    };
+
     let mouseup_editor = editor.clone();
     let mouseup_ref = content_ref;
     let handle_mouseup = move |_ev: MouseEvent| {
@@ -339,6 +412,12 @@ pub fn Editable(
         if !dom::has_focus(root) {
             return;
         }
+        if effect_editor
+            .state
+            .with_untracked(|editor| editor.has_node_selection())
+        {
+            return;
+        }
         let selection = effect_editor
             .state
             .with_untracked(|editor| editor.selection.clone());
@@ -350,6 +429,7 @@ pub fn Editable(
     });
 
     let empty_editor = editor.clone();
+    let selection_editor = editor.clone();
     let shell_class = if class.is_empty() {
         "ls-editor-shell".to_string()
     } else {
@@ -376,6 +456,7 @@ pub fn Editable(
                 on:input=handle_input
                 on:keydown=handle_keydown
                 on:keyup=handle_keyup
+                on:mousedown=handle_mousedown
                 on:mouseup=handle_mouseup
                 on:paste=handle_paste
                 on:copy=handle_copy
@@ -384,6 +465,9 @@ pub fn Editable(
                 on:dragleave=handle_drag_leave
                 on:drop=handle_drop
                 class:ls-dragging=move || dragging.get()
+                class:ls-node-selected=move || {
+                    selection_editor.state.with(|editor| editor.has_node_selection())
+                }
                 on:compositionstart=handle_composition_start
                 on:compositionend=handle_composition_end
             >
@@ -413,6 +497,9 @@ fn sync_from_dom(editor: &EditorHandle, root: &Element) {
         return;
     };
     editor.state.update(|state| {
+        if state.has_node_selection() {
+            return;
+        }
         if state.selection.as_ref() != Some(&range) {
             state.selection = Some(range);
             state.marks = None;

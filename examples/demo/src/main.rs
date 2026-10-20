@@ -134,7 +134,7 @@ fn demo_renderers() -> Renderers {
                 "center" => "right",
                 _ => "left",
             };
-            let class = ctx.class_with(&format!("ls-media ls-media-{align}"));
+            let base_class = ctx.class_with(&format!("ls-media ls-media-{align}"));
             let element_type = ctx.element_type().to_string();
             let node_path = ctx.node_path;
             let path = ctx.path.clone();
@@ -142,10 +142,30 @@ fn demo_renderers() -> Renderers {
             let align_path = path.clone();
             let align_editor = editor.clone();
             let delete_editor = editor.clone();
-            let delete_path = path;
+            let delete_path = path.clone();
+            let select_editor = editor.clone();
+            let select_path = path.clone();
+            let class_editor = editor.clone();
+            let class_path = path;
+            let class = move || {
+                if class_editor.is_node_selected(&class_path) {
+                    format!("{base_class} ls-selected")
+                } else {
+                    base_class.clone()
+                }
+            };
 
             view! {
-                <figure class=class data-node-path=node_path data-type=element_type contenteditable="false">
+                <figure
+                    class=class
+                    data-node-path=node_path
+                    data-type=element_type
+                    contenteditable="false"
+                    on:click=move |ev| {
+                        ev.prevent_default();
+                        select_editor.select_node(&select_path);
+                    }
+                >
                     <img src=src alt=alt draggable="false" />
                     <figcaption class="ls-media-tools">
                         <button
@@ -156,6 +176,7 @@ fn demo_renderers() -> Renderers {
                             on:mousedown=move |ev| ev.prevent_default()
                             on:click=move |ev| {
                                 ev.prevent_default();
+                                ev.stop_propagation();
                                 let mut properties = Props::new();
                                 properties.insert("align".into(), Value::String(next_align.into()));
                                 let path = align_path.clone();
@@ -172,6 +193,7 @@ fn demo_renderers() -> Renderers {
                             on:mousedown=move |ev| ev.prevent_default()
                             on:click=move |ev| {
                                 ev.prevent_default();
+                                ev.stop_propagation();
                                 let path = delete_path.clone();
                                 delete_editor.update(|state| {
                                     state.remove_block_at(&path);

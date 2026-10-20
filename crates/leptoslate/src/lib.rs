@@ -73,6 +73,16 @@ pub const EDITOR_STYLES: &str = r#"
     background: rgba(180, 83, 42, 0.04);
 }
 
+.ls-editor.ls-node-selected {
+    caret-color: transparent;
+}
+
+.ls-void.ls-selected {
+    outline: 2px solid #b4532a;
+    outline-offset: 4px;
+    border-radius: 4px;
+}
+
 .ls-block {
     display: block;
     min-height: 1.4em;
