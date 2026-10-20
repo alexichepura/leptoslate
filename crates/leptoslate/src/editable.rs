@@ -319,12 +319,16 @@ pub fn Editable(
     };
 
     let mousedown_editor = editor.clone();
-    let mousedown_ref = content_ref;
     let handle_mousedown = move |_ev: MouseEvent| {
         mousedown_editor.clear_node_selection();
+    };
+
+    let click_ref = content_ref;
+    let handle_click = move |_ev: MouseEvent| {
         // `contenteditable="false"` children do not always focus the editor on
-        // click. Keep keyboard input routed to the editor for void/custom blocks.
-        if let Some(root) = mousedown_ref.get() {
+        // click. Focus after the click so we do not retarget the click itself
+        // (which happens when focus causes the page to scroll).
+        if let Some(root) = click_ref.get() {
             let _ = root.focus();
         }
     };
@@ -457,6 +461,7 @@ pub fn Editable(
                 on:keydown=handle_keydown
                 on:keyup=handle_keyup
                 on:mousedown=handle_mousedown
+                on:click=handle_click
                 on:mouseup=handle_mouseup
                 on:paste=handle_paste
                 on:copy=handle_copy
