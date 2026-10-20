@@ -160,9 +160,44 @@ body {
     border-color: #f2d6c5;
 }
 
+.tool.wide {
+    min-width: auto;
+    padding: 0 10px;
+}
+
 .tool:disabled {
     opacity: 0.35;
     cursor: default;
+}
+
+.media-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-soft);
+}
+
+.media-bar.hidden {
+    display: none;
+}
+
+.media-input {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+}
+
+.media-input:focus {
+    outline: 2px solid var(--accent-soft);
+    border-color: var(--accent);
 }
 
 .surface .ls-editor-shell {
@@ -202,6 +237,133 @@ body {
 .surface .ls-block-h3 {
     margin-top: 1em;
     font-size: 1.2em;
+}
+
+.surface .ls-callout {
+    margin: 1.1em 0;
+    padding: 14px 18px;
+    border-left: 4px solid var(--accent);
+    border-radius: 0 9px 9px 0;
+    background: var(--accent-soft);
+    font-size: 0.94em;
+    font-style: normal;
+}
+
+.surface .ls-callout::before {
+    content: "Callout";
+    display: block;
+    margin-bottom: 3px;
+    color: var(--accent);
+    font-family: "Inter", -apple-system, sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.surface .ls-callout-success {
+    border-color: #3a9d6e;
+    background: #eef8f2;
+}
+
+.surface .ls-callout-success::before {
+    color: #2f8059;
+    content: "Done";
+}
+
+.surface .ls-todo {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0.45em 0;
+}
+
+.surface .ls-todo-check {
+    flex: none;
+    width: 21px;
+    height: 21px;
+    margin-top: 0.32em;
+    padding: 0;
+    border: 1.5px solid #c7ccd6;
+    border-radius: 50%;
+    background: transparent;
+    color: #fff;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.surface .ls-todo-check:hover {
+    border-color: var(--accent);
+}
+
+.surface .ls-todo-check.checked {
+    border-color: var(--accent);
+    background: var(--accent);
+}
+
+.surface .ls-todo-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.surface .ls-todo-check.checked + .ls-todo-content {
+    color: var(--faint);
+    text-decoration: line-through;
+    text-decoration-color: rgba(107, 114, 128, 0.5);
+}
+
+.surface .ls-media {
+    margin: 1.3em 0;
+    padding: 0;
+}
+
+.surface .ls-media img {
+    display: block;
+    max-width: 100%;
+    max-height: 460px;
+    margin: 0 auto;
+    border-radius: 10px;
+}
+
+.surface .ls-media-left img {
+    margin-left: 0;
+}
+
+.surface .ls-media-right img {
+    margin-right: 0;
+}
+
+.surface .ls-media-tools {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 6px;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+}
+
+.surface .ls-media:hover .ls-media-tools {
+    opacity: 1;
+}
+
+.surface .ls-media-tools button {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.surface .ls-media-tools button:hover {
+    color: var(--accent);
+    border-color: #f2d6c5;
 }
 
 .surface .ls-block-blockquote {

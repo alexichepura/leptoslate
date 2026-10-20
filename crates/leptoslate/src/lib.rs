@@ -18,11 +18,13 @@
 pub mod dom;
 pub mod handle;
 mod render;
+mod renderers;
 
 mod editable;
 
 pub use editable::{keep_selection, select_point, Editable};
 pub use handle::EditorHandle;
+pub use renderers::{ElementRenderContext, Renderers};
 
 pub use leptoslate_core as core;
 pub use leptoslate_core::{

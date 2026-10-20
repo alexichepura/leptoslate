@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptoslate::{Editable, EditorHandle, Element, Node, Text};
+use leptoslate::{Editable, EditorHandle, Element, Node, Props, Renderers, Text};
 use serde_json::{json, Value};
 
 fn text(value: &str) -> Node {
@@ -26,6 +26,125 @@ fn list_item(children: Vec<Node>) -> Node {
     Node::Element(Element::new("li", children))
 }
 
+fn callout(value: &str, tone: &str) -> Node {
+    Node::Element(Element::new("callout", vec![text(value)]).with_property("tone", json!(tone)))
+}
+
+fn todo(value: &str, checked: bool) -> Node {
+    Node::Element(Element::new("todo", vec![text(value)]).with_property("checked", json!(checked)))
+}
+
+fn demo_renderers() -> Renderers {
+    Renderers::new()
+        .element("callout", |ctx| {
+            let tone = ctx.prop_str("tone").unwrap_or("info").to_string();
+            let class = ctx.class_with(&format!("ls-callout ls-callout-{tone}"));
+            let element_type = ctx.element_type().to_string();
+            let node_path = ctx.node_path;
+            let children = ctx.children;
+            view! {
+                <aside class=class data-node-path=node_path data-type=element_type>
+                    {children}
+                </aside>
+            }
+            .into_any()
+        })
+        .element("todo", |ctx| {
+            let class = ctx.class_with("ls-todo");
+            let checked = ctx.prop_bool("checked");
+            let element_type = ctx.element_type().to_string();
+            let node_path = ctx.node_path;
+            let children = ctx.children;
+            let editor = ctx.editor.clone();
+            let path = ctx.path.clone();
+
+            view! {
+                <div class=class data-node-path=node_path data-type=element_type>
+                    <button
+                        type="button"
+                        class="ls-todo-check"
+                        class:checked=checked
+                        contenteditable="false"
+                        aria-label="Toggle todo"
+                        aria-pressed=if checked { "true" } else { "false" }
+                        on:mousedown=move |ev| ev.prevent_default()
+                        on:click=move |ev| {
+                            ev.prevent_default();
+                            let mut properties = Props::new();
+                            properties.insert("checked".into(), Value::Bool(!checked));
+                            let path = path.clone();
+                            editor.update(|state| state.set_node_properties(&path, properties));
+                        }
+                    >
+                        {if checked { "✓" } else { "" }}
+                    </button>
+                    <div class="ls-todo-content">{children}</div>
+                </div>
+            }
+            .into_any()
+        })
+        .element("img", |ctx| {
+            let src = ctx.prop_str("src").unwrap_or("").to_string();
+            let alt = ctx.prop_str("alt").unwrap_or("").to_string();
+            let align = ctx.prop_str("align").unwrap_or("center").to_string();
+            let next_align = match align.as_str() {
+                "left" => "center",
+                "center" => "right",
+                _ => "left",
+            };
+            let class = ctx.class_with(&format!("ls-media ls-media-{align}"));
+            let element_type = ctx.element_type().to_string();
+            let node_path = ctx.node_path;
+            let path = ctx.path.clone();
+            let editor = ctx.editor.clone();
+            let align_path = path.clone();
+            let align_editor = editor.clone();
+            let delete_editor = editor.clone();
+            let delete_path = path;
+
+            view! {
+                <figure class=class data-node-path=node_path data-type=element_type contenteditable="false">
+                    <img src=src alt=alt draggable="false" />
+                    <figcaption class="ls-media-tools">
+                        <button
+                            type="button"
+                            contenteditable="false"
+                            title="Cycle alignment"
+                            aria-label="Cycle image alignment"
+                            on:mousedown=move |ev| ev.prevent_default()
+                            on:click=move |ev| {
+                                ev.prevent_default();
+                                let mut properties = Props::new();
+                                properties.insert("align".into(), Value::String(next_align.into()));
+                                let path = align_path.clone();
+                                align_editor.update(|state| state.set_node_properties(&path, properties));
+                            }
+                        >
+                            "◧"
+                        </button>
+                        <button
+                            type="button"
+                            contenteditable="false"
+                            title="Delete image"
+                            aria-label="Delete image"
+                            on:mousedown=move |ev| ev.prevent_default()
+                            on:click=move |ev| {
+                                ev.prevent_default();
+                                let path = delete_path.clone();
+                                delete_editor.update(|state| {
+                                    state.remove_block_at(&path);
+                                });
+                            }
+                        >
+                            "✕"
+                        </button>
+                    </figcaption>
+                </figure>
+            }
+            .into_any()
+        })
+}
+
 fn initial_document() -> Vec<Node> {
     let bold = json!(true);
     let italic = json!(true);
@@ -45,6 +164,10 @@ fn initial_document() -> Vec<Node> {
             marked("serde", &[("code", code.clone())]),
             text("-compatible JSON, so it can be persisted, diffed or sent to a server unchanged."),
         ]),
+        callout(
+            "Custom blocks are ordinary elements with a registered Leptos renderer. This callout, the todo below and images all use the same API.",
+            "info",
+        ),
         Node::Element(Element::new(
             "ul",
             vec![
@@ -62,6 +185,8 @@ fn initial_document() -> Vec<Node> {
                 list_item(vec![text("Undo with ⌘Z and redo with ⇧⌘Z")]),
             ],
         )),
+        todo("Try inserting a custom block from the toolbar", false),
+        todo("Swap the renderer without touching the document model", true),
         Node::Element(Element::new(
             "blockquote",
             vec![text(
@@ -192,7 +317,10 @@ fn ListButton(editor: EditorHandle, list_type: &'static str, label: &'static str
 #[component]
 fn App() -> impl IntoView {
     let editor = EditorHandle::new(initial_document());
+    let renderers = demo_renderers();
     let show_json = RwSignal::new(false);
+    let show_image = RwSignal::new(false);
+    let image_url = RwSignal::new(String::new());
 
     let undo_disabled = {
         let editor = editor.clone();
@@ -207,21 +335,54 @@ fn App() -> impl IntoView {
         let editor = editor.clone();
         move |_| {
             editor.update(|state| {
-                let Some(top) = state
-                    .selection
-                    .as_ref()
-                    .map(|range| range.start().path.first().copied().unwrap_or(0))
-                else {
-                    return;
-                };
-                let divider_at = vec![top + 1];
-                let paragraph_at = vec![top + 2];
-                state.insert_node(&divider_at, Node::Element(Element::empty("hr")));
-                state.insert_node(&paragraph_at, Node::Element(Element::empty("p")));
-                if let Some(point) = state.first_text_point_in(&paragraph_at) {
-                    state.select_point(point);
-                }
+                state.insert_block_after_selection(Node::Element(Element::empty("hr")));
             });
+        }
+    };
+
+    let insert_callout = {
+        let editor = editor.clone();
+        move |_| {
+            editor.update(|state| {
+                let node = Node::Element(
+                    Element::new("callout", vec![Node::empty_text()])
+                        .with_property("tone", json!("info")),
+                );
+                state.insert_block_after_selection(node);
+            });
+        }
+    };
+
+    let insert_todo = {
+        let editor = editor.clone();
+        move |_| {
+            editor.update(|state| {
+                let node = Node::Element(
+                    Element::new("todo", vec![Node::empty_text()])
+                        .with_property("checked", json!(false)),
+                );
+                state.insert_block_after_selection(node);
+            });
+        }
+    };
+
+    let insert_image = {
+        let editor = editor.clone();
+        move |_| {
+            let src = image_url.get_untracked().trim().to_string();
+            if src.is_empty() {
+                return;
+            }
+            let image = Node::Element(
+                Element::new("img", vec![Node::empty_text()])
+                    .with_property("src", json!(src))
+                    .with_property("align", json!("center")),
+            );
+            editor.update(|state| {
+                state.insert_block_after_selection(image);
+            });
+            image_url.set(String::new());
+            show_image.set(false);
         }
     };
 
@@ -329,10 +490,64 @@ fn App() -> impl IntoView {
                             "―"
                         </button>
                     </div>
+
+                    <div class="divider"></div>
+
+                    <div class="group">
+                        <button
+                            class="tool wide"
+                            title="Insert callout"
+                            on:mousedown=move |ev| ev.prevent_default()
+                            on:click=insert_callout
+                        >
+                            "Callout"
+                        </button>
+                        <button
+                            class="tool wide"
+                            title="Insert todo"
+                            on:mousedown=move |ev| ev.prevent_default()
+                            on:click=insert_todo
+                        >
+                            "Todo"
+                        </button>
+                        <button
+                            class="tool wide"
+                            title="Insert image"
+                            on:mousedown=move |ev| ev.prevent_default()
+                            on:click=move |_| show_image.update(|value| *value = !*value)
+                        >
+                            "Image"
+                        </button>
+                    </div>
+                </div>
+
+                <div class="media-bar" class:hidden=move || !show_image.get()>
+                    <input
+                        class="media-input"
+                        type="url"
+                        placeholder="https://example.com/image.jpg"
+                        prop:value=move || image_url.get()
+                        on:input=move |ev| image_url.set(event_target_value(&ev))
+                    />
+                    <button
+                        class="tool"
+                        on:mousedown=move |ev| ev.prevent_default()
+                        on:click=insert_image
+                    >
+                        "Insert"
+                    </button>
+                    <button
+                        class="link-tool"
+                        on:mousedown=move |ev| ev.prevent_default()
+                        on:click=move |_| show_image.set(false)
+                    >
+                        "Cancel"
+                    </button>
                 </div>
 
                 <Editable
                     editor=editor.clone()
+                    renderers=renderers
                     placeholder="Start writing…"
                 />
 
