@@ -352,6 +352,16 @@ body {
     border-radius: 10px;
 }
 
+.surface .ls-media.ls-selected {
+    outline: 2px solid var(--accent);
+    outline-offset: 5px;
+    border-radius: 12px;
+}
+
+.surface .ls-media.ls-selected .ls-media-tools {
+    opacity: 1;
+}
+
 .surface .ls-media-left img {
     margin-left: 0;
 }

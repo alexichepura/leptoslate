@@ -5,6 +5,7 @@ use leptoslate_core::{
     props::{get_bool, get_str},
     Element, Node, Props, Schema, Text,
 };
+use web_sys::MouseEvent;
 
 use crate::{
     dom::path_string,
@@ -106,7 +107,7 @@ fn render_element(
     }
 
     if rule.void {
-        return render_void(element, &node_path, class);
+        return render_void(editor, element, path, &node_path, class);
     }
 
     let tag = rule.tag.clone();
@@ -216,8 +217,29 @@ fn render_inline(
     }
 }
 
-fn render_void(element: &Element, node_path: &str, class: String) -> AnyView {
+fn render_void(
+    editor: &EditorHandle,
+    element: &Element,
+    path: &[usize],
+    node_path: &str,
+    base_class: String,
+) -> AnyView {
     let element_type = element.element_type.clone();
+    let class_editor = editor.clone();
+    let class_path = path.to_vec();
+    let class = move || {
+        if class_editor.is_node_selected(&class_path) {
+            format!("{base_class} ls-selected")
+        } else {
+            base_class.clone()
+        }
+    };
+    let click_editor = editor.clone();
+    let click_path = path.to_vec();
+    let select = move |ev: MouseEvent| {
+        ev.prevent_default();
+        click_editor.select_node(&click_path);
+    };
 
     match element_type.as_str() {
         "img" => {
@@ -236,6 +258,7 @@ fn render_void(element: &Element, node_path: &str, class: String) -> AnyView {
                     data-type=element_type
                     contenteditable="false"
                     draggable="false"
+                    on:click=select
                 />
             }
             .into_any()
@@ -246,6 +269,7 @@ fn render_void(element: &Element, node_path: &str, class: String) -> AnyView {
                 data-node-path=node_path
                 data-type=element_type
                 contenteditable="false"
+                on:click=select
             />
         }
         .into_any(),
@@ -255,6 +279,7 @@ fn render_void(element: &Element, node_path: &str, class: String) -> AnyView {
                 data-node-path=node_path
                 data-type=element_type
                 contenteditable="false"
+                on:click=select
             ></div>
         }
         .into_any(),

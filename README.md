@@ -48,6 +48,7 @@ examples/
 - `EditorHandle` wrapping `RwSignal<Editor>`
 - Schema-driven rendering (`p`, headings, blockquotes, code, lists, links, images, dividers, …)
 - Pluggable element renderers for application-specific blocks
+- Block/node selection for void blocks: click an image, delete it, arrow out of it, or type to replace it
 - DOM selection ↔ model selection mapping via `data-text-path` attributes
 - `beforeinput` handling for typing, deletion, formatting, undo/redo and IME-safe composition
 - Paste/cut/copy handling with plain text
@@ -141,7 +142,7 @@ let renderers = Renderers::new().element("callout", |ctx| {
 view! { <Editable editor=editor renderers=renderers /> }
 ```
 
-`ElementRenderContext` provides the element, path, rendered children, the editor handle, and inline/void flags. A custom renderer for a void element is responsible for setting `contenteditable="false"`.
+`ElementRenderContext` provides the element, path, rendered children, the editor handle, and inline/void flags. A custom renderer for a void element is responsible for setting `contenteditable="false"`. Use `editor.is_node_selected(&path)` inside a reactive class to show selected chrome.
 
 Custom blocks are ordinary elements in the document, so they serialize, normalize and undo like everything else. The demo uses renderers for a callout, a todo block, and images with alignment/delete controls.
 
@@ -159,6 +160,19 @@ editor.update(|state| {
 ```
 
 Void blocks (images, dividers) automatically get a paragraph after them so typing can continue. `remove_block_at` and `set_node_properties` are available for custom block toolbars.
+
+### Block selection
+
+Void blocks (images, dividers, embeds) are selected as nodes rather than text ranges:
+
+```rust
+editor.select_node(&path);          // clears any text selection
+editor.is_node_selected(&path);     // reactive, for selected chrome
+editor.delete_node_selection();     // Backspace/Delete
+editor.move_selection_off_node(false); // ArrowRight
+```
+
+The built-in void renderer selects on click. Custom renderers can call `editor.select_node(&ctx.path)` and use `is_node_selected` in a reactive class. Backspace/Delete removes the block, Left/Right moves into adjacent text, and typing replaces the block.
 
 ### Images and dropped files
 
@@ -252,7 +266,8 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 - Client-side rendering only; no SSR/hydration adapter yet.
 - A pragmatic core schema instead of Slate's plugin model. Inline elements are supported by the schema/renderer, but rich inline editing (links with editable text, mentions) is minimal.
 - Element rendering is pluggable, but custom text/mark renderers (for example syntax highlighting) are not exposed yet.
-- Block images have custom toolbars, but block/node selection is not implemented yet ([#6](https://github.com/alexichepura/leptoslate/issues/6)); the caret lives in neighboring text.
+- Node selection currently targets single blocks (images, dividers, embeds); multi-block and range-of-blocks selection is not implemented.
+- Undoing the deletion of a block restores the document but places the caret at the document start rather than reselecting the restored block.
 - No collaborative editing, OT/CRDT, or remote operation rebasing.
 - IME composition is reconciled per text node, not with Slate's composition-aware range model.
 - Markdown paste, HTML paste, drag-and-drop and rich clipboard formats are not implemented.

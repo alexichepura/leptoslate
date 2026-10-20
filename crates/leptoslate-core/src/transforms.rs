@@ -36,6 +36,10 @@ impl Editor {
     }
 
     fn insert_text_inner(&mut self, text: &str) {
+        if self.node_selection.is_some() {
+            self.delete_selected_node_inner();
+        }
+
         if self
             .selection
             .as_ref()
@@ -109,6 +113,11 @@ impl Editor {
     }
 
     fn insert_break_inner(&mut self) {
+        if self.node_selection.is_some() {
+            self.delete_selected_node_inner();
+            return;
+        }
+
         if self
             .selection
             .as_ref()
@@ -177,6 +186,7 @@ impl Editor {
 
     pub fn delete_range(&mut self, range: Range) {
         self.transaction(|editor| {
+            editor.node_selection = None;
             editor.selection = Some(range);
             editor.delete_selection_inner();
         });
@@ -203,6 +213,10 @@ impl Editor {
     }
 
     fn delete_selection_inner(&mut self) -> bool {
+        if self.node_selection.is_some() {
+            self.delete_selected_node_inner();
+            return true;
+        }
         let Some(range) = self.selection.clone() else {
             return false;
         };
@@ -283,6 +297,11 @@ impl Editor {
     }
 
     fn delete_backward_inner(&mut self, word: bool) {
+        if self.node_selection.is_some() {
+            self.delete_selected_node_inner();
+            return;
+        }
+
         if self
             .selection
             .as_ref()
@@ -345,6 +364,11 @@ impl Editor {
     }
 
     fn delete_forward_inner(&mut self, word: bool) {
+        if self.node_selection.is_some() {
+            self.delete_selected_node_inner();
+            return;
+        }
+
         if self
             .selection
             .as_ref()
@@ -696,6 +720,9 @@ impl Editor {
 
     /// The leaf block paths intersecting the current selection.
     pub fn blocks_in_selection(&self) -> Vec<Path> {
+        if let Some(node) = &self.node_selection {
+            return vec![node.clone()];
+        }
         let Some(range) = &self.selection else {
             return Vec::new();
         };
@@ -825,6 +852,7 @@ impl Editor {
     /// Insert text at an explicit point.
     pub fn insert_text_at(&mut self, at: &Point, text: &str) {
         self.transaction(|editor| {
+            editor.node_selection = None;
             editor.selection = Some(Range::collapsed(at.clone()));
             editor.insert_text_inner(text);
         });
@@ -896,12 +924,17 @@ impl Editor {
         let mut inserted = None;
 
         self.transaction(|editor| {
-            let point = editor
-                .selection
-                .as_ref()
-                .map(|range| range.start().clone())
-                .or_else(|| editor.end_point())?;
-            let mut block = editor.leaf_block_path(&point)?;
+            let selected_node = editor.node_selection.take();
+            let mut block = if let Some(node) = selected_node {
+                node
+            } else {
+                let point = editor
+                    .selection
+                    .as_ref()
+                    .map(|range| range.start().clone())
+                    .or_else(|| editor.end_point())?;
+                editor.leaf_block_path(&point)?
+            };
             // A block inserted from the toolbar should not land inside a list.
             // Climb out of list ancestors and insert after the list instead.
             while block.len() > 1 {
@@ -977,48 +1010,58 @@ impl Editor {
     /// Remove the block at `at`, moving the caret to a neighbouring block when
     /// possible. Used by custom block toolbars (for example, deleting an image).
     pub fn remove_block_at(&mut self, at: &[usize]) -> Option<Point> {
-        if at.is_empty() || self.node(at).is_none() {
-            return None;
-        }
-
-        self.transaction(|editor| {
-            let parent = at[..at.len() - 1].to_vec();
-            let index = *at.last()?;
-
-            let next = child_path(&parent, index + 1);
-            let previous = index.checked_sub(1).map(|i| child_path(&parent, i));
-
-            let is_void = |path: &[usize]| {
-                editor
-                    .node(path)
-                    .and_then(Node::as_element)
-                    .map(|element| editor.schema.is_void(&element.element_type))
-                    .unwrap_or(false)
-            };
-
-            let target = (!is_void(&next))
-                .then(|| editor.first_text_point_in(&next))
-                .flatten()
-                .or_else(|| {
-                    previous
-                        .filter(|path| !is_void(path))
-                        .and_then(|path| editor.last_text_point_in(&path))
-                });
-
-            if let Some(point) = target {
-                editor.selection = Some(Range::collapsed(point));
-            }
-
-            editor
-                .apply(Operation::RemoveNode { path: at.to_vec() })
-                .ok()?;
-            Some(())
-        });
-
+        self.transaction(|editor| editor.remove_block_at_inner(at));
         if self.selection.is_none() {
             self.selection = self.start_point().map(Range::collapsed);
         }
         self.selection.as_ref().map(|range| range.anchor.clone())
+    }
+
+    fn remove_block_at_inner(&mut self, at: &[usize]) -> Option<Point> {
+        if at.is_empty() || self.node(at).is_none() {
+            return None;
+        }
+        self.node_selection = None;
+
+        let parent = at[..at.len() - 1].to_vec();
+        let index = *at.last()?;
+
+        let next = child_path(&parent, index + 1);
+        let previous = index.checked_sub(1).map(|i| child_path(&parent, i));
+
+        let is_void = |path: &[usize]| {
+            self.node(path)
+                .and_then(Node::as_element)
+                .map(|element| self.schema.is_void(&element.element_type))
+                .unwrap_or(false)
+        };
+
+        let target = (!is_void(&next))
+            .then(|| self.first_text_point_in(&next))
+            .flatten()
+            .or_else(|| {
+                previous
+                    .filter(|path| !is_void(path))
+                    .and_then(|path| self.last_text_point_in(&path))
+            });
+
+        if let Some(point) = target {
+            self.selection = Some(Range::collapsed(point));
+        } else {
+            self.selection = None;
+        }
+
+        self.apply(Operation::RemoveNode { path: at.to_vec() })
+            .ok()?;
+        self.selection.as_ref().map(|range| range.anchor.clone())
+    }
+
+    pub(crate) fn delete_selected_node_inner(&mut self) -> bool {
+        let Some(path) = self.node_selection.take() else {
+            return false;
+        };
+        self.remove_block_at_inner(&path);
+        true
     }
 
     /// Set properties on a single node.
