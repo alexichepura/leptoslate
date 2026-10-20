@@ -51,6 +51,7 @@ examples/
 - DOM selection ↔ model selection mapping via `data-text-path` attributes
 - `beforeinput` handling for typing, deletion, formatting, undo/redo and IME-safe composition
 - Paste/cut/copy handling with plain text
+- File paste/drop hook for image uploads (`FileHandler`)
 - Keyboard shortcuts: ⌘/Ctrl+B, I, U, Z, Shift+Z, Y, A; Tab inserts spaces
 - Placeholder support, active-mark/block state helpers, JSON snapshot
 
@@ -159,6 +160,25 @@ editor.update(|state| {
 
 Void blocks (images, dividers) automatically get a paragraph after them so typing can continue. `remove_block_at` and `set_node_properties` are available for custom block toolbars.
 
+### Images and dropped files
+
+Images are ordinary block elements. The demo inserts them from a URL bar, a file picker, pasted files, or drag/drop:
+
+```rust
+use leptoslate::{Editable, FileHandler};
+
+let files = FileHandler::new(move |files| {
+    for file in files {
+        // read/upload the file, then:
+        // editor.update(|state| state.insert_block_after_selection(image_node(url)));
+    }
+});
+
+view! { <Editable editor=editor on_files=files /> }
+```
+
+`Editable` already handles plain-text paste. When a paste or drop contains files, it calls `on_files` instead, so the application owns upload policy (data URL in the demo, object storage in production). Drag-over displays a drop outline.
+
 ### Slate-compatible values
 
 ```json
@@ -232,7 +252,7 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 - Client-side rendering only; no SSR/hydration adapter yet.
 - A pragmatic core schema instead of Slate's plugin model. Inline elements are supported by the schema/renderer, but rich inline editing (links with editable text, mentions) is minimal.
 - Element rendering is pluggable, but custom text/mark renderers (for example syntax highlighting) are not exposed yet.
-- Block images have custom toolbars, but block/node selection is not implemented; the caret lives in neighboring text.
+- Block images have custom toolbars, but block/node selection is not implemented yet ([#6](https://github.com/alexichepura/leptoslate/issues/6)); the caret lives in neighboring text.
 - No collaborative editing, OT/CRDT, or remote operation rebasing.
 - IME composition is reconciled per text node, not with Slate's composition-aware range model.
 - Markdown paste, HTML paste, drag-and-drop and rich clipboard formats are not implemented.

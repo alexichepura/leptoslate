@@ -172,11 +172,36 @@ body {
 
 .media-bar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     padding: 10px 14px;
     border-bottom: 1px solid var(--line);
     background: var(--surface-soft);
+}
+
+.media-hint {
+    margin-left: auto;
+    color: var(--faint);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.file-tool {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.file-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
 }
 
 .media-bar.hidden {

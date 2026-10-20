@@ -17,6 +17,7 @@
 
 pub mod dom;
 pub mod handle;
+mod media;
 mod render;
 mod renderers;
 
@@ -24,6 +25,7 @@ mod editable;
 
 pub use editable::{keep_selection, select_point, Editable};
 pub use handle::EditorHandle;
+pub use media::FileHandler;
 pub use renderers::{ElementRenderContext, Renderers};
 
 pub use leptoslate_core as core;
@@ -63,6 +65,12 @@ pub const EDITOR_STYLES: &str = r#"
 
 .ls-text:empty::before {
     content: "\200b";
+}
+
+.ls-editor.ls-dragging {
+    outline: 2px dashed rgba(180, 83, 42, 0.55);
+    outline-offset: -6px;
+    background: rgba(180, 83, 42, 0.04);
 }
 
 .ls-block {

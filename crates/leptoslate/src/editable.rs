@@ -5,9 +5,14 @@ use leptos::prelude::*;
 use leptoslate_core::Point;
 use serde_json::Value;
 use wasm_bindgen::JsCast;
-use web_sys::{ClipboardEvent, CompositionEvent, Element, InputEvent, KeyboardEvent, MouseEvent};
+use web_sys::{
+    ClipboardEvent, CompositionEvent, DragEvent, Element, InputEvent, KeyboardEvent, MouseEvent,
+};
 
-use crate::{dom, handle::EditorHandle, render::render_nodes, renderers::Renderers, EDITOR_STYLES};
+use crate::{
+    dom, handle::EditorHandle, media::FileHandler, render::render_nodes, renderers::Renderers,
+    EDITOR_STYLES,
+};
 
 /// A Slate-style rich text editor surface for Leptos.
 ///
@@ -28,9 +33,13 @@ pub fn Editable(
     /// Custom element renderers for application-specific blocks.
     #[prop(optional)]
     renderers: Renderers,
+    /// Receives files pasted or dropped onto the editor.
+    #[prop(optional)]
+    on_files: Option<FileHandler>,
 ) -> impl IntoView {
     let content_ref = NodeRef::<Div>::new();
     let composing = RwSignal::new(false);
+    let dragging = RwSignal::new(false);
 
     let view_editor = editor.clone();
     let render_editor = editor.clone();
@@ -156,6 +165,7 @@ pub fn Editable(
 
     let paste_editor = editor.clone();
     let paste_ref = content_ref;
+    let paste_files = on_files.clone();
     let handle_paste = move |ev: ClipboardEvent| {
         ev.prevent_default();
         let Some(root) = paste_ref.get() else {
@@ -163,12 +173,57 @@ pub fn Editable(
         };
         sync_from_dom(&paste_editor, root.unchecked_ref());
 
-        let text = ev
-            .clipboard_data()
+        let data = ev.clipboard_data();
+        let files = data
+            .as_ref()
+            .and_then(|data| data.files())
+            .map(|files| collect_files(&files))
+            .unwrap_or_default();
+        if !files.is_empty() {
+            if let Some(handler) = &paste_files {
+                handler.call(files);
+            }
+            return;
+        }
+
+        let text = data
             .and_then(|data| data.get_data("text/plain").ok())
             .unwrap_or_default();
         if !text.is_empty() {
             paste_editor.insert_plain_text(&text);
+        }
+    };
+
+    let drop_editor = editor.clone();
+    let drop_ref = content_ref;
+    let drop_files = on_files.clone();
+    let handle_drag_over = move |ev: DragEvent| {
+        ev.prevent_default();
+        dragging.set(true);
+    };
+    let handle_drag_leave = move |ev: DragEvent| {
+        ev.prevent_default();
+        dragging.set(false);
+    };
+    let handle_drop = move |ev: DragEvent| {
+        ev.prevent_default();
+        dragging.set(false);
+        let Some(root) = drop_ref.get() else {
+            return;
+        };
+        sync_from_dom(&drop_editor, root.unchecked_ref());
+        let Some(data) = ev.data_transfer() else {
+            return;
+        };
+        let files = data
+            .files()
+            .map(|files| collect_files(&files))
+            .unwrap_or_default();
+        if files.is_empty() {
+            return;
+        }
+        if let Some(handler) = &drop_files {
+            handler.call(files);
         }
     };
 
@@ -325,6 +380,10 @@ pub fn Editable(
                 on:paste=handle_paste
                 on:copy=handle_copy
                 on:cut=handle_cut
+                on:dragover=handle_drag_over
+                on:dragleave=handle_drag_leave
+                on:drop=handle_drop
+                class:ls-dragging=move || dragging.get()
                 on:compositionstart=handle_composition_start
                 on:compositionend=handle_composition_end
             >
@@ -341,6 +400,12 @@ pub fn Editable(
             </div>
         </div>
     }
+}
+
+fn collect_files(files: &web_sys::FileList) -> Vec<web_sys::File> {
+    (0..files.length())
+        .filter_map(|index| files.get(index))
+        .collect()
 }
 
 fn sync_from_dom(editor: &EditorHandle, root: &Element) {
