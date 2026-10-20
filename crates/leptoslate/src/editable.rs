@@ -7,7 +7,7 @@ use serde_json::Value;
 use wasm_bindgen::JsCast;
 use web_sys::{ClipboardEvent, CompositionEvent, Element, InputEvent, KeyboardEvent, MouseEvent};
 
-use crate::{dom, handle::EditorHandle, render::render_nodes, EDITOR_STYLES};
+use crate::{dom, handle::EditorHandle, render::render_nodes, renderers::Renderers, EDITOR_STYLES};
 
 /// A Slate-style rich text editor surface for Leptos.
 ///
@@ -25,11 +25,15 @@ pub fn Editable(
     /// Placeholder shown when the document is empty.
     #[prop(optional, into)]
     placeholder: String,
+    /// Custom element renderers for application-specific blocks.
+    #[prop(optional)]
+    renderers: Renderers,
 ) -> impl IntoView {
     let content_ref = NodeRef::<Div>::new();
     let composing = RwSignal::new(false);
 
     let view_editor = editor.clone();
+    let render_editor = editor.clone();
     let document = Memo::new(move |_| {
         view_editor
             .state
@@ -326,7 +330,13 @@ pub fn Editable(
             >
                 {move || {
                     let (schema, children) = document.get();
-                    render_nodes(&schema, &children, &[])
+                    render_nodes(
+                        &renderers,
+                        &render_editor,
+                        &schema,
+                        &children,
+                        &[],
+                    )
                 }}
             </div>
         </div>

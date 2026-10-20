@@ -885,3 +885,171 @@ impl Editor {
         self.transaction(|editor| editor.apply(operation))
     }
 }
+
+impl Editor {
+    /// Insert a block immediately after the block containing the selection.
+    ///
+    /// Returns the path of the inserted block. If the node is a void block, a
+    /// following paragraph is created (or reused) and the caret moves there, so
+    /// the user can keep typing.
+    pub fn insert_block_after_selection(&mut self, node: Node) -> Option<Path> {
+        let mut inserted = None;
+
+        self.transaction(|editor| {
+            let point = editor
+                .selection
+                .as_ref()
+                .map(|range| range.start().clone())
+                .or_else(|| editor.end_point())?;
+            let mut block = editor.leaf_block_path(&point)?;
+            // A block inserted from the toolbar should not land inside a list.
+            // Climb out of list ancestors and insert after the list instead.
+            while block.len() > 1 {
+                let parent = block[..block.len() - 1].to_vec();
+                match editor.element(&parent) {
+                    Some(element) if editor.schema.is_list(&element.element_type) => {
+                        block = parent;
+                    }
+                    _ => break,
+                }
+            }
+            let parent = block[..block.len() - 1].to_vec();
+            let index = *block.last()?;
+
+            let is_void = match &node {
+                Node::Element(element) => editor.schema.is_void(&element.element_type),
+                Node::Text(_) => false,
+            };
+
+            let node = match node {
+                Node::Element(mut element) => {
+                    if element.children.is_empty() && !is_void {
+                        element.children.push(Node::empty_text());
+                    }
+                    Node::Element(element)
+                }
+                node => node,
+            };
+
+            let insert_at = child_path(&parent, index + 1);
+            editor
+                .apply(Operation::InsertNode {
+                    path: insert_at.clone(),
+                    node,
+                })
+                .ok()?;
+            inserted = Some(insert_at.clone());
+
+            if is_void {
+                let next_at = child_path(&parent, index + 2);
+                let next_is_textual = editor
+                    .node(&next_at)
+                    .and_then(Node::as_element)
+                    .map(|element| {
+                        !editor.schema.is_void(&element.element_type)
+                            && !editor.schema.is_inline(&element.element_type)
+                    })
+                    .unwrap_or(false);
+
+                if !next_is_textual {
+                    let paragraph = Node::Element(Element::empty(&editor.schema.default_block));
+                    editor
+                        .apply(Operation::InsertNode {
+                            path: next_at.clone(),
+                            node: paragraph,
+                        })
+                        .ok()?;
+                }
+
+                if let Some(point) = editor.first_text_point_in(&next_at) {
+                    editor.selection = Some(Range::collapsed(point));
+                }
+            } else if let Some(point) = editor.first_text_point_in(&insert_at) {
+                editor.selection = Some(Range::collapsed(point));
+            }
+
+            Some(())
+        });
+
+        inserted
+    }
+
+    /// Remove the block at `at`, moving the caret to a neighbouring block when
+    /// possible. Used by custom block toolbars (for example, deleting an image).
+    pub fn remove_block_at(&mut self, at: &[usize]) -> Option<Point> {
+        if at.is_empty() || self.node(at).is_none() {
+            return None;
+        }
+
+        self.transaction(|editor| {
+            let parent = at[..at.len() - 1].to_vec();
+            let index = *at.last()?;
+
+            let next = child_path(&parent, index + 1);
+            let previous = index.checked_sub(1).map(|i| child_path(&parent, i));
+
+            let is_void = |path: &[usize]| {
+                editor
+                    .node(path)
+                    .and_then(Node::as_element)
+                    .map(|element| editor.schema.is_void(&element.element_type))
+                    .unwrap_or(false)
+            };
+
+            let target = (!is_void(&next))
+                .then(|| editor.first_text_point_in(&next))
+                .flatten()
+                .or_else(|| {
+                    previous
+                        .filter(|path| !is_void(path))
+                        .and_then(|path| editor.last_text_point_in(&path))
+                });
+
+            if let Some(point) = target {
+                editor.selection = Some(Range::collapsed(point));
+            }
+
+            editor
+                .apply(Operation::RemoveNode { path: at.to_vec() })
+                .ok()?;
+            Some(())
+        });
+
+        if self.selection.is_none() {
+            self.selection = self.start_point().map(Range::collapsed);
+        }
+        self.selection.as_ref().map(|range| range.anchor.clone())
+    }
+
+    /// Set properties on a single node.
+    pub fn set_node_properties(&mut self, at: &[usize], properties: Props) {
+        self.transaction(|editor| {
+            let _ = editor.apply(Operation::SetNode {
+                path: at.to_vec(),
+                properties: Props::new(),
+                new_properties: properties,
+            });
+        });
+    }
+
+    /// Remove properties from a single node.
+    pub fn unset_node_properties(&mut self, at: &[usize], keys: &[&str]) {
+        self.transaction(|editor| {
+            let mut properties = Props::new();
+            for key in keys {
+                properties.insert((*key).to_string(), Value::Null);
+            }
+            let _ = editor.apply(Operation::SetNode {
+                path: at.to_vec(),
+                properties: Props::new(),
+                new_properties: properties,
+            });
+        });
+    }
+}
+
+fn child_path(parent: &[usize], index: usize) -> Path {
+    let mut path = parent.to_vec();
+    path.push(index);
+    path
+}

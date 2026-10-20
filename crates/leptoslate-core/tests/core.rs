@@ -493,3 +493,109 @@ fn props_macro_builds_json_objects() {
     assert_eq!(properties.get("bold"), Some(&serde_json::Value::Bool(true)));
     assert_eq!(properties.get("level"), Some(&serde_json::json!(2)));
 }
+
+#[test]
+fn insert_block_after_selection_selects_the_new_block() {
+    let mut editor = Editor::new(vec![p("hello")]);
+    editor.select_point(Point::new(vec![0, 0], 2));
+    let inserted = editor.insert_block_after_selection(Node::Element(
+        Element::new("callout", vec![]).with_property("tone", serde_json::json!("info")),
+    ));
+
+    assert_eq!(inserted, Some(vec![1]));
+    assert_eq!(editor.children.len(), 2);
+    assert_eq!(editor.children[1].element_type(), Some("callout"));
+    assert_eq!(editor.children[1].string(), "");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![1, 0], 0)))
+    );
+    assert!(editor.undo());
+    assert_eq!(editor.children.len(), 1);
+}
+
+#[test]
+fn inserting_a_void_block_creates_a_paragraph_after_it() {
+    let mut editor = Editor::new(vec![p("hello")]);
+    editor.select_point(Point::new(vec![0, 0], 5));
+    let image = Node::Element(
+        Element::new("img", vec![Node::empty_text()])
+            .with_property("src", serde_json::json!("https://example.com/a.png")),
+    );
+    let inserted = editor.insert_block_after_selection(image);
+
+    assert_eq!(inserted, Some(vec![1]));
+    assert_eq!(editor.children.len(), 3);
+    assert_eq!(editor.children[1].element_type(), Some("img"));
+    assert_eq!(editor.children[2].element_type(), Some("p"));
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![2, 0], 0)))
+    );
+}
+
+#[test]
+fn removing_a_block_moves_the_caret_to_a_neighbour() {
+    let mut editor = Editor::new(vec![
+        p("before"),
+        Node::Element(Element::empty("img")),
+        p("after"),
+    ]);
+    editor.select_point(Point::new(vec![0, 0], 2));
+    let caret = editor.remove_block_at(&[1]);
+
+    assert_eq!(editor.children.len(), 2);
+    assert_eq!(editor.children[0].string(), "before");
+    assert_eq!(editor.children[1].string(), "after");
+    assert_eq!(caret, Some(Point::new(vec![1, 0], 0)));
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![1, 0], 0)))
+    );
+}
+
+#[test]
+fn node_properties_can_be_changed_and_undone() {
+    let mut editor = Editor::new(vec![Node::Element(
+        Element::new("todo", vec![Node::Text(Text::new("task"))])
+            .with_property("checked", serde_json::json!(false)),
+    )]);
+    let mut properties = leptoslate_core::Props::new();
+    properties.insert("checked".into(), serde_json::json!(true));
+    editor.set_node_properties(&[0], properties);
+    assert_eq!(
+        editor.element(&[0]).unwrap().properties.get("checked"),
+        Some(&serde_json::json!(true))
+    );
+    assert!(editor.undo());
+    assert_eq!(
+        editor.element(&[0]).unwrap().properties.get("checked"),
+        Some(&serde_json::json!(false))
+    );
+}
+
+#[test]
+fn inserting_a_block_inside_a_list_goes_after_the_list() {
+    let mut editor = Editor::new(vec![
+        p("before"),
+        Node::Element(Element::new(
+            "ul",
+            vec![Node::Element(Element::new(
+                "li",
+                vec![Node::Text(Text::new("item"))],
+            ))],
+        )),
+        p("after"),
+    ]);
+    editor.select_point(Point::new(vec![1, 0, 0], 2));
+    let inserted = editor.insert_block_after_selection(Node::Element(Element::new(
+        "callout",
+        vec![Node::Text(Text::new("note"))],
+    )));
+
+    assert_eq!(inserted, Some(vec![2]));
+    assert_eq!(editor.children.len(), 4);
+    assert_eq!(editor.children[1].element_type(), Some("ul"));
+    assert_eq!(editor.children[2].element_type(), Some("callout"));
+    assert_eq!(editor.children[3].element_type(), Some("p"));
+}

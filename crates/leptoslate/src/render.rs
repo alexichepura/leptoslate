@@ -6,24 +6,40 @@ use leptoslate_core::{
     Element, Node, Props, Schema, Text,
 };
 
-use crate::dom::path_string;
+use crate::{
+    dom::path_string,
+    handle::EditorHandle,
+    renderers::{ElementRenderContext, Renderers},
+};
 
-pub(crate) fn render_nodes(schema: &Schema, nodes: &[Node], parent: &[usize]) -> Vec<AnyView> {
+pub(crate) fn render_nodes(
+    renderers: &Renderers,
+    editor: &EditorHandle,
+    schema: &Schema,
+    nodes: &[Node],
+    parent: &[usize],
+) -> Vec<AnyView> {
     nodes
         .iter()
         .enumerate()
         .map(|(index, node)| {
             let mut path = parent.to_vec();
             path.push(index);
-            render_node(schema, node, &path)
+            render_node(renderers, editor, schema, node, &path)
         })
         .collect()
 }
 
-pub(crate) fn render_node(schema: &Schema, node: &Node, path: &[usize]) -> AnyView {
+pub(crate) fn render_node(
+    renderers: &Renderers,
+    editor: &EditorHandle,
+    schema: &Schema,
+    node: &Node,
+    path: &[usize],
+) -> AnyView {
     match node {
         Node::Text(text) => render_text(text, path),
-        Node::Element(element) => render_element(schema, element, path),
+        Node::Element(element) => render_element(renderers, editor, schema, element, path),
     }
 }
 
@@ -37,7 +53,13 @@ fn render_text(text: &Text, path: &[usize]) -> AnyView {
     .into_any()
 }
 
-fn render_element(schema: &Schema, element: &Element, path: &[usize]) -> AnyView {
+fn render_element(
+    renderers: &Renderers,
+    editor: &EditorHandle,
+    schema: &Schema,
+    element: &Element,
+    path: &[usize],
+) -> AnyView {
     let rule = schema
         .rule(&element.element_type)
         .cloned()
@@ -46,28 +68,48 @@ fn render_element(schema: &Schema, element: &Element, path: &[usize]) -> AnyView
     let node_path = path_string(path);
     let element_type = element.element_type.clone();
 
-    if rule.void {
-        return render_void(element, &node_path);
-    }
+    let children: Vec<AnyView> = if rule.void {
+        Vec::new()
+    } else {
+        element
+            .children
+            .iter()
+            .enumerate()
+            .map(|(index, child)| {
+                let mut child_path = path.to_vec();
+                child_path.push(index);
+                render_node(renderers, editor, schema, child, &child_path)
+            })
+            .collect()
+    };
 
-    let children: Vec<AnyView> = element
-        .children
-        .iter()
-        .enumerate()
-        .map(|(index, child)| {
-            let mut child_path = path.to_vec();
-            child_path.push(index);
-            render_node(schema, child, &child_path)
-        })
-        .collect();
-
-    let tag = rule.tag.clone();
-    let class = if rule.inline {
+    let mut class = if rule.inline {
         format!("ls-inline ls-inline-{}", element.element_type)
     } else {
         format!("ls-block ls-block-{}", element.element_type)
     };
+    if rule.void {
+        class.push_str(" ls-void");
+    }
 
+    if let Some(renderer) = renderers.get(&element.element_type) {
+        return renderer(ElementRenderContext {
+            element: element.clone(),
+            path: path.to_vec(),
+            node_path,
+            class,
+            children,
+            editor: editor.clone(),
+            is_inline: rule.inline,
+            is_void: rule.void,
+        });
+    }
+
+    if rule.void {
+        return render_void(element, &node_path, class);
+    }
+
+    let tag = rule.tag.clone();
     if rule.inline {
         return render_inline(
             &tag,
@@ -174,8 +216,7 @@ fn render_inline(
     }
 }
 
-fn render_void(element: &Element, node_path: &str) -> AnyView {
-    let class = format!("ls-block ls-void ls-block-{}", element.element_type);
+fn render_void(element: &Element, node_path: &str, class: String) -> AnyView {
     let element_type = element.element_type.clone();
 
     match element_type.as_str() {

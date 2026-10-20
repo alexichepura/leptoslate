@@ -47,6 +47,7 @@ examples/
 
 - `EditorHandle` wrapping `RwSignal<Editor>`
 - Schema-driven rendering (`p`, headings, blockquotes, code, lists, links, images, dividers, …)
+- Pluggable element renderers for application-specific blocks
 - DOM selection ↔ model selection mapping via `data-text-path` attributes
 - `beforeinput` handling for typing, deletion, formatting, undo/redo and IME-safe composition
 - Paste/cut/copy handling with plain text
@@ -115,6 +116,48 @@ editor.update(|state| {
     state.select_all();
 });
 ```
+
+### Custom blocks
+
+Register a Leptos view for any element type:
+
+```rust
+use leptos::prelude::*;
+use leptoslate::{Editable, EditorHandle, Renderers};
+
+let renderers = Renderers::new().element("callout", |ctx| {
+    let class = ctx.class_with("callout");
+    let node_path = ctx.node_path;
+    let children = ctx.children;
+    view! {
+        <aside class=class data-node-path=node_path>
+            {children}
+        </aside>
+    }
+    .into_any()
+});
+
+view! { <Editable editor=editor renderers=renderers /> }
+```
+
+`ElementRenderContext` provides the element, path, rendered children, the editor handle, and inline/void flags. A custom renderer for a void element is responsible for setting `contenteditable="false"`.
+
+Custom blocks are ordinary elements in the document, so they serialize, normalize and undo like everything else. The demo uses renderers for a callout, a todo block, and images with alignment/delete controls.
+
+Insert them with the core API:
+
+```rust
+use leptoslate::{Element, Node};
+
+editor.update(|state| {
+    state.insert_block_after_selection(Node::Element(
+        Element::new("callout", vec![Node::empty_text()])
+            .with_property("tone", serde_json::json!("info")),
+    ));
+});
+```
+
+Void blocks (images, dividers) automatically get a paragraph after them so typing can continue. `remove_block_at` and `set_node_properties` are available for custom block toolbars.
 
 ### Slate-compatible values
 
@@ -188,7 +231,8 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 
 - Client-side rendering only; no SSR/hydration adapter yet.
 - A pragmatic core schema instead of Slate's plugin model. Inline elements are supported by the schema/renderer, but rich inline editing (links with editable text, mentions) is minimal.
-- Element rendering is schema-driven HTML tags; custom Leptos components per element type are not pluggable yet.
+- Element rendering is pluggable, but custom text/mark renderers (for example syntax highlighting) are not exposed yet.
+- Block images have custom toolbars, but block/node selection is not implemented; the caret lives in neighboring text.
 - No collaborative editing, OT/CRDT, or remote operation rebasing.
 - IME composition is reconciled per text node, not with Slate's composition-aware range model.
 - Markdown paste, HTML paste, drag-and-drop and rich clipboard formats are not implemented.
