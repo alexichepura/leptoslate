@@ -1,7 +1,8 @@
 use leptos::prelude::*;
 use leptoslate::{Editable, EditorHandle, Element, FileHandler, Node, Props, Renderers, Text};
 use serde_json::{json, Value};
-use wasm_bindgen::JsCast;
+use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+use web_sys::{KeyboardEvent, MouseEvent};
 
 fn text(value: &str) -> Node {
     Node::Text(Text::new(value))
@@ -99,6 +100,8 @@ fn demo_renderers() -> Renderers {
             let children = ctx.children;
             let editor = ctx.editor.clone();
             let path = ctx.path.clone();
+            let toggle_editor = editor.clone();
+            let toggle_path = path.clone();
 
             view! {
                 <div class=class data-node-path=node_path data-type=element_type>
@@ -109,13 +112,21 @@ fn demo_renderers() -> Renderers {
                         contenteditable="false"
                         aria-label="Toggle todo"
                         aria-pressed=if checked { "true" } else { "false" }
-                        on:mousedown=move |ev| ev.prevent_default()
-                        on:click=move |ev| {
+                        on:mousedown=move |ev: MouseEvent| {
                             ev.prevent_default();
                             let mut properties = Props::new();
                             properties.insert("checked".into(), Value::Bool(!checked));
                             let path = path.clone();
                             editor.update(|state| state.set_node_properties(&path, properties));
+                        }
+                        on:keydown=move |ev: KeyboardEvent| {
+                            if ev.key() == "Enter" || ev.key() == " " {
+                                ev.prevent_default();
+                                let mut properties = Props::new();
+                                properties.insert("checked".into(), Value::Bool(!checked));
+                                let path = toggle_path.clone();
+                                toggle_editor.update(|state| state.set_node_properties(&path, properties));
+                            }
                         }
                     >
                         {if checked { "✓" } else { "" }}
@@ -173,8 +184,7 @@ fn demo_renderers() -> Renderers {
                             contenteditable="false"
                             title="Cycle alignment"
                             aria-label="Cycle image alignment"
-                            on:mousedown=move |ev| ev.prevent_default()
-                            on:click=move |ev| {
+                            on:mousedown=move |ev: MouseEvent| {
                                 ev.prevent_default();
                                 ev.stop_propagation();
                                 let mut properties = Props::new();
@@ -190,8 +200,7 @@ fn demo_renderers() -> Renderers {
                             contenteditable="false"
                             title="Delete image"
                             aria-label="Delete image"
-                            on:mousedown=move |ev| ev.prevent_default()
-                            on:click=move |ev| {
+                            on:mousedown=move |ev: MouseEvent| {
                                 ev.prevent_default();
                                 ev.stop_propagation();
                                 let path = delete_path.clone();
@@ -378,9 +387,42 @@ fn ListButton(editor: EditorHandle, list_type: &'static str, label: &'static str
     }
 }
 
+fn install_test_hook(editor: EditorHandle) {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let hook = js_sys::Object::new();
+
+    let json_editor = editor.clone();
+    let json = Closure::<dyn Fn() -> JsValue>::new(move || {
+        JsValue::from_str(&json_editor.state.with_untracked(|state| state.to_json()))
+    });
+    let _ = js_sys::Reflect::set(&hook, &"json".into(), json.as_ref().unchecked_ref());
+    json.forget();
+
+    let selection = Closure::<dyn Fn() -> JsValue>::new(move || {
+        let value = editor.state.with_untracked(|state| {
+            serde_json::json!({
+                "selection": state.selection,
+                "nodeSelection": state.node_selection,
+            })
+        });
+        JsValue::from_str(&value.to_string())
+    });
+    let _ = js_sys::Reflect::set(
+        &hook,
+        &"selection".into(),
+        selection.as_ref().unchecked_ref(),
+    );
+    selection.forget();
+
+    let _ = js_sys::Reflect::set(&window, &"__leptoslate".into(), &hook.into());
+}
+
 #[component]
 fn App() -> impl IntoView {
     let editor = EditorHandle::new(initial_document());
+    install_test_hook(editor.clone());
     let renderers = demo_renderers();
     let show_json = RwSignal::new(false);
     let show_image = RwSignal::new(false);

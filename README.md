@@ -229,11 +229,33 @@ Then open <http://localhost:8080>.
 
 ## Tests
 
+Rust tests:
+
 ```bash
 cargo test --workspace
 ```
 
-The core test suite covers serialization, typing, block splitting, merging, cross-block deletion, marks, undo/redo, normalization, lists, block conversion and Unicode offsets.
+The core test suite covers serialization, typing, block splitting, merging, cross-block deletion, marks, undo/redo, normalization, lists, block conversion, node selection and Unicode offsets.
+
+Browser tests use Playwright against the real Trunk build:
+
+```bash
+cd e2e
+npm ci
+npx playwright install chromium
+npm test
+```
+
+The config starts `trunk build` and serves `examples/demo/dist`, so the tests exercise the same DOM, input events and WASM binary as the demo. Coverage includes typing and selection sync, Enter/Backspace, toolbar marks, undo coalescing, paste, custom blocks, image insert/select/delete/undo, image toolbar controls, built-in void blocks and IME composition reconciliation.
+
+The demo exposes a small test hook:
+
+```js
+window.__leptoslate.json()       // Slate-shaped document JSON
+window.__leptoslate.selection()  // text range + node selection
+```
+
+CI runs formatting, clippy, Rust tests, the wasm build and Playwright on every push/PR.
 
 ## How it maps to Slate
 

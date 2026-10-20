@@ -12,6 +12,7 @@ leptos = { workspace = true, features = ["csr"] }
 console_error_panic_hook = { workspace = true }
 serde_json = { workspace = true }
 wasm-bindgen = { workspace = true }
+js-sys = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
@@ -22,4 +23,5 @@ features = [
     "FileList",
     "FileReader",
     "HtmlInputElement",
+    "Window",
 ]
