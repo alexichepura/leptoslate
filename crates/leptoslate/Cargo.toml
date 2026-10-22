@@ -11,6 +11,7 @@ leptoslate-core = { path = "../leptoslate-core" }
 leptos = { workspace = true }
 wasm-bindgen = { workspace = true }
 console_error_panic_hook = { workspace = true }
+send_wrapper = { workspace = true }
 serde_json = { workspace = true }
 
 [dependencies.web-sys]

@@ -3,8 +3,9 @@
 use leptos::html::Div;
 use leptos::prelude::*;
 use leptoslate_core::{Editor, Element as SlateElement, Node, Point, Range};
+use send_wrapper::SendWrapper;
 use serde_json::Value;
-use wasm_bindgen::JsCast;
+use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
     ClipboardEvent, CompositionEvent, DragEvent, Element, InputEvent, KeyboardEvent, MouseEvent,
 };
@@ -70,6 +71,7 @@ pub fn Editable(
     let drag_block = RwSignal::new(None::<usize>);
     let drop_index = RwSignal::new(None::<usize>);
     let drop_style = RwSignal::new(String::new());
+    let selection_listener = StoredValue::new(None::<SendWrapper<Closure<dyn FnMut()>>>);
 
     let view_editor = editor.clone();
     let render_editor = editor.clone();
@@ -743,6 +745,74 @@ pub fn Editable(
             });
         });
     }
+
+    let listener_editor = editor.clone();
+    let listener_ref = content_ref;
+    let listener_composing = composing;
+    Effect::new(move |_| {
+        let Some(root) = listener_ref.get() else {
+            return;
+        };
+        if selection_listener.with_value(|listener| listener.is_some()) {
+            return;
+        }
+        let root = SendWrapper::new(root);
+        let editor = listener_editor.clone();
+        let listener = Closure::<dyn FnMut()>::new(move || {
+            if listener_composing.get_untracked() {
+                return;
+            }
+            let root: &Element = root.unchecked_ref();
+            if !dom::has_focus(root) {
+                return;
+            }
+            sync_from_dom(&editor, root);
+        });
+        if let Some(document) = web_sys::window().and_then(|window| window.document()) {
+            let _ = document.add_event_listener_with_callback(
+                "selectionchange",
+                listener.as_ref().unchecked_ref(),
+            );
+        }
+        selection_listener.set_value(Some(SendWrapper::new(listener)));
+    });
+    on_cleanup(move || {
+        selection_listener.with_value(|listener| {
+            if let Some(listener) = listener {
+                if let Some(document) = web_sys::window().and_then(|window| window.document()) {
+                    let _ = document.remove_event_listener_with_callback(
+                        "selectionchange",
+                        listener.as_ref().unchecked_ref(),
+                    );
+                }
+            }
+        });
+    });
+
+    let dismiss_hover = {
+        let hovered = hovered_block;
+        let bubble = bubble_visible;
+        let drop = drop_index;
+        window_event_listener_untyped("scroll", move |_| {
+            hovered.set(None);
+            bubble.set(false);
+            drop.set(None);
+        })
+    };
+    let dismiss_resize = {
+        let hovered = hovered_block;
+        let bubble = bubble_visible;
+        let drop = drop_index;
+        window_event_listener_untyped("resize", move |_| {
+            hovered.set(None);
+            bubble.set(false);
+            drop.set(None);
+        })
+    };
+    on_cleanup(move || {
+        dismiss_hover.remove();
+        dismiss_resize.remove();
+    });
 
     // Keep the browser caret in sync with the model after reactive renders.
     let effect_editor = editor.clone();

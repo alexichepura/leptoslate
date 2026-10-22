@@ -1,6 +1,6 @@
 //! Undo/redo history.
 
-use crate::{Operation, Range};
+use crate::{Operation, Path, Range};
 
 /// A group of operations applied as a single undoable unit.
 #[derive(Clone, Debug)]
@@ -9,6 +9,8 @@ pub struct HistoryBatch {
     pub ops: Vec<(Operation, Operation)>,
     pub before_selection: Option<Range>,
     pub after_selection: Option<Range>,
+    pub before_node_selection: Option<Path>,
+    pub after_node_selection: Option<Path>,
 }
 
 impl HistoryBatch {
