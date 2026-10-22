@@ -1537,6 +1537,23 @@ impl Editor {
 }
 
 impl Editor {
+    /// Move a top-level block to a final index. `to` is the index in the
+    /// post-removal list (0..len-1).
+    pub fn move_block(&mut self, from: usize, to: usize) -> bool {
+        self.transaction(|editor| {
+            let len = editor.children.len();
+            if from >= len || to >= len || from == to {
+                return false;
+            }
+            editor
+                .apply(Operation::MoveNode {
+                    path: vec![from],
+                    new_path: vec![to],
+                })
+                .is_ok()
+        })
+    }
+
     /// Insert a block immediately after an explicit block path.
     pub fn insert_block_after(&mut self, at: &[usize], node: Node) -> Option<Path> {
         let mut inserted = None;

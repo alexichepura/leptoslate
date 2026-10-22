@@ -67,6 +67,9 @@ pub fn Editable(
     let hover_style = RwSignal::new(String::new());
     let bubble_visible = RwSignal::new(false);
     let bubble_style = RwSignal::new(String::new());
+    let drag_block = RwSignal::new(None::<usize>);
+    let drop_index = RwSignal::new(None::<usize>);
+    let drop_style = RwSignal::new(String::new());
 
     let view_editor = editor.clone();
     let render_editor = editor.clone();
@@ -324,18 +327,72 @@ pub fn Editable(
 
     let drop_editor = editor.clone();
     let drop_ref = content_ref;
+    let drop_shell_ref = shell_ref;
     let drop_files = on_files.clone();
     let handle_drag_over = move |ev: DragEvent| {
         ev.prevent_default();
+
+        if drag_block.get_untracked().is_some() {
+            dragging.set(false);
+            let (Some(content), Some(shell)) = (drop_ref.get(), drop_shell_ref.get()) else {
+                return;
+            };
+            let count = drop_editor
+                .state
+                .with_untracked(|state| state.children.len());
+            if let Some((boundary, style)) =
+                block_drop_target(content.unchecked_ref(), shell.unchecked_ref(), &ev, count)
+            {
+                drop_style.set(style);
+                drop_index.set(Some(boundary));
+            }
+            return;
+        }
+
         dragging.set(true);
     };
     let handle_drag_leave = move |ev: DragEvent| {
         ev.prevent_default();
-        dragging.set(false);
+        if drag_block.get_untracked().is_none() {
+            dragging.set(false);
+        }
     };
     let handle_drop = move |ev: DragEvent| {
         ev.prevent_default();
         dragging.set(false);
+
+        if let Some(from) = drag_block.get_untracked() {
+            let (Some(content), Some(shell)) = (drop_ref.get(), drop_shell_ref.get()) else {
+                drag_block.set(None);
+                drop_index.set(None);
+                return;
+            };
+            let count = drop_editor
+                .state
+                .with_untracked(|state| state.children.len());
+            if let Some((boundary, _)) =
+                block_drop_target(content.unchecked_ref(), shell.unchecked_ref(), &ev, count)
+            {
+                let to = if from < boundary {
+                    boundary - 1
+                } else {
+                    boundary
+                };
+                if to < count && to != from {
+                    drop_editor.update(|state| {
+                        state.move_block(from, to);
+                    });
+                }
+            }
+            drag_block.set(None);
+            drop_index.set(None);
+            if let Some(root) = drop_ref.get() {
+                let _ = root.focus();
+            }
+            return;
+        }
+
+        drop_index.set(None);
         let Some(root) = drop_ref.get() else {
             return;
         };
@@ -513,6 +570,56 @@ pub fn Editable(
             }
             editor.update(|state| {
                 state.remove_block_at(&path);
+            });
+            hovered.set(None);
+        }
+    };
+
+    let drag_start = {
+        let hovered = hovered_block;
+        move |ev: DragEvent| {
+            let Some(path) = hovered.get_untracked() else {
+                return;
+            };
+            let Some(index) = path.first().copied() else {
+                return;
+            };
+            drag_block.set(Some(index));
+            if let Some(data) = ev.data_transfer() {
+                data.set_effect_allowed("move");
+                let _ = data.set_data("text/plain", "block");
+            }
+        }
+    };
+
+    let drag_end = move |_ev: DragEvent| {
+        drag_block.set(None);
+        drop_index.set(None);
+    };
+
+    let move_block_key = {
+        let editor = editor.clone();
+        let hovered = hovered_block;
+        move |ev: KeyboardEvent| {
+            let direction = match ev.key().as_str() {
+                "ArrowUp" => -1isize,
+                "ArrowDown" => 1,
+                _ => return,
+            };
+            ev.prevent_default();
+            let Some(path) = hovered.get_untracked() else {
+                return;
+            };
+            let Some(from) = path.first().copied() else {
+                return;
+            };
+            let to = from as isize + direction;
+            if to < 0 {
+                return;
+            }
+            let to = to as usize;
+            editor.update(|state| {
+                state.move_block(from, to);
             });
             hovered.set(None);
         }
@@ -780,7 +887,11 @@ pub fn Editable(
         <div
             node_ref=shell_ref
             class=shell_class
-            on:mouseleave=move |_| hovered_block.set(None)
+            on:mouseleave=move |_| {
+                hovered_block.set(None);
+                drag_block.set(None);
+                drop_index.set(None);
+            }
         >
             <div
                 node_ref=content_ref
@@ -831,8 +942,31 @@ pub fn Editable(
                 class="ls-hover-bar"
                 class:visible=move || hovered_block.get().is_some()
                 style=move || hover_style.get()
-                on:mousedown=move |ev| ev.prevent_default()
+                on:mousedown=move |ev: MouseEvent| {
+                    if let Some(target) = ev
+                        .target()
+                        .and_then(|target| target.dyn_into::<Element>().ok())
+                    {
+                        if target.closest(".ls-drag-handle").ok().flatten().is_some() {
+                            return;
+                        }
+                    }
+                    ev.prevent_default();
+                }
             >
+                <span
+                    class="ls-drag-handle"
+                    draggable="true"
+                    role="button"
+                    tabindex="0"
+                    title="Drag to move (↑/↓)"
+                    aria-label="Drag to move"
+                    on:dragstart=drag_start
+                    on:dragend=drag_end
+                    on:keydown=move_block_key
+                >
+                    "⠿"
+                </span>
                 <button
                     type="button"
                     title="Add block below"
@@ -858,6 +992,11 @@ pub fn Editable(
                     "✕"
                 </button>
             </div>
+            <div
+                class="ls-drop-indicator"
+                class:visible=move || drop_index.get().is_some()
+                style=move || drop_style.get()
+            ></div>
             <div
                 class="ls-selection-bubble"
                 class:visible=move || bubble_visible.get()
@@ -918,6 +1057,52 @@ pub fn Editable(
             </div>
         </div>
     }
+}
+
+fn block_drop_target(
+    content: &Element,
+    shell: &Element,
+    event: &DragEvent,
+    count: usize,
+) -> Option<(usize, String)> {
+    let target = event
+        .target()
+        .and_then(|target| target.dyn_into::<Element>().ok());
+    let block = target.and_then(|target| target.closest("[data-node-path]").ok().flatten());
+
+    let shell_rect = shell.get_bounding_client_rect();
+    let (boundary, line_y, left, width) = if let Some(block) = block {
+        let path = block
+            .get_attribute("data-node-path")
+            .as_deref()
+            .and_then(dom::parse_path)?;
+        let index = *path.first()?;
+        let block = content
+            .query_selector(&format!("[data-node-path=\"{index}\"]"))
+            .ok()
+            .flatten()
+            .unwrap_or(block);
+        let rect = block.get_bounding_client_rect();
+        let after = event.client_y() as f64 > rect.top() + rect.height() / 2.0;
+        (
+            index + usize::from(after),
+            if after { rect.bottom() } else { rect.top() },
+            rect.left(),
+            rect.width(),
+        )
+    } else {
+        let rect = content.get_bounding_client_rect();
+        (count, rect.bottom(), rect.left(), rect.width())
+    };
+
+    let boundary = boundary.min(count);
+    let style = format!(
+        "left:{}px;width:{}px;top:{}px;",
+        left - shell_rect.left(),
+        width,
+        line_y - shell_rect.top()
+    );
+    Some((boundary, style))
 }
 
 fn mention_trigger_at(editor: &Editor) -> Option<MentionTrigger> {

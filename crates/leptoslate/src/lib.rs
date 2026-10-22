@@ -126,6 +126,45 @@ pub const EDITOR_STYLES: &str = r#"
     color: #1f2430;
 }
 
+.ls-hover-bar .ls-drag-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    color: #6b7280;
+    font-size: 13px;
+    line-height: 1;
+    cursor: grab;
+    user-select: none;
+}
+
+.ls-hover-bar .ls-drag-handle:hover {
+    background: #f3f4f6;
+    color: #1f2430;
+}
+
+.ls-hover-bar .ls-drag-handle:active {
+    cursor: grabbing;
+}
+
+.ls-drop-indicator {
+    position: absolute;
+    z-index: 28;
+    height: 2px;
+    border-radius: 2px;
+    background: #b4532a;
+    box-shadow: 0 0 0 2px rgba(180, 83, 42, 0.12);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.08s ease;
+}
+
+.ls-drop-indicator.visible {
+    opacity: 1;
+}
+
 .ls-selection-bubble {
     position: absolute;
     z-index: 35;

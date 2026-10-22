@@ -186,6 +186,49 @@ test("hover bar adds, duplicates, and deletes blocks", async ({ page }) => {
   await expect.poll(async () => (await getJson(page)).length).toBe(13);
 });
 
+test("drag handle reorders blocks and undo restores order", async ({ page }) => {
+  const block = page.locator('[data-node-path="2"]');
+  await block.hover();
+  await expect(page.locator(".ls-hover-bar")).toHaveClass(/visible/);
+
+  const handle = await page.getByTitle("Drag to move (↑/↓)").boundingBox();
+  const target = await page.locator('[data-node-path="1"]').boundingBox();
+  expect(handle).not.toBeNull();
+  expect(target).not.toBeNull();
+  await page.mouse.move(handle!.x + handle!.width / 2, handle!.y + handle!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target!.x + 100, target!.y + 5, { steps: 10 });
+  await page.mouse.up();
+
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      return [plainText(json[1]), plainText(json[2])];
+    })
+    .toEqual([
+      "Select some text and try the toolbar. The value is plain serde-compatible JSON, so it can be persisted, diffed or sent to a server unchanged.",
+      "A Rust rewrite of Slate for Leptos. The document model, operations, normalization engine and undo history are pure Rust; this page is the Leptos view layer.",
+    ]);
+
+  await page.getByTitle("Undo (⌘Z)").click();
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      return plainText(json[1]);
+    })
+    .toContain("A Rust rewrite of Slate");
+
+  await block.hover();
+  await page.getByTitle("Drag to move (↑/↓)").focus();
+  await page.keyboard.press("ArrowUp");
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      return plainText(json[1]);
+    })
+    .toContain("Select some text");
+});
+
 test("custom todo state and toolbar-inserted callouts are serialized", async ({
   page,
 }) => {

@@ -1062,3 +1062,19 @@ fn inserts_a_block_after_an_explicit_block_path() {
     assert!(editor.undo());
     assert_eq!(editor.children.len(), 2);
 }
+
+#[test]
+fn moves_top_level_blocks_and_undoes() {
+    let mut editor = Editor::new(vec![p("a"), p("b"), p("c")]);
+    editor.select_point(Point::new(vec![0, 0], 0));
+
+    assert!(editor.move_block(0, 2));
+    assert_eq!(editor.document_string(), "b\nc\na\n");
+    assert!(editor.undo());
+    assert_eq!(editor.document_string(), "a\nb\nc\n");
+
+    assert!(editor.move_block(2, 0));
+    assert_eq!(editor.document_string(), "c\na\nb\n");
+    assert!(!editor.move_block(0, 0));
+    assert!(!editor.move_block(9, 0));
+}
