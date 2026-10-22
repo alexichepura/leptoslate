@@ -236,6 +236,34 @@ fn render_inline_void(
     node_path: &str,
     class: String,
 ) -> AnyView {
+    if element.element_type == "inline-image" {
+        let src = get_str(&element.properties, "src")
+            .unwrap_or("")
+            .to_string();
+        let alt = get_str(&element.properties, "alt")
+            .unwrap_or("")
+            .to_string();
+        let click_editor = editor.clone();
+        let click_path = path.to_vec();
+        let select = move |ev: MouseEvent| {
+            ev.prevent_default();
+            click_editor.select_after_node(&click_path);
+        };
+        return view! {
+            <img
+                class=class
+                src=src
+                alt=alt
+                data-node-path=node_path
+                data-type="inline-image"
+                contenteditable="false"
+                draggable="false"
+                on:click=select
+            />
+        }
+        .into_any();
+    }
+
     let label = get_str(&element.properties, "label")
         .map(str::to_string)
         .or_else(|| get_str(&element.properties, "name").map(|name| format!("@{name}")))

@@ -436,11 +436,48 @@ pub fn Editable(
             .files()
             .map(|files| collect_files(&files))
             .unwrap_or_default();
-        if files.is_empty() {
+        if !files.is_empty() {
+            if let Some(handler) = &drop_files {
+                handler.call(files);
+            }
             return;
         }
-        if let Some(handler) = &drop_files {
-            handler.call(files);
+
+        if let Some(window) = web_sys::window() {
+            if let Some(document) = window.document() {
+                if let Some(position) =
+                    document.caret_position_from_point(ev.client_x() as f32, ev.client_y() as f32)
+                {
+                    if let (Some(node), Ok(range)) =
+                        (position.offset_node(), document.create_range())
+                    {
+                        let offset = position.offset();
+                        if range.set_start(&node, offset).is_ok()
+                            && range.set_end(&node, offset).is_ok()
+                        {
+                            if let Ok(Some(selection)) = window.get_selection() {
+                                let _ = selection.remove_all_ranges();
+                                let _ = selection.add_range(&range);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        sync_from_dom(&drop_editor, root.unchecked_ref());
+
+        let html = data.get_data("text/html").unwrap_or_default();
+        if paste_html && !html.trim().is_empty() {
+            let nodes = leptoslate_core::fragment::parse_html(&html);
+            if !nodes.is_empty() {
+                drop_editor.insert_fragment(nodes);
+                return;
+            }
+        }
+
+        let text = data.get_data("text/plain").unwrap_or_default();
+        if !text.is_empty() {
+            drop_editor.insert_plain_text(&text);
         }
     };
 
