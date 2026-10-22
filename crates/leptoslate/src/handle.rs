@@ -184,6 +184,11 @@ impl EditorHandle {
         self.update(|editor| editor.replace_range_with_inline_node(range, node))
     }
 
+    /// Move a top-level block to a final index.
+    pub fn move_block(&self, from: usize, to: usize) -> bool {
+        self.update(|editor| editor.move_block(from, to))
+    }
+
     /// Insert a parsed fragment at the current selection.
     pub fn insert_fragment(&self, nodes: Vec<Node>) {
         self.update(|editor| editor.insert_fragment(nodes));

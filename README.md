@@ -52,7 +52,7 @@ examples/
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
 - Inline void mentions: `@`-triggered picker, atoms, atom deletion, and custom renderers
 - Rich fragment paste: HTML by default, optional Markdown parsing, with inline marks/links preserved
-- Block hover bar with add-below, duplicate and delete actions
+- Block hover bar with add-below, duplicate, delete and drag-reorder actions
 - Selection bubble toolbar for marks near a text selection
 - DOM selection ↔ model selection mapping via `data-text-path` attributes
 - `beforeinput` handling for typing, deletion, formatting, undo/redo and IME-safe composition
@@ -166,6 +166,14 @@ editor.update(|state| {
 
 Void blocks (images, dividers) automatically get a paragraph after them so typing can continue. `remove_block_at` and `set_node_properties` are available for custom block toolbars.
 
+### Block reordering
+
+The hover-bar drag handle reorders top-level blocks. The core operation is also available directly:
+
+```rust
+editor.move_block(0, 2); // final index after removal
+```
+
 ### Selection bubble
 
 Enable a floating mark bar for non-collapsed selections:
@@ -184,7 +192,7 @@ Enable a floating bar next to the hovered block:
 view! { <Editable editor=editor hover_bar=true /> }
 ```
 
-The bar provides add-below, duplicate and delete actions. It keeps editor focus, uses the current schema's default block type for new blocks, and hides when the mouse leaves the editor surface.
+The bar provides add-below, duplicate, delete and drag-reorder actions. Drag the handle to move a top-level block; a drop line shows the insertion point. With the handle focused, `ArrowUp` / `ArrowDown` also reorder blocks. The bar keeps editor focus, uses the current schema's default block type for new blocks, and hides when the mouse leaves the editor surface.
 
 ### Rich paste
 
