@@ -2,7 +2,7 @@
 
 use leptos::html::Div;
 use leptos::prelude::*;
-use leptoslate_core::{Editor, Point, Range};
+use leptoslate_core::{Editor, Element as SlateElement, Node, Point, Range};
 use serde_json::Value;
 use wasm_bindgen::JsCast;
 use web_sys::{
@@ -50,12 +50,18 @@ pub fn Editable(
     /// Called when an `@query` mention trigger starts, changes, ends, or is dismissed.
     #[prop(optional)]
     on_mention: Option<MentionHandler>,
+    /// Show a floating block-action bar on hover.
+    #[prop(default = false)]
+    hover_bar: bool,
 ) -> impl IntoView {
     let content_ref = NodeRef::<Div>::new();
+    let shell_ref = NodeRef::<Div>::new();
     let composing = RwSignal::new(false);
     let dragging = RwSignal::new(false);
     let mention_dismissed = RwSignal::new(false);
     let notified_trigger = RwSignal::new(None::<Option<MentionTrigger>>);
+    let hovered_block = RwSignal::new(None::<Vec<usize>>);
+    let hover_style = RwSignal::new(String::new());
 
     let view_editor = editor.clone();
     let render_editor = editor.clone();
@@ -373,6 +379,129 @@ pub fn Editable(
         cut_editor.delete_selection();
     };
 
+    let hover_content_ref = content_ref;
+    let hover_shell_ref = shell_ref;
+    let handle_hover = move |ev: MouseEvent| {
+        if !hover_bar {
+            return;
+        }
+        let Some(content) = hover_content_ref.get() else {
+            return;
+        };
+        let Some(target) = ev
+            .target()
+            .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+        else {
+            return;
+        };
+        let Some(node) = target.closest("[data-node-path]").ok().flatten() else {
+            web_sys::console::log_1(
+                &format!("HOVER no node target={}", target.class_name()).into(),
+            );
+            return;
+        };
+        web_sys::console::log_1(
+            &format!(
+                "HOVER node={} attr={:?}",
+                node.class_name(),
+                node.get_attribute("data-node-path")
+            )
+            .into(),
+        );
+        let Some(path) = node
+            .get_attribute("data-node-path")
+            .as_deref()
+            .and_then(dom::parse_path)
+        else {
+            return;
+        };
+        let Some(block_index) = path.first().copied() else {
+            return;
+        };
+        let Some(block) = content
+            .query_selector(&format!("[data-node-path=\"{block_index}\"]"))
+            .ok()
+            .flatten()
+        else {
+            return;
+        };
+        let Some(shell) = hover_shell_ref.get() else {
+            return;
+        };
+        let block_rect = block.get_bounding_client_rect();
+        let shell_rect = shell.get_bounding_client_rect();
+        let left = (block_rect.left() - shell_rect.left() - 36.0).max(2.0);
+        let bar_top = (block_rect.top() - shell_rect.top()).max(0.0) + 2.0;
+        hover_style.set(format!("left:{left}px;top:{bar_top}px;"));
+        hovered_block.set(Some(vec![block_index]));
+    };
+
+    let add_block = {
+        let editor = editor.clone();
+        let hovered = hovered_block;
+        let content = content_ref;
+        move |_| {
+            let Some(path) = hovered.get_untracked() else {
+                return;
+            };
+            let Some(block_type) = editor
+                .state
+                .with_untracked(|state| Some(state.schema.default_block.clone()))
+            else {
+                return;
+            };
+            if let Some(root) = content.get() {
+                let _ = root.focus();
+            }
+            editor.update(|state| {
+                state.insert_block_after(&path, Node::Element(SlateElement::empty(&block_type)));
+            });
+            hovered.set(None);
+        }
+    };
+
+    let duplicate_block = {
+        let editor = editor.clone();
+        let hovered = hovered_block;
+        let content = content_ref;
+        move |_| {
+            let Some(path) = hovered.get_untracked() else {
+                return;
+            };
+            let node = editor
+                .state
+                .with_untracked(|state| state.node(&path).cloned());
+            let Some(node) = node else {
+                return;
+            };
+            if let Some(root) = content.get() {
+                let _ = root.focus();
+            }
+            editor.update(|state| {
+                state.insert_block_after(&path, node);
+            });
+            hovered.set(None);
+        }
+    };
+
+    let delete_block = {
+        let editor = editor.clone();
+        let hovered = hovered_block;
+        let content = content_ref;
+        move |_| {
+            let Some(path) = hovered.get_untracked() else {
+                return;
+            };
+            if let Some(root) = content.get() {
+                let _ = root.focus();
+            }
+            editor.update(|state| {
+                state.remove_block_at(&path);
+            });
+            hovered.set(None);
+        }
+    };
+
     let mousedown_editor = editor.clone();
     let handle_mousedown = move |_ev: MouseEvent| {
         mousedown_editor.clear_node_selection();
@@ -528,7 +657,11 @@ pub fn Editable(
 
     view! {
         <style>{EDITOR_STYLES}</style>
-        <div class=shell_class>
+        <div
+            node_ref=shell_ref
+            class=shell_class
+            on:mouseleave=move |_| hovered_block.set(None)
+        >
             <div
                 node_ref=content_ref
                 class="ls-editor"
@@ -544,6 +677,7 @@ pub fn Editable(
                 }
                 on:beforeinput=handle_beforeinput
                 on:input=handle_input
+                on:mousemove=handle_hover
                 on:keydown=handle_keydown
                 on:keyup=handle_keyup
                 on:mousedown=handle_mousedown
@@ -572,6 +706,37 @@ pub fn Editable(
                         &[],
                     )
                 }}
+            </div>
+            <div
+                class="ls-hover-bar"
+                class:visible=move || hovered_block.get().is_some()
+                style=move || hover_style.get()
+                on:mousedown=move |ev| ev.prevent_default()
+            >
+                <button
+                    type="button"
+                    title="Add block below"
+                    aria-label="Add block below"
+                    on:click=add_block
+                >
+                    "+"
+                </button>
+                <button
+                    type="button"
+                    title="Duplicate block"
+                    aria-label="Duplicate block"
+                    on:click=duplicate_block
+                >
+                    "⧉"
+                </button>
+                <button
+                    type="button"
+                    title="Delete block"
+                    aria-label="Delete block"
+                    on:click=delete_block
+                >
+                    "✕"
+                </button>
             </div>
         </div>
     }

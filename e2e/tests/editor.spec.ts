@@ -141,6 +141,29 @@ test("HTML paste preserves blocks, marks, and links", async ({ page }) => {
   expect(json[4].children).toHaveLength(2);
 });
 
+test("hover bar adds, duplicates, and deletes blocks", async ({ page }) => {
+  const block = page.locator('[data-node-path="2"]');
+  await block.hover();
+  await expect(page.locator(".ls-hover-bar")).toHaveClass(/visible/);
+  await page.getByTitle("Add block below").click();
+  await expect.poll(async () => (await getJson(page)).length).toBe(13);
+  await expect(page.locator('[data-node-path="3"]')).toHaveText("");
+
+  await block.hover();
+  await page.getByTitle("Duplicate block").click();
+  await expect.poll(async () => (await getJson(page)).length).toBe(14);
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      return plainText(json[3]);
+    })
+    .toContain("Select some text");
+
+  await page.locator('[data-node-path="3"]').hover();
+  await page.getByTitle("Delete block").click();
+  await expect.poll(async () => (await getJson(page)).length).toBe(13);
+});
+
 test("custom todo state and toolbar-inserted callouts are serialized", async ({
   page,
 }) => {

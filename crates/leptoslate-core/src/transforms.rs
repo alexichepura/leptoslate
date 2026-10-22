@@ -1537,6 +1537,55 @@ impl Editor {
 }
 
 impl Editor {
+    /// Insert a block immediately after an explicit block path.
+    pub fn insert_block_after(&mut self, at: &[usize], node: Node) -> Option<Path> {
+        let mut inserted = None;
+
+        self.transaction(|editor| {
+            if at.is_empty() {
+                return None;
+            }
+            let parent = at[..at.len() - 1].to_vec();
+            let index = *at.last()?;
+            let is_void = match &node {
+                Node::Element(element) => editor.schema.is_void(&element.element_type),
+                Node::Text(_) => false,
+            };
+            let node = match node {
+                Node::Element(mut element) => {
+                    if element.children.is_empty() && !is_void {
+                        element.children.push(Node::empty_text());
+                    }
+                    Node::Element(element)
+                }
+                node => node,
+            };
+
+            let insert_at = child_path(&parent, index + 1);
+            editor.node_selection = None;
+            editor
+                .apply(Operation::InsertNode {
+                    path: insert_at.clone(),
+                    node,
+                })
+                .ok()?;
+            inserted = Some(insert_at.clone());
+
+            if is_void {
+                let next_at = child_path(&parent, index + 2);
+                if let Some(point) = editor.first_text_point_in(&next_at) {
+                    editor.selection = Some(Range::collapsed(point));
+                }
+            } else if let Some(point) = editor.first_text_point_in(&insert_at) {
+                editor.selection = Some(Range::collapsed(point));
+            }
+
+            Some(())
+        });
+
+        inserted
+    }
+
     /// Insert a block immediately after the block containing the selection.
     ///
     /// Returns the path of the inserted block. If the node is a void block, a

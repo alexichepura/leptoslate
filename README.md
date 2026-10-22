@@ -52,6 +52,7 @@ examples/
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
 - Inline void mentions: `@`-triggered picker, atoms, atom deletion, and custom renderers
 - Rich fragment paste: HTML by default, optional Markdown parsing, with inline marks/links preserved
+- Block hover bar with add-below, duplicate and delete actions
 - DOM selection ↔ model selection mapping via `data-text-path` attributes
 - `beforeinput` handling for typing, deletion, formatting, undo/redo and IME-safe composition
 - Paste/cut/copy handling with plain text
@@ -163,6 +164,16 @@ editor.update(|state| {
 ```
 
 Void blocks (images, dividers) automatically get a paragraph after them so typing can continue. `remove_block_at` and `set_node_properties` are available for custom block toolbars.
+
+### Block hover bar
+
+Enable a floating bar next to the hovered block:
+
+```rust
+view! { <Editable editor=editor hover_bar=true /> }
+```
+
+The bar provides add-below, duplicate and delete actions. It keeps editor focus, uses the current schema's default block type for new blocks, and hides when the mouse leaves the editor surface.
 
 ### Rich paste
 

@@ -85,6 +85,47 @@ pub const EDITOR_STYLES: &str = r#"
     border-radius: 4px;
 }
 
+.ls-hover-bar {
+    position: absolute;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    width: 28px;
+    padding: 2px;
+    border: 1px solid rgba(17, 24, 39, 0.09);
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 8px 24px -12px rgba(17, 24, 39, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.1s ease;
+}
+
+.ls-hover-bar.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.ls-hover-bar button {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: #6b7280;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.ls-hover-bar button:hover {
+    background: #f3f4f6;
+    color: #1f2430;
+}
+
 .ls-block {
     display: block;
     min-height: 1.4em;
