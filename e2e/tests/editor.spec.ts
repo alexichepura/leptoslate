@@ -102,6 +102,45 @@ test("multi-line paste creates new blocks", async ({ page }) => {
   await expectTopBlockText(page, 3, "pasted line twoSelect");
 });
 
+test("HTML paste preserves blocks, marks, and links", async ({ page }) => {
+  await setCaret(page, "2.0", 0);
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData(
+      "text/html",
+      '<h2>Pasted</h2><p>Hello <strong>bold</strong> and <a href="https://leptos.dev">link</a></p><ul><li>One</li><li>Two</li></ul>',
+    );
+    data.setData("text/plain", "Pasted\n\nHello bold and link\n\nOne\nTwo");
+    document
+      .querySelector(".ls-editor")!
+      .dispatchEvent(
+        new ClipboardEvent("paste", {
+          clipboardData: data,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+  });
+
+  await expect.poll(async () => (await getJson(page)).length).toBe(15);
+  const json = await getJson(page);
+  expect(json[2].type).toBe("h2");
+  expect(plainText(json[2])).toBe("Pasted");
+  expect(
+    json[3].children?.some(
+      (node) => node.text === "bold" && node.bold === true,
+    ),
+  ).toBe(true);
+  expect(
+    json[3].children?.some(
+      (node) =>
+        node.type === "a" && node.href === "https://leptos.dev",
+    ),
+  ).toBe(true);
+  expect(json[4].type).toBe("ul");
+  expect(json[4].children).toHaveLength(2);
+});
+
 test("custom todo state and toolbar-inserted callouts are serialized", async ({
   page,
 }) => {

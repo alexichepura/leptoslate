@@ -175,6 +175,21 @@ impl EditorHandle {
         self.update(|editor| editor.insert_inline_node(node))
     }
 
+    /// Insert a parsed fragment at the current selection.
+    pub fn insert_fragment(&self, nodes: Vec<Node>) {
+        self.update(|editor| editor.insert_fragment(nodes));
+    }
+
+    /// Parse and insert an HTML fragment.
+    pub fn insert_html(&self, html: &str) {
+        self.update(|editor| editor.insert_html(html));
+    }
+
+    /// Parse and insert a Markdown fragment.
+    pub fn insert_markdown(&self, markdown: &str) {
+        self.update(|editor| editor.insert_markdown(markdown));
+    }
+
     /// Place the caret at the start of the text following a node.
     pub fn select_after_node(&self, path: &[usize]) -> Option<Point> {
         self.update(|editor| editor.select_after_node(path))
