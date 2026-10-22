@@ -53,6 +53,7 @@ examples/
 - Inline void mentions: `@`-triggered picker, atoms, atom deletion, and custom renderers
 - Rich fragment paste: HTML by default, optional Markdown parsing, with inline marks/links preserved
 - Block hover bar with add-below, duplicate, delete and drag-reorder actions
+- Nested lists with Tab/Shift+Tab indentation and list-aware editing
 - Selection bubble toolbar for marks near a text selection
 - DOM selection ↔ model selection mapping via `data-text-path` attributes
 - `beforeinput` handling for typing, deletion, formatting, undo/redo and IME-safe composition
@@ -165,6 +166,17 @@ editor.update(|state| {
 ```
 
 Void blocks (images, dividers) automatically get a paragraph after them so typing can continue. `remove_block_at` and `set_node_properties` are available for custom block toolbars.
+
+### Lists
+
+`Tab` indents the current list item under its previous sibling; `Shift+Tab` outdents it. The same operations are available in core:
+
+```rust
+editor.indent_list();
+editor.outdent_list();
+```
+
+Nested lists are represented as a list inside an `<li>`, with the item's inline content wrapped in a paragraph by normalization. Backspace at the start of the first item lifts it out before the list, at a later item it merges into the previous item, and Enter splits the list item while preserving its nested children.
 
 ### Block reordering
 

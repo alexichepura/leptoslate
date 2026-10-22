@@ -94,7 +94,13 @@ impl Editor {
             });
         }
 
-        let should_have_inlines = if is_root {
+        let has_block = children.iter().any(|child| {
+            child
+                .element_type()
+                .map(|kind| !self.schema.is_inline(kind))
+                .unwrap_or(false)
+        });
+        let should_have_inlines = if is_root || has_block {
             false
         } else {
             let element_type = self

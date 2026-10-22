@@ -213,6 +213,16 @@ impl EditorHandle {
         self.update(|editor| editor.toggle_list(list_type));
     }
 
+    /// Indent the current list item under its previous sibling.
+    pub fn indent_list(&self) -> bool {
+        self.update(Editor::indent_list)
+    }
+
+    /// Outdent the current list item.
+    pub fn outdent_list(&self) -> bool {
+        self.update(Editor::outdent_list)
+    }
+
     pub fn select_all(&self) {
         self.update(Editor::select_all);
     }

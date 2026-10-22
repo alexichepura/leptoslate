@@ -1078,3 +1078,183 @@ fn moves_top_level_blocks_and_undoes() {
     assert!(!editor.move_block(0, 0));
     assert!(!editor.move_block(9, 0));
 }
+
+fn list(list_type: &str, items: Vec<&str>) -> Node {
+    Node::Element(Element::new(
+        list_type,
+        items
+            .into_iter()
+            .map(|item| Node::Element(Element::new("li", vec![Node::Text(Text::new(item))])))
+            .collect(),
+    ))
+}
+
+#[test]
+fn indenting_a_list_item_nests_it_under_the_previous_item() {
+    let mut editor = Editor::new(vec![list("ul", vec!["one", "two", "three"])]);
+    editor.select_point(Point::new(vec![0, 1, 0], 1));
+
+    assert!(editor.indent_list());
+    let ul = editor.element(&[0]).unwrap();
+    assert_eq!(ul.children.len(), 2);
+    assert_eq!(ul.children[0].string(), "onetwo");
+    assert_eq!(ul.children[1].string(), "three");
+    let first = ul.children[0].as_element().unwrap();
+    assert_eq!(first.children.len(), 2);
+    assert_eq!(first.children[0].element_type(), Some("p"));
+    assert_eq!(first.children[0].string(), "one");
+    assert_eq!(first.children[1].element_type(), Some("ul"));
+    assert_eq!(first.children[1].children().len(), 1);
+    assert_eq!(first.children[1].children()[0].string(), "two");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 0, 1, 0, 0], 0)))
+    );
+
+    assert!(editor.undo());
+    assert_eq!(editor.element(&[0]).unwrap().children.len(), 3);
+}
+
+#[test]
+fn cannot_indent_the_first_list_item() {
+    let mut editor = Editor::new(vec![list("ul", vec!["one", "two"])]);
+    editor.select_point(Point::new(vec![0, 0, 0], 0));
+    assert!(!editor.indent_list());
+}
+
+#[test]
+fn outdenting_a_nested_item_moves_it_into_the_parent_list() {
+    let mut editor = Editor::new(vec![Node::Element(Element::new(
+        "ul",
+        vec![
+            Node::Element(Element::new("li", vec![Node::Text(Text::new("one"))])),
+            Node::Element(Element::new(
+                "li",
+                vec![
+                    Node::Text(Text::new("two")),
+                    Node::Element(Element::new(
+                        "ul",
+                        vec![Node::Element(Element::new(
+                            "li",
+                            vec![Node::Text(Text::new("child"))],
+                        ))],
+                    )),
+                ],
+            )),
+        ],
+    ))]);
+    editor.select_point(Point::new(vec![0, 1, 1, 0, 0], 0));
+
+    assert!(editor.outdent_list());
+    let ul = editor.element(&[0]).unwrap();
+    assert_eq!(ul.children.len(), 3);
+    assert_eq!(ul.children[1].string(), "two");
+    assert_eq!(ul.children[2].string(), "child");
+    assert_eq!(ul.children[1].children().len(), 1);
+    assert_eq!(ul.children[1].children()[0].element_type(), Some("p"));
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 2, 0], 0)))
+    );
+}
+
+#[test]
+fn outdenting_a_top_level_item_lifts_it_to_a_paragraph() {
+    let mut editor = Editor::new(vec![list("ul", vec!["one", "two"])]);
+    editor.select_point(Point::new(vec![0, 1, 0], 0));
+
+    assert!(editor.outdent_list());
+    assert_eq!(editor.children.len(), 2);
+    assert_eq!(editor.children[0].element_type(), Some("ul"));
+    assert_eq!(editor.children[0].children().len(), 1);
+    assert_eq!(editor.children[1].element_type(), Some("p"));
+    assert_eq!(editor.children[1].string(), "two");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![1, 0], 0)))
+    );
+}
+
+#[test]
+fn outdenting_the_only_list_item_removes_the_list() {
+    let mut editor = Editor::new(vec![list("ul", vec!["one"])]);
+    editor.select_point(Point::new(vec![0, 0, 0], 0));
+    assert!(editor.outdent_list());
+    assert_eq!(editor.children.len(), 1);
+    assert_eq!(editor.children[0].element_type(), Some("p"));
+    assert_eq!(editor.children[0].string(), "one");
+}
+
+#[test]
+fn backspace_at_the_first_list_item_lifts_it_before_the_list() {
+    let mut editor = Editor::new(vec![list("ul", vec!["one", "two"])]);
+    editor.select_point(Point::new(vec![0, 0, 0], 0));
+
+    editor.delete_backward();
+    assert_eq!(editor.children.len(), 2);
+    assert_eq!(editor.children[0].element_type(), Some("p"));
+    assert_eq!(editor.children[0].string(), "one");
+    assert_eq!(editor.children[1].element_type(), Some("ul"));
+    assert_eq!(editor.children[1].children().len(), 1);
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 0], 0)))
+    );
+}
+
+#[test]
+fn backspace_at_a_later_list_item_merges_it_into_the_previous_item() {
+    let mut editor = Editor::new(vec![list("ul", vec!["one", "two"])]);
+    editor.select_point(Point::new(vec![0, 1, 0], 0));
+
+    editor.delete_backward();
+    assert_eq!(editor.children.len(), 1);
+    assert_eq!(editor.children[0].children().len(), 1);
+    assert_eq!(editor.children[0].string(), "onetwo");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 0, 0], 3)))
+    );
+}
+
+#[test]
+fn normalization_turns_mixed_list_item_content_into_blocks() {
+    let editor = Editor::new(vec![Node::Element(Element::new(
+        "ul",
+        vec![Node::Element(Element::new(
+            "li",
+            vec![Node::Text(Text::new("parent")), list("ul", vec!["child"])],
+        ))],
+    ))]);
+    let li = editor.element(&[0, 0]).unwrap();
+    assert_eq!(li.children.len(), 2);
+    assert_eq!(li.children[0].element_type(), Some("p"));
+    assert_eq!(li.children[0].string(), "parent");
+    assert_eq!(li.children[1].element_type(), Some("ul"));
+}
+
+#[test]
+fn enter_inside_a_list_item_with_block_children_creates_a_new_item() {
+    let mut editor = Editor::new(vec![Node::Element(Element::new(
+        "ul",
+        vec![Node::Element(Element::new(
+            "li",
+            vec![
+                Node::Element(Element::paragraph(vec![Node::Text(Text::new("one"))])),
+                list("ul", vec!["child"]),
+            ],
+        ))],
+    ))]);
+    editor.select_point(Point::new(vec![0, 0, 0, 0], 2));
+    editor.insert_break();
+
+    let outer = editor.element(&[0]).unwrap();
+    assert_eq!(outer.children.len(), 2);
+    assert_eq!(outer.children[0].string(), "on");
+    assert_eq!(outer.children[0].children().len(), 1);
+    assert_eq!(outer.children[0].children()[0].element_type(), Some("p"));
+    assert_eq!(outer.children[1].string(), "echild");
+    assert_eq!(outer.children[1].children().len(), 2);
+    assert_eq!(outer.children[1].children()[0].element_type(), Some("p"));
+    assert_eq!(outer.children[1].children()[1].element_type(), Some("ul"));
+}

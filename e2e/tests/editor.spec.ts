@@ -229,6 +229,55 @@ test("drag handle reorders blocks and undo restores order", async ({ page }) => 
     .toContain("Select some text");
 });
 
+test("Tab and Shift+Tab indent and outdent list items", async ({ page }) => {
+  await setCaret(page, "4.1.0", 1);
+  await page.keyboard.press("Tab");
+
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      const list = json[4];
+      return list.children?.length;
+    })
+    .toBe(3);
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      const firstItem = json[4].children?.[0];
+      const nested = firstItem?.children?.find((node) => node.type === "ul");
+      return nested?.children?.length;
+    })
+    .toBe(1);
+
+  await page.keyboard.press("Shift+Tab");
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      return json[4].children?.length;
+    })
+    .toBe(4);
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      return plainText(json[4].children?.[1] ?? { children: [] });
+    })
+    .toContain("Use ⌘B");
+});
+
+test("Backspace at the first list item lifts it before the list", async ({
+  page,
+}) => {
+  await setCaret(page, "4.0.0", 0);
+  await page.keyboard.press("Backspace");
+
+  await expect.poll(async () => (await getJson(page)).length).toBe(13);
+  const json = await getJson(page);
+  expect(json[4].type).toBe("p");
+  expect(plainText(json[4])).toContain("Type, select and format text");
+  expect(json[5].type).toBe("ul");
+  expect(json[5].children).toHaveLength(3);
+});
+
 test("custom todo state and toolbar-inserted callouts are serialized", async ({
   page,
 }) => {
