@@ -153,8 +153,9 @@ impl Editor {
         // than splitting the whole list; paragraphs inside a blockquote stay
         // inside that blockquote.
         let stop_depth = self
-            .leaf_block_path(&point)
-            .map(|block| block.len())
+            .list_context(&point)
+            .map(|(li, _, _, _)| li.len())
+            .or_else(|| self.leaf_block_path(&point).map(|block| block.len()))
             .unwrap_or(1);
 
         for depth in (stop_depth..leaf.len()).rev() {
@@ -336,6 +337,23 @@ impl Editor {
                 self.selection = Some(Range::collapsed(Point::new(point.path, start)));
             }
             return;
+        }
+
+        if point.offset == 0 {
+            if let Some((li, list, index, _)) = self.list_context(&point) {
+                if self.at_start_of_node(&point, &li) {
+                    if index == 0 {
+                        if self.lift_first_list_item_inner().is_some() {
+                            return;
+                        }
+                    } else if self
+                        .merge_list_item_with_previous_inner(&li, &list, index)
+                        .is_some()
+                    {
+                        return;
+                    }
+                }
+            }
         }
 
         // Backspace immediately after an inline void removes the atom.
@@ -1060,6 +1078,209 @@ impl Editor {
             };
             editor.selection = Some(Range::new(map(&range.anchor), map(&range.focus)));
         });
+    }
+
+    // ---------------------------------------------------------------------
+    // Lists
+    // ---------------------------------------------------------------------
+
+    /// Indent the current list item under its previous sibling.
+    pub fn indent_list(&mut self) -> bool {
+        self.transaction(|editor| editor.indent_list_inner())
+            .is_some()
+    }
+
+    /// Outdent the current list item, lifting it out of the list at the top
+    /// level or into the parent list when nested.
+    pub fn outdent_list(&mut self) -> bool {
+        self.transaction(|editor| editor.outdent_list_inner())
+            .is_some()
+    }
+
+    fn indent_list_inner(&mut self) -> Option<()> {
+        let range = self.selection.clone()?;
+        let point = self.text_point(range.start())?;
+        let (li, list, index, list_type) = self.list_context(&point)?;
+        if index == 0 {
+            return None;
+        }
+
+        let li_node = self.node(&li)?.clone();
+        let previous = child_path(&list, index - 1);
+        self.apply(Operation::RemoveNode { path: li.clone() })
+            .ok()?;
+
+        let previous_children = self.element(&previous)?.children.clone();
+        let nested = previous_children
+            .last()
+            .filter(|node| node.element_type() == Some(list_type.as_str()))
+            .map(|_| child_path(&previous, previous_children.len() - 1));
+
+        let new_li_path = if let Some(nested) = nested {
+            let nested_len = self.element(&nested)?.children.len();
+            let at = child_path(&nested, nested_len);
+            self.apply(Operation::InsertNode {
+                path: at.clone(),
+                node: li_node,
+            })
+            .ok()?;
+            at
+        } else {
+            let new_list = Node::Element(Element::new(list_type, vec![li_node]));
+            let at = child_path(&previous, previous_children.len());
+            self.apply(Operation::InsertNode {
+                path: at.clone(),
+                node: new_list,
+            })
+            .ok()?;
+            child_path(&at, 0)
+        };
+
+        if let Some(point) = self.first_text_point_in(&new_li_path) {
+            self.selection = Some(Range::collapsed(point));
+        }
+        Some(())
+    }
+
+    fn outdent_list_inner(&mut self) -> Option<()> {
+        let range = self.selection.clone()?;
+        let point = self.text_point(range.start())?;
+        let (li, list, _, _) = self.list_context(&point)?;
+        let li_node = self.node(&li)?.clone();
+        let list_len = self.element(&list)?.children.len();
+        let list_top = *list.first()?;
+
+        if list.len() == 1 {
+            let children = li_node.children().to_vec();
+            self.apply(Operation::RemoveNode { path: li }).ok()?;
+            let block = Node::Element(Element::new(self.schema.default_block.clone(), children));
+            let insert_at = if list_len == 1 {
+                self.apply(Operation::RemoveNode { path: list }).ok()?;
+                vec![list_top]
+            } else {
+                vec![list_top + 1]
+            };
+            self.apply(Operation::InsertNode {
+                path: insert_at.clone(),
+                node: block,
+            })
+            .ok()?;
+            if let Some(point) = self.first_text_point_in(&insert_at) {
+                self.selection = Some(Range::collapsed(point));
+            }
+            return Some(());
+        }
+
+        let outer_li = path::parent(&list)?;
+        let outer_list = path::parent(&outer_li)?;
+        let outer_index = *outer_li.last()?;
+
+        self.apply(Operation::RemoveNode { path: li }).ok()?;
+        if list_len == 1 {
+            self.apply(Operation::RemoveNode { path: list }).ok()?;
+        }
+        let insert_at = child_path(&outer_list, outer_index + 1);
+        self.apply(Operation::InsertNode {
+            path: insert_at.clone(),
+            node: li_node,
+        })
+        .ok()?;
+        if let Some(point) = self.first_text_point_in(&insert_at) {
+            self.selection = Some(Range::collapsed(point));
+        }
+        Some(())
+    }
+
+    fn lift_first_list_item_inner(&mut self) -> Option<()> {
+        let range = self.selection.clone()?;
+        let point = self.text_point(range.start())?;
+        let (li, list, index, _) = self.list_context(&point)?;
+        if index != 0 {
+            return None;
+        }
+        if list.len() > 1 {
+            return self.outdent_list_inner();
+        }
+
+        let li_node = self.node(&li)?.clone();
+        let list_top = *list.first()?;
+        let children = li_node.children().to_vec();
+
+        self.apply(Operation::RemoveNode { path: li }).ok()?;
+        if self.element(&list)?.children.is_empty() {
+            self.apply(Operation::RemoveNode { path: list }).ok()?;
+        }
+
+        let block = Node::Element(Element::new(self.schema.default_block.clone(), children));
+        let insert_at = vec![list_top];
+        self.apply(Operation::InsertNode {
+            path: insert_at.clone(),
+            node: block,
+        })
+        .ok()?;
+        if let Some(point) = self.first_text_point_in(&insert_at) {
+            self.selection = Some(Range::collapsed(point));
+        }
+        Some(())
+    }
+
+    fn merge_list_item_with_previous_inner(
+        &mut self,
+        li: &[usize],
+        list: &[usize],
+        index: usize,
+    ) -> Option<()> {
+        if index == 0 {
+            return None;
+        }
+        let previous = child_path(list, index - 1);
+        let junction = self.last_text_point_in(&previous)?;
+        let children = self.element(li)?.children.clone();
+
+        self.apply(Operation::RemoveNode { path: li.to_vec() })
+            .ok()?;
+        let previous_len = self.element(&previous)?.children.len();
+        for (offset, child) in children.into_iter().enumerate() {
+            self.apply(Operation::InsertNode {
+                path: child_path(&previous, previous_len + offset),
+                node: child,
+            })
+            .ok()?;
+        }
+
+        self.selection = Some(Range::collapsed(junction));
+        Some(())
+    }
+
+    fn list_context(&self, point: &Point) -> Option<(Path, Path, usize, String)> {
+        for depth in (1..=point.path.len()).rev() {
+            let candidate = &point.path[..depth];
+            let Some(element) = self.element(candidate) else {
+                continue;
+            };
+            if element.element_type != "li" {
+                continue;
+            }
+            let list = path::parent(candidate)?;
+            let list_element = self.element(&list)?;
+            if !self.schema.is_list(&list_element.element_type) {
+                return None;
+            }
+            let index = *candidate.last()?;
+            return Some((
+                candidate.to_vec(),
+                list,
+                index,
+                list_element.element_type.clone(),
+            ));
+        }
+        None
+    }
+
+    fn at_start_of_node(&self, point: &Point, node: &[usize]) -> bool {
+        self.first_text_point_in(node)
+            .map(|first| first.path == point.path && first.offset == 0)
+            .unwrap_or(false)
     }
 
     /// The leaf block paths intersecting the current selection.

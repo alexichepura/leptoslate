@@ -268,7 +268,11 @@ pub fn Editable(
 
         if key == "Tab" {
             ev.prevent_default();
-            keydown_editor.insert_text("    ");
+            if ev.shift_key() {
+                keydown_editor.outdent_list();
+            } else if !keydown_editor.indent_list() {
+                keydown_editor.insert_text("    ");
+            }
         }
     };
 
