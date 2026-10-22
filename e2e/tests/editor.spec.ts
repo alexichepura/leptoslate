@@ -78,6 +78,28 @@ test("the toolbar applies marks to a text selection", async ({ page }) => {
   await expect(page.getByTitle("Bold (⌘B)")).toHaveClass(/active/);
 });
 
+test("selection bubble applies marks near the selection", async ({ page }) => {
+  await selectText(page, "2.0", 0, 6);
+  const bubble = page.locator(".ls-selection-bubble");
+  await expect(bubble).toHaveClass(/visible/);
+
+  const box = await bubble.boundingBox();
+  expect(box?.width).toBeGreaterThan(0);
+  expect(box?.height).toBeGreaterThan(0);
+
+  await bubble.locator('button[title="Bold"]').click();
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      return json[2].children?.[0]?.bold;
+    })
+    .toBe(true);
+  await expect(bubble).toHaveClass(/visible/);
+
+  await setCaret(page, "2.0", 0);
+  await expect(bubble).not.toHaveClass(/visible/);
+});
+
 test("contiguous typing is one undo step", async ({ page }) => {
   await setCaret(page, "2.0", 0);
   await page.keyboard.type("abc");

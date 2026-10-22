@@ -53,6 +53,9 @@ pub fn Editable(
     /// Show a floating block-action bar on hover.
     #[prop(default = false)]
     hover_bar: bool,
+    /// Show a floating formatting bar for text selections.
+    #[prop(default = false)]
+    selection_bubble: bool,
 ) -> impl IntoView {
     let content_ref = NodeRef::<Div>::new();
     let shell_ref = NodeRef::<Div>::new();
@@ -62,6 +65,8 @@ pub fn Editable(
     let notified_trigger = RwSignal::new(None::<Option<MentionTrigger>>);
     let hovered_block = RwSignal::new(None::<Vec<usize>>);
     let hover_style = RwSignal::new(String::new());
+    let bubble_visible = RwSignal::new(false);
+    let bubble_style = RwSignal::new(String::new());
 
     let view_editor = editor.clone();
     let render_editor = editor.clone();
@@ -379,10 +384,21 @@ pub fn Editable(
         cut_editor.delete_selection();
     };
 
+    let hover_editor = editor.clone();
     let hover_content_ref = content_ref;
     let hover_shell_ref = shell_ref;
     let handle_hover = move |ev: MouseEvent| {
         if !hover_bar {
+            return;
+        }
+        if hover_editor.state.with_untracked(|state| {
+            state
+                .selection
+                .as_ref()
+                .map(|range| !range.is_collapsed())
+                .unwrap_or(false)
+        }) {
+            hovered_block.set(None);
             return;
         }
         let Some(content) = hover_content_ref.get() else {
@@ -619,33 +635,137 @@ pub fn Editable(
 
     // Keep the browser caret in sync with the model after reactive renders.
     let effect_editor = editor.clone();
+    let effect_shell_ref = shell_ref;
     Effect::new(move |_| {
         effect_editor.state.with(|_| ());
         if composing.get_untracked() {
+            bubble_visible.set(false);
             return;
         }
         let Some(root) = content_ref.get() else {
+            bubble_visible.set(false);
             return;
         };
         let root: &Element = root.unchecked_ref();
         if !dom::has_focus(root) {
+            bubble_visible.set(false);
             return;
         }
         if effect_editor
             .state
             .with_untracked(|editor| editor.has_node_selection())
         {
+            bubble_visible.set(false);
             return;
         }
         let selection = effect_editor
             .state
             .with_untracked(|editor| editor.selection.clone());
-        if let Some(selection) = selection {
-            if !dom::selection_matches_dom(root, &selection) {
-                dom::apply_selection_to_dom(root, &selection);
+        if let Some(selection) = &selection {
+            if !dom::selection_matches_dom(root, selection) {
+                dom::apply_selection_to_dom(root, selection);
             }
         }
+
+        let expanded = selection
+            .as_ref()
+            .map(|range| !range.is_collapsed())
+            .unwrap_or(false);
+        if !selection_bubble || !expanded {
+            bubble_visible.set(false);
+            return;
+        }
+
+        let Some(browser_selection) =
+            web_sys::window().and_then(|window| window.get_selection().ok().flatten())
+        else {
+            bubble_visible.set(false);
+            return;
+        };
+        if browser_selection.range_count() == 0 {
+            bubble_visible.set(false);
+            return;
+        }
+        let Ok(range) = browser_selection.get_range_at(0) else {
+            bubble_visible.set(false);
+            return;
+        };
+        let rect = range.get_bounding_client_rect();
+        let Some(shell) = effect_shell_ref.get() else {
+            bubble_visible.set(false);
+            return;
+        };
+        let shell_rect = shell.get_bounding_client_rect();
+        let center = rect.left() - shell_rect.left() + rect.width() / 2.0;
+        let left = center.clamp(86.0, (shell_rect.width() - 86.0).max(86.0));
+        let mut top = rect.top() - shell_rect.top() - 44.0;
+        if top < 4.0 {
+            top = rect.bottom() - shell_rect.top() + 8.0;
+        }
+        bubble_style.set(format!("left:{left}px;top:{top}px;"));
+        bubble_visible.set(true);
     });
+
+    let bubble_bold = {
+        let editor = editor.clone();
+        move |_| editor.toggle_mark("bold", Value::Bool(true))
+    };
+    let bubble_italic = {
+        let editor = editor.clone();
+        move |_| editor.toggle_mark("italic", Value::Bool(true))
+    };
+    let bubble_underline = {
+        let editor = editor.clone();
+        move |_| editor.toggle_mark("underline", Value::Bool(true))
+    };
+    let bubble_strike = {
+        let editor = editor.clone();
+        move |_| editor.toggle_mark("strikethrough", Value::Bool(true))
+    };
+    let bubble_code = {
+        let editor = editor.clone();
+        move |_| editor.toggle_mark("code", Value::Bool(true))
+    };
+    let bubble_bold_active = {
+        let editor = editor.clone();
+        move || {
+            editor
+                .state
+                .with(|state| state.has_mark("bold", &Value::Bool(true)))
+        }
+    };
+    let bubble_italic_active = {
+        let editor = editor.clone();
+        move || {
+            editor
+                .state
+                .with(|state| state.has_mark("italic", &Value::Bool(true)))
+        }
+    };
+    let bubble_underline_active = {
+        let editor = editor.clone();
+        move || {
+            editor
+                .state
+                .with(|state| state.has_mark("underline", &Value::Bool(true)))
+        }
+    };
+    let bubble_strike_active = {
+        let editor = editor.clone();
+        move || {
+            editor
+                .state
+                .with(|state| state.has_mark("strikethrough", &Value::Bool(true)))
+        }
+    };
+    let bubble_code_active = {
+        let editor = editor.clone();
+        move || {
+            editor
+                .state
+                .with(|state| state.has_mark("code", &Value::Bool(true)))
+        }
+    };
 
     let empty_editor = editor.clone();
     let selection_editor = editor.clone();
@@ -736,6 +856,64 @@ pub fn Editable(
                     on:click=delete_block
                 >
                     "✕"
+                </button>
+            </div>
+            <div
+                class="ls-selection-bubble"
+                class:visible=move || bubble_visible.get()
+                style=move || bubble_style.get()
+                on:mousedown=move |ev| ev.prevent_default()
+            >
+                <button
+                    type="button"
+                    class="ls-bubble-mark"
+                    class:active=bubble_bold_active
+                    title="Bold"
+                    aria-label="Bold"
+                    on:click=bubble_bold
+                >
+                    "B"
+                </button>
+                <button
+                    type="button"
+                    class="ls-bubble-mark"
+                    class:active=bubble_italic_active
+                    title="Italic"
+                    aria-label="Italic"
+                    on:click=bubble_italic
+                >
+                    "I"
+                </button>
+                <button
+                    type="button"
+                    class="ls-bubble-mark"
+                    class:active=bubble_underline_active
+                    title="Underline"
+                    aria-label="Underline"
+                    on:click=bubble_underline
+                >
+                    "U"
+                </button>
+                <button
+                    type="button"
+                    class="ls-bubble-mark"
+                    class:active=bubble_strike_active
+                    title="Strikethrough"
+                    aria-label="Strikethrough"
+                    on:click=bubble_strike
+                >
+                    "S"
+                </button>
+                <span class="ls-bubble-divider"></span>
+                <button
+                    type="button"
+                    class="ls-bubble-mark"
+                    class:active=bubble_code_active
+                    title="Inline code"
+                    aria-label="Inline code"
+                    on:click=bubble_code
+                >
+                    "<>"
                 </button>
             </div>
         </div>

@@ -126,6 +126,60 @@ pub const EDITOR_STYLES: &str = r#"
     color: #1f2430;
 }
 
+.ls-selection-bubble {
+    position: absolute;
+    z-index: 35;
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    padding: 3px;
+    border: 1px solid rgba(17, 24, 39, 0.1);
+    border-radius: 9px;
+    background: #fff;
+    box-shadow: 0 10px 30px -14px rgba(17, 24, 39, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%);
+    transition: opacity 0.1s ease;
+}
+
+.ls-selection-bubble.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.ls-selection-bubble .ls-bubble-mark {
+    min-width: 26px;
+    height: 26px;
+    padding: 0 5px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: #4b5563;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.ls-selection-bubble .ls-bubble-mark:hover {
+    background: #f3f4f6;
+    color: #111827;
+}
+
+.ls-selection-bubble .ls-bubble-mark.active {
+    background: #fdeee5;
+    color: #b4532a;
+}
+
+.ls-bubble-divider {
+    width: 1px;
+    height: 18px;
+    margin: 0 2px;
+    background: #e5e7eb;
+}
+
 .ls-block {
     display: block;
     min-height: 1.4em;

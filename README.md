@@ -53,6 +53,7 @@ examples/
 - Inline void mentions: `@`-triggered picker, atoms, atom deletion, and custom renderers
 - Rich fragment paste: HTML by default, optional Markdown parsing, with inline marks/links preserved
 - Block hover bar with add-below, duplicate and delete actions
+- Selection bubble toolbar for marks near a text selection
 - DOM selection ↔ model selection mapping via `data-text-path` attributes
 - `beforeinput` handling for typing, deletion, formatting, undo/redo and IME-safe composition
 - Paste/cut/copy handling with plain text
@@ -164,6 +165,16 @@ editor.update(|state| {
 ```
 
 Void blocks (images, dividers) automatically get a paragraph after them so typing can continue. `remove_block_at` and `set_node_properties` are available for custom block toolbars.
+
+### Selection bubble
+
+Enable a floating mark bar for non-collapsed selections:
+
+```rust
+view! { <Editable editor=editor selection_bubble=true /> }
+```
+
+The bubble offers bold, italic, underline, strikethrough and inline code, keeps the selection when clicked, shows active states, and hides for collapsed selections, node selections or when the editor loses focus. The editor is displayed in the demo with `hover_bar=true` and `selection_bubble=true`.
 
 ### Block hover bar
 

@@ -948,6 +948,7 @@ fn App() -> impl IntoView {
                     on_files=files_handler
                     on_mention=on_mention
                     hover_bar=true
+                    selection_bubble=true
                     placeholder="Start writing…"
                 />
 
