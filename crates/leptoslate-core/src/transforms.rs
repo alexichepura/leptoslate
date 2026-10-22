@@ -338,6 +338,24 @@ impl Editor {
             return;
         }
 
+        // Backspace immediately after an inline void removes the atom.
+        if let Some(previous) = path::previous(&point.path) {
+            let is_inline_void = self
+                .element(&previous)
+                .map(|element| {
+                    self.schema.is_inline(&element.element_type)
+                        && self.schema.is_void(&element.element_type)
+                })
+                .unwrap_or(false);
+            if is_inline_void {
+                let _ = self.apply(Operation::RemoveNode {
+                    path: previous.clone(),
+                });
+                self.selection = Some(Range::collapsed(Point::new(previous, 0)));
+                return;
+            }
+        }
+
         // Delete across inline boundaries (or between adjacent text nodes)
         // when the previous text leaf belongs to the same block.
         if let (Some(block), Some(previous_point)) = (
@@ -428,6 +446,21 @@ impl Editor {
                 });
                 self.selection = Some(Range::collapsed(point));
             }
+            return;
+        }
+
+        // Delete immediately before an inline void removes the atom.
+        let next_sibling = path::next(&point.path);
+        let next_is_inline_void = self
+            .element(&next_sibling)
+            .map(|element| {
+                self.schema.is_inline(&element.element_type)
+                    && self.schema.is_void(&element.element_type)
+            })
+            .unwrap_or(false);
+        if next_is_inline_void {
+            let _ = self.apply(Operation::RemoveNode { path: next_sibling });
+            self.selection = Some(Range::collapsed(point));
             return;
         }
 
@@ -1167,6 +1200,97 @@ impl Editor {
             editor.selection = Some(Range::collapsed(at.clone()));
             editor.insert_text_inner(text);
         });
+    }
+
+    /// Insert an inline node at the caret and move the caret into the text
+    /// after it. Used for mentions, inline embeds and other atoms.
+    pub fn insert_inline_node(&mut self, node: Node) -> Option<Path> {
+        let mut inserted = None;
+
+        self.transaction(|editor| {
+            let is_inline = match &node {
+                Node::Element(element) => editor.schema.is_inline(&element.element_type),
+                Node::Text(_) => false,
+            };
+            if !is_inline {
+                return None;
+            }
+
+            if editor.node_selection.is_some() {
+                editor.delete_selected_node_inner();
+            }
+            if editor
+                .selection
+                .as_ref()
+                .map(|range| !range.is_collapsed())
+                .unwrap_or(false)
+            {
+                editor.delete_selection_inner();
+            }
+
+            let point = editor
+                .selection
+                .as_ref()
+                .map(|range| range.anchor.clone())
+                .or_else(|| editor.end_point())?;
+            let point = editor.text_point(&point)?;
+            if point.path.len() < 2 {
+                return None;
+            }
+
+            let parent = point.path[..point.path.len() - 1].to_vec();
+            if editor
+                .element(&parent)
+                .map(|element| editor.schema.is_inline(&element.element_type))
+                .unwrap_or(false)
+            {
+                return None;
+            }
+
+            let index = *point.path.last()?;
+            let after_path;
+
+            if point.offset > 0 {
+                editor
+                    .apply_split(&point.path, point.offset, Props::new())
+                    .ok()?;
+                let insert_at = child_path(&parent, index + 1);
+                editor
+                    .apply(Operation::InsertNode {
+                        path: insert_at.clone(),
+                        node,
+                    })
+                    .ok()?;
+                inserted = Some(insert_at);
+                after_path = child_path(&parent, index + 2);
+            } else {
+                let insert_at = child_path(&parent, index);
+                editor
+                    .apply(Operation::InsertNode {
+                        path: insert_at.clone(),
+                        node,
+                    })
+                    .ok()?;
+                inserted = Some(insert_at);
+                after_path = child_path(&parent, index + 1);
+            }
+
+            if let Some(point) = editor.first_text_point_in(&after_path) {
+                editor.selection = Some(Range::collapsed(point));
+            }
+
+            Some(())
+        });
+
+        inserted
+    }
+
+    /// Place the caret at the start of the text following a node.
+    pub fn select_after_node(&mut self, at: &[usize]) -> Option<Point> {
+        let next = path::next(at);
+        let point = self.first_text_point_in(&next)?;
+        self.select_point(point.clone());
+        Some(point)
     }
 
     /// Replace the contents of one text node with `text`, applying the

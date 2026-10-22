@@ -42,6 +42,14 @@ impl ElementRule {
             void: true,
         }
     }
+
+    pub fn inline_void(tag: impl Into<String>) -> Self {
+        Self {
+            tag: tag.into(),
+            inline: true,
+            void: true,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -77,6 +85,7 @@ impl Default for Schema {
             .with_rule("img", ElementRule::void("img"))
             .with_rule("a", ElementRule::inline("a"))
             .with_rule("span", ElementRule::inline("span"))
+            .with_rule("mention", ElementRule::inline_void("span"))
     }
 }
 

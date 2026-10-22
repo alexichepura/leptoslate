@@ -107,6 +107,9 @@ fn render_element(
     }
 
     if rule.void {
+        if rule.inline {
+            return render_inline_void(editor, element, path, &node_path, class);
+        }
         return render_void(editor, element, path, &node_path, class);
     }
 
@@ -217,6 +220,39 @@ fn render_inline(
         "mark" => inline!(mark),
         _ => inline!(span),
     }
+}
+
+fn render_inline_void(
+    editor: &EditorHandle,
+    element: &Element,
+    path: &[usize],
+    node_path: &str,
+    class: String,
+) -> AnyView {
+    let label = get_str(&element.properties, "label")
+        .map(str::to_string)
+        .or_else(|| get_str(&element.properties, "name").map(|name| format!("@{name}")))
+        .unwrap_or_else(|| element.element_type.clone());
+    let element_type = element.element_type.clone();
+    let click_editor = editor.clone();
+    let click_path = path.to_vec();
+    let select = move |ev: MouseEvent| {
+        ev.prevent_default();
+        click_editor.select_after_node(&click_path);
+    };
+
+    view! {
+        <span
+            class=class
+            data-node-path=node_path
+            data-type=element_type
+            contenteditable="false"
+            on:click=select
+        >
+            {label}
+        </span>
+    }
+    .into_any()
 }
 
 fn render_void(

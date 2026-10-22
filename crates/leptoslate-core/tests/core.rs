@@ -807,3 +807,116 @@ fn normalization_removes_empty_inline_elements() {
     assert_eq!(editor.children[0].children()[0].string(), "");
     assert_eq!(editor.children[0].children()[0].element_type(), None);
 }
+
+fn mention(name: &str) -> Node {
+    Node::Element(
+        Element::new("mention", vec![Node::empty_text()])
+            .with_property("id", serde_json::json!(name.to_lowercase()))
+            .with_property("name", serde_json::json!(name)),
+    )
+}
+
+#[test]
+fn inline_void_nodes_are_inserted_between_text_and_survive_undo() {
+    let mut editor = Editor::new(vec![p("hello")]);
+    editor.select_point(Point::new(vec![0, 0], 2));
+    let inserted = editor.insert_inline_node(mention("Leptos"));
+    assert_eq!(inserted, Some(vec![0, 1]));
+
+    let children = &editor.element(&[0]).unwrap().children;
+    assert_eq!(children.len(), 3);
+    assert_eq!(children[0].string(), "he");
+    assert_eq!(children[1].element_type(), Some("mention"));
+    assert_eq!(
+        children[1].get_prop("name"),
+        Some(&serde_json::json!("Leptos"))
+    );
+    assert_eq!(children[2].string(), "llo");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 2], 0)))
+    );
+
+    assert!(editor.undo());
+    assert_eq!(editor.children[0].string(), "hello");
+}
+
+#[test]
+fn inline_void_insertion_at_edges_keeps_surrounding_text() {
+    let mut editor = Editor::new(vec![p("ab")]);
+    editor.select_point(Point::new(vec![0, 0], 0));
+    editor.insert_inline_node(mention("Start"));
+    let children = editor.element(&[0]).unwrap().children.clone();
+    assert_eq!(children[1].element_type(), Some("mention"));
+    assert_eq!(children[2].string(), "ab");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 2], 0)))
+    );
+
+    editor.select_point(Point::new(vec![0, 2], 2));
+    editor.insert_inline_node(mention("End"));
+    let children = editor.element(&[0]).unwrap().children.clone();
+    assert_eq!(children[1].element_type(), Some("mention"));
+    assert_eq!(children[2].string(), "ab");
+    assert_eq!(children[3].element_type(), Some("mention"));
+    assert_eq!(children[4].string(), "");
+}
+
+#[test]
+fn backspace_and_delete_remove_inline_voids_as_atoms() {
+    let mut editor = Editor::new(vec![Node::Element(Element::paragraph(vec![
+        Node::Text(Text::new("a")),
+        mention("Atom"),
+        Node::Text(Text::new("b")),
+    ]))]);
+
+    editor.select_point(Point::new(vec![0, 2], 0));
+    editor.delete_backward();
+    assert_eq!(editor.children[0].string(), "ab");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 0], 1)))
+    );
+
+    editor.select_point(Point::new(vec![0, 0], 1));
+    editor.delete_forward();
+    assert_eq!(editor.children[0].string(), "a");
+}
+
+#[test]
+fn selecting_across_an_inline_void_removes_it() {
+    let mut editor = Editor::new(vec![Node::Element(Element::paragraph(vec![
+        Node::Text(Text::new("a")),
+        mention("Atom"),
+        Node::Text(Text::new("b")),
+    ]))]);
+    editor.selection = Some(Range::new(
+        Point::new(vec![0, 0], 1),
+        Point::new(vec![0, 2], 0),
+    ));
+    editor.delete_selection();
+
+    assert_eq!(editor.children[0].string(), "ab");
+    assert!(editor
+        .element(&[0])
+        .unwrap()
+        .children
+        .iter()
+        .all(|node| node.element_type() != Some("mention")));
+}
+
+#[test]
+fn selecting_after_an_inline_void_lands_in_following_text() {
+    let mut editor = Editor::new(vec![Node::Element(Element::paragraph(vec![
+        Node::Text(Text::new("a")),
+        mention("Atom"),
+        Node::Text(Text::new("b")),
+    ]))]);
+    let point = editor.select_after_node(&[0, 1]);
+    assert_eq!(point, Some(Point::new(vec![0, 2], 0)));
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 2], 0)))
+    );
+}

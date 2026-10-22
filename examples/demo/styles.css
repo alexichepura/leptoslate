@@ -447,6 +447,44 @@ body {
     background: var(--accent-soft);
 }
 
+.surface .ls-mention {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 0.38em;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-family: "Inter", -apple-system, sans-serif;
+    font-size: 0.82em;
+    font-weight: 600;
+    line-height: 1.5;
+    user-select: none;
+}
+
+.mention-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+
+.mention-option {
+    padding: 4px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    font-family: "Inter", -apple-system, sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.mention-option:hover {
+    border-color: #f2d6c5;
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
 .surface-footer {
     display: flex;
     align-items: center;
