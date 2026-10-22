@@ -55,6 +55,8 @@ examples/
 - Block hover bar with add-below, duplicate, delete and drag-reorder actions
 - Nested lists with Tab/Shift+Tab indentation and list-aware editing
 - Selection bubble toolbar for marks near a text selection
+- Model selection syncs from document `selectionchange`, including programmatic selections
+- Undo restores block selection after deleting a void block
 - DOM selection ↔ model selection mapping via `data-text-path` attributes
 - `beforeinput` handling for typing, deletion, formatting, undo/redo and IME-safe composition
 - Paste/cut/copy handling with plain text
@@ -381,7 +383,7 @@ window.__leptoslate.json()       // Slate-shaped document JSON
 window.__leptoslate.selection()  // text range + node selection
 ```
 
-CI runs formatting, clippy, Rust tests, the wasm build and Playwright on every push/PR.
+No GitHub Actions workflow is configured; run formatting, clippy, Rust tests, the wasm build and Playwright locally.
 
 ## How it maps to Slate
 
@@ -413,15 +415,15 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 
 - Client-side rendering only; no SSR/hydration adapter yet.
 - A pragmatic core schema instead of Slate's plugin model. Inline links and void mentions are supported.
-- HTML paste covers common rich-text tags; tables and deeply nested lists are flattened.
+- HTML paste covers common rich-text tags; tables and deeply nested lists flatten, and inline images inside paragraphs are skipped ([#31](https://github.com/alexichepura/leptoslate/issues/31)).
 - Markdown paste is opt-in and intentionally small; it is not a full CommonMark implementation.
-- Element rendering is pluggable, but custom text/mark renderers (for example syntax highlighting) are not exposed yet.
-- Node selection currently targets single blocks (images, dividers, embeds); multi-block and range-of-blocks selection is not implemented.
-- Undoing the deletion of a block restores the document but places the caret at the document start rather than reselecting the restored block.
-- No collaborative editing, OT/CRDT, or remote operation rebasing.
+- Element rendering is pluggable, but custom text/mark renderers (for example syntax highlighting) are not exposed yet ([#29](https://github.com/alexichepura/leptoslate/issues/29)).
+- Node selection targets single blocks; multi-block and range-of-blocks selection is not implemented ([#28](https://github.com/alexichepura/leptoslate/issues/28)).
+- List indentation operates on the item under the caret; multi-item indentation is not implemented.
 - IME composition is reconciled per text node, not with Slate's composition-aware range model.
-- Markdown paste, HTML paste, drag-and-drop and rich clipboard formats are not implemented.
-- List toggling operates on the top-level block containing the selection; list indentation/lift commands are not included.
+- The whole rendered document updates when the value changes; there is no benchmark or keyed block rendering yet ([#30](https://github.com/alexichepura/leptoslate/issues/30)).
+- There has not been a full accessibility audit yet ([#32](https://github.com/alexichepura/leptoslate/issues/32)).
+- No collaborative editing, OT/CRDT, or remote operation rebasing.
 
 ## License
 

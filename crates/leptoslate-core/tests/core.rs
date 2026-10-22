@@ -638,6 +638,8 @@ fn deleting_a_selected_node_moves_the_caret_to_the_next_block() {
     assert!(editor.undo());
     assert_eq!(editor.children.len(), 3);
     assert_eq!(editor.children[1].element_type(), Some("img"));
+    assert_eq!(editor.node_selection(), Some([1].as_slice()));
+    assert!(editor.selection.is_none());
 }
 
 #[test]

@@ -21,6 +21,8 @@ struct PendingBatch {
     ops: Vec<(Operation, Operation)>,
     before_selection: Option<Range>,
     after_selection: Option<Range>,
+    before_node_selection: Option<path::Path>,
+    after_node_selection: Option<path::Path>,
 }
 
 impl PendingBatch {
@@ -548,6 +550,8 @@ impl Editor {
             ops: Vec::new(),
             before_selection: self.selection.clone(),
             after_selection: None,
+            before_node_selection: self.node_selection.clone(),
+            after_node_selection: None,
         });
 
         let result = f(self);
@@ -570,6 +574,8 @@ impl Editor {
             ops: Vec::new(),
             before_selection: self.selection.clone(),
             after_selection: None,
+            before_node_selection: self.node_selection.clone(),
+            after_node_selection: None,
         });
 
         let result = self.apply_inner(op);
@@ -603,10 +609,13 @@ impl Editor {
         if let Some(mut batch) = self.batch.take() {
             if !batch.is_empty() {
                 batch.after_selection = self.selection.clone();
+                batch.after_node_selection = self.node_selection.clone();
                 self.history.push(HistoryBatch {
                     ops: batch.ops,
                     before_selection: batch.before_selection,
                     after_selection: batch.after_selection,
+                    before_node_selection: batch.before_node_selection,
+                    after_node_selection: batch.after_node_selection,
                 });
             }
         }
@@ -1022,10 +1031,10 @@ impl Editor {
             let _ = self.apply_value(inverse);
         }
         self.selection = batch.before_selection.clone();
-        self.node_selection = None;
+        self.node_selection = batch.before_node_selection.clone();
         self.marks = None;
         self.sanitize_selection();
-        if self.selection.is_none() {
+        if self.selection.is_none() && self.node_selection.is_none() {
             self.selection = self.start_point().map(Range::collapsed);
         }
         self.history.redo_stack.push(batch);
@@ -1044,10 +1053,10 @@ impl Editor {
             let _ = self.apply_value(operation);
         }
         self.selection = batch.after_selection.clone();
-        self.node_selection = None;
+        self.node_selection = batch.after_node_selection.clone();
         self.marks = None;
         self.sanitize_selection();
-        if self.selection.is_none() {
+        if self.selection.is_none() && self.node_selection.is_none() {
             self.selection = self.start_point().map(Range::collapsed);
         }
         self.history.undo_stack.push(batch);

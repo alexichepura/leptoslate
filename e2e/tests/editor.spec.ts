@@ -100,6 +100,47 @@ test("selection bubble applies marks near the selection", async ({ page }) => {
   await expect(bubble).not.toHaveClass(/visible/);
 });
 
+test("document selectionchange syncs the model selection", async ({ page }) => {
+  await page.evaluate(() => {
+    const editor = document.querySelector(".ls-editor") as HTMLElement;
+    editor.focus();
+    const span = document.querySelector(
+      '[data-text-path="2.0"]',
+    ) as HTMLElement;
+    const range = document.createRange();
+    range.setStart(span.firstChild as Text, 0);
+    range.setEnd(span.firstChild as Text, 6);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+
+  await expect
+    .poll(async () => {
+      const selection = await getSelection(page);
+      return [
+        selection.selection?.anchor.offset,
+        selection.selection?.focus.offset,
+      ];
+    })
+    .toEqual([0, 6]);
+  await expect(page.locator(".ls-selection-bubble")).toHaveClass(/visible/);
+});
+
+test("scroll hides the hover bar and selection bubble", async ({ page }) => {
+  await page.locator('[data-node-path="2"]').hover();
+  await expect(page.locator(".ls-hover-bar")).toHaveClass(/visible/);
+  await page.evaluate(() => window.scrollTo(0, 200));
+  await expect(page.locator(".ls-hover-bar")).not.toHaveClass(/visible/);
+
+  await selectText(page, "2.0", 0, 6);
+  await expect(page.locator(".ls-selection-bubble")).toHaveClass(/visible/);
+  await page.evaluate(() => window.scrollTo(0, 400));
+  await expect(page.locator(".ls-selection-bubble")).not.toHaveClass(
+    /visible/,
+  );
+});
+
 test("contiguous typing is one undo step", async ({ page }) => {
   await setCaret(page, "2.0", 0);
   await page.keyboard.type("abc");
@@ -423,6 +464,7 @@ test("images can be inserted, node-selected, deleted, and restored", async ({
 
   await page.getByTitle("Undo (⌘Z)").click();
   await expect(page.locator(".ls-media")).toHaveCount(1);
+  await expect(page.locator(".ls-media")).toHaveClass(/ls-selected/);
 });
 
 test("image toolbar controls align and delete the block", async ({ page }) => {
