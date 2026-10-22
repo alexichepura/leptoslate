@@ -2,7 +2,7 @@
 
 use leptos::html::Div;
 use leptos::prelude::*;
-use leptoslate_core::Point;
+use leptoslate_core::{Editor, Point, Range};
 use serde_json::Value;
 use wasm_bindgen::JsCast;
 use web_sys::{
@@ -10,7 +10,12 @@ use web_sys::{
 };
 
 use crate::{
-    dom, handle::EditorHandle, media::FileHandler, render::render_nodes, renderers::Renderers,
+    dom,
+    handle::EditorHandle,
+    media::FileHandler,
+    mention::{MentionHandler, MentionTrigger},
+    render::render_nodes,
+    renderers::Renderers,
     EDITOR_STYLES,
 };
 
@@ -42,10 +47,15 @@ pub fn Editable(
     /// Parse plain text as Markdown when no HTML is available.
     #[prop(default = false)]
     paste_markdown: bool,
+    /// Called when an `@query` mention trigger starts, changes, ends, or is dismissed.
+    #[prop(optional)]
+    on_mention: Option<MentionHandler>,
 ) -> impl IntoView {
     let content_ref = NodeRef::<Div>::new();
     let composing = RwSignal::new(false);
     let dragging = RwSignal::new(false);
+    let mention_dismissed = RwSignal::new(false);
+    let notified_trigger = RwSignal::new(None::<Option<MentionTrigger>>);
 
     let view_editor = editor.clone();
     let render_editor = editor.clone();
@@ -146,6 +156,9 @@ pub fn Editable(
     };
 
     let keydown_editor = editor.clone();
+    let keydown_mention_editor = editor.clone();
+    let keydown_mention_handler = on_mention;
+    let keydown_mention_dismissed = mention_dismissed;
     let handle_keydown = move |ev: KeyboardEvent| {
         if ev.is_composing() || ev.key_code() == 229 {
             return;
@@ -153,6 +166,20 @@ pub fn Editable(
         let modifier = ev.meta_key() || ev.ctrl_key();
         let key = ev.key();
         let lower = key.to_ascii_lowercase();
+
+        if key == "Escape" && keydown_mention_handler.is_some() {
+            let active = keydown_mention_editor
+                .state
+                .with_untracked(|state| mention_trigger_at(state).is_some());
+            if active {
+                ev.prevent_default();
+                keydown_mention_dismissed.set(true);
+                if let Some(handler) = &keydown_mention_handler {
+                    handler.run(None);
+                }
+                return;
+            }
+        }
 
         if keydown_editor.has_node_selection() {
             match key.as_str() {
@@ -430,6 +457,37 @@ pub fn Editable(
         sync_from_dom(&composition_editor, root);
     };
 
+    if on_mention.is_some() {
+        let mention_editor = editor.clone();
+        let mention_handler = on_mention;
+        Effect::new(move |_| {
+            mention_editor.state.with(|state| {
+                let trigger = mention_trigger_at(state);
+
+                if trigger.is_none() && mention_dismissed.get_untracked() {
+                    mention_dismissed.set(false);
+                }
+
+                if mention_dismissed.get_untracked() {
+                    if notified_trigger.get_untracked() != Some(None) {
+                        if let Some(handler) = &mention_handler {
+                            handler.run(None);
+                        }
+                        notified_trigger.set(Some(None));
+                    }
+                    return;
+                }
+
+                if notified_trigger.get_untracked() != Some(trigger.clone()) {
+                    if let Some(handler) = &mention_handler {
+                        handler.run(trigger.clone());
+                    }
+                    notified_trigger.set(Some(trigger));
+                }
+            });
+        });
+    }
+
     // Keep the browser caret in sync with the model after reactive renders.
     let effect_editor = editor.clone();
     Effect::new(move |_| {
@@ -519,6 +577,63 @@ pub fn Editable(
     }
 }
 
+fn mention_trigger_at(editor: &Editor) -> Option<MentionTrigger> {
+    let range = editor.selection.as_ref()?;
+    if !range.is_collapsed() {
+        return None;
+    }
+    let point = range.anchor.clone();
+    let text = editor.text(&point.path)?;
+    let chars: Vec<char> = text.text.chars().take(point.offset).collect();
+
+    let mut start = None;
+    for index in (0..chars.len()).rev() {
+        let ch = chars[index];
+        if ch == '@' {
+            start = Some(index);
+            break;
+        }
+        if ch.is_whitespace() {
+            break;
+        }
+    }
+
+    let start = start?;
+    if start > 0 && chars[start - 1].is_alphanumeric() {
+        return None;
+    }
+    if point.path.len() < 2 {
+        return None;
+    }
+
+    let parent = &point.path[..point.path.len() - 1];
+    if editor
+        .element(parent)
+        .map(|element| editor.schema.is_inline(&element.element_type))
+        .unwrap_or(false)
+    {
+        return None;
+    }
+
+    let block = editor.leaf_block_path(&point)?;
+    if editor
+        .element(&block)
+        .map(|element| element.element_type == "code")
+        .unwrap_or(false)
+    {
+        return None;
+    }
+
+    let query: String = chars[start + 1..].iter().collect();
+    Some(MentionTrigger {
+        query,
+        range: Range::new(
+            Point::new(point.path.clone(), start),
+            Point::new(point.path.clone(), point.offset),
+        ),
+    })
+}
+
 fn collect_files(files: &web_sys::FileList) -> Vec<web_sys::File> {
     (0..files.length())
         .filter_map(|index| files.get(index))
@@ -549,4 +664,47 @@ pub fn keep_selection(ev: &web_sys::MouseEvent) {
 /// Move the caret to a specific document point (used by custom widgets).
 pub fn select_point(editor: &EditorHandle, point: Point) {
     editor.update(|state| state.select_point(point));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mention_trigger_at;
+    use leptoslate_core::{Editor, Element, Node, Point, Text};
+
+    fn paragraph(text: &str) -> Node {
+        Node::Element(Element::paragraph(vec![Node::Text(Text::new(text))]))
+    }
+
+    #[test]
+    fn detects_a_mention_query_under_the_caret() {
+        let mut editor = Editor::new(vec![paragraph("hello @lep")]);
+        editor.select_point(Point::new(vec![0, 0], 10));
+        let trigger = mention_trigger_at(&editor).expect("trigger");
+        assert_eq!(trigger.query, "lep");
+        assert_eq!(
+            trigger.range,
+            leptoslate_core::Range::new(Point::new(vec![0, 0], 6), Point::new(vec![0, 0], 10))
+        );
+    }
+
+    #[test]
+    fn ignores_email_like_at_signs_and_whitespace() {
+        let mut editor = Editor::new(vec![paragraph("a@b")]);
+        editor.select_point(Point::new(vec![0, 0], 3));
+        assert!(mention_trigger_at(&editor).is_none());
+
+        let mut editor = Editor::new(vec![paragraph("@lep done")]);
+        editor.select_point(Point::new(vec![0, 0], 9));
+        assert!(mention_trigger_at(&editor).is_none());
+    }
+
+    #[test]
+    fn ignores_code_blocks() {
+        let mut editor = Editor::new(vec![Node::Element(Element::new(
+            "code",
+            vec![Node::Text(Text::new("@lep"))],
+        ))]);
+        editor.select_point(Point::new(vec![0, 0], 4));
+        assert!(mention_trigger_at(&editor).is_none());
+    }
 }

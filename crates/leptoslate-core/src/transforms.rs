@@ -1462,6 +1462,16 @@ impl Editor {
         inserted
     }
 
+    /// Replace a text range with an inline node. Used when accepting a mention
+    /// from an `@query` trigger.
+    pub fn replace_range_with_inline_node(&mut self, range: Range, node: Node) -> Option<Path> {
+        self.transaction(|editor| {
+            editor.node_selection = None;
+            editor.selection = Some(range);
+            editor.insert_inline_node(node)
+        })
+    }
+
     /// Place the caret at the start of the text following a node.
     pub fn select_after_node(&mut self, at: &[usize]) -> Option<Point> {
         let next = path::next(at);

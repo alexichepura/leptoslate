@@ -175,6 +175,15 @@ impl EditorHandle {
         self.update(|editor| editor.insert_inline_node(node))
     }
 
+    /// Replace a text range with an inline node (for mention triggers).
+    pub fn replace_range_with_inline_node(
+        &self,
+        range: leptoslate_core::Range,
+        node: Node,
+    ) -> Option<Path> {
+        self.update(|editor| editor.replace_range_with_inline_node(range, node))
+    }
+
     /// Insert a parsed fragment at the current selection.
     pub fn insert_fragment(&self, nodes: Vec<Node>) {
         self.update(|editor| editor.insert_fragment(nodes));

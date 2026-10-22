@@ -192,6 +192,55 @@ test("links can be applied to a selection and removed", async ({ page }) => {
     .toBe(false);
 });
 
+test("typing @ opens the picker and inserts the chosen mention", async ({
+  page,
+}) => {
+  await setCaret(page, "2.0", 0);
+  await page.keyboard.type("@lep");
+
+  await expect(page.locator(".mention-bar")).not.toHaveClass(/hidden/);
+  await expect(page.locator(".mention-option")).toHaveCount(1);
+  await expect(page.locator(".mention-option")).toHaveText("@Leptos");
+
+  await page.locator(".mention-option").click();
+  await expect(page.locator(".ls-mention")).toHaveCount(1);
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      return json[2].children?.find((node) => node.type === "mention")?.name;
+    })
+    .toBe("Leptos");
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      return plainText(json[2]).includes("@lep");
+    })
+    .toBe(false);
+});
+
+test("Escape dismisses the mention picker without reopening while typing", async ({
+  page,
+}) => {
+  await setCaret(page, "2.0", 0);
+  await page.keyboard.type("@sla");
+  await expect(page.locator(".mention-bar")).not.toHaveClass(/hidden/);
+
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".mention-bar")).toHaveClass(/hidden/);
+
+  await page.keyboard.type("x");
+  await expect(page.locator(".mention-bar")).toHaveClass(/hidden/);
+});
+
+test("clicking away closes the mention picker", async ({ page }) => {
+  await setCaret(page, "2.0", 0);
+  await page.keyboard.type("@");
+  await expect(page.locator(".mention-bar")).not.toHaveClass(/hidden/);
+
+  await page.mouse.click(5, 5);
+  await expect(page.locator(".mention-bar")).toHaveClass(/hidden/);
+});
+
 test("mentions insert inline voids and delete as atoms", async ({ page }) => {
   await setCaret(page, "2.0", 0);
   await page.getByRole("button", { name: "Mention", exact: true }).click();

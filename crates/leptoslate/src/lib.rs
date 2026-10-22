@@ -18,6 +18,7 @@
 pub mod dom;
 pub mod handle;
 mod media;
+mod mention;
 mod render;
 mod renderers;
 
@@ -26,6 +27,7 @@ mod editable;
 pub use editable::{keep_selection, select_point, Editable};
 pub use handle::EditorHandle;
 pub use media::FileHandler;
+pub use mention::{MentionHandler, MentionTrigger};
 pub use renderers::{ElementRenderContext, Renderers};
 
 pub use leptoslate_core as core;
