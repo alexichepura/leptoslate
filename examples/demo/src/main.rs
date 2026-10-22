@@ -1,5 +1,7 @@
 use leptos::prelude::*;
-use leptoslate::{Editable, EditorHandle, Element, FileHandler, Node, Props, Renderers, Text};
+use leptoslate::{
+    Editable, EditorHandle, Element, FileHandler, MentionTrigger, Node, Props, Renderers, Text,
+};
 use serde_json::{json, Value};
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent};
@@ -460,6 +462,34 @@ fn install_test_hook(editor: EditorHandle) {
     let _ = js_sys::Reflect::set(&window, &"__leptoslate".into(), &hook.into());
 }
 
+fn install_mention_click_away(show: RwSignal<bool>, active: RwSignal<Option<MentionTrigger>>) {
+    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+        return;
+    };
+    let handler = Closure::<dyn FnMut(web_sys::Event)>::new(move |event: web_sys::Event| {
+        if !show.get_untracked() {
+            return;
+        }
+        let Some(target) = event
+            .target()
+            .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+        else {
+            return;
+        };
+        if target.closest(".mention-bar").ok().flatten().is_some()
+            || target.closest(".ls-editor").ok().flatten().is_some()
+            || target.closest(".toolbar").ok().flatten().is_some()
+        {
+            return;
+        }
+        show.set(false);
+        active.set(None);
+    });
+    let _ =
+        document.add_event_listener_with_callback("mousedown", handler.as_ref().unchecked_ref());
+    handler.forget();
+}
+
 #[component]
 fn App() -> impl IntoView {
     let editor = EditorHandle::new(initial_document());
@@ -472,7 +502,20 @@ fn App() -> impl IntoView {
     let link_url = RwSignal::new(String::new());
     let show_mention = RwSignal::new(false);
     let mention_query = RwSignal::new(String::new());
+    let active_mention = RwSignal::new(None::<MentionTrigger>);
     let people = [("leptos", "Leptos"), ("slate", "Slate"), ("rust", "Rust")];
+    install_mention_click_away(show_mention, active_mention);
+    let on_mention = Callback::new(move |trigger: Option<MentionTrigger>| {
+        if let Some(trigger) = trigger {
+            mention_query.set(trigger.query.clone());
+            active_mention.set(Some(trigger));
+            show_mention.set(true);
+        } else if active_mention.with(|active| active.is_some()) {
+            active_mention.set(None);
+            mention_query.set(String::new());
+            show_mention.set(false);
+        }
+    });
     let files_handler = {
         let editor = editor.clone();
         FileHandler::new(move |files| {
@@ -558,8 +601,14 @@ fn App() -> impl IntoView {
     };
 
     let toggle_mention = move |_| {
-        show_mention.update(|value| *value = !*value);
-        mention_query.set(String::new());
+        if show_mention.get_untracked() {
+            show_mention.set(false);
+            active_mention.set(None);
+        } else {
+            active_mention.set(None);
+            mention_query.set(String::new());
+            show_mention.set(true);
+        }
     };
 
     let apply_link = {
@@ -823,9 +872,17 @@ fn App() -> impl IntoView {
                                         let insert = move |_| {
                                             focus_editor();
                                             let node = mention(id, name);
-                                            editor.update(|state| {
-                                                state.insert_inline_node(node);
-                                            });
+                                            if let Some(trigger) = active_mention.get_untracked() {
+                                                let range = trigger.range;
+                                                editor.update(|state| {
+                                                    state.replace_range_with_inline_node(range, node);
+                                                });
+                                            } else {
+                                                editor.update(|state| {
+                                                    state.insert_inline_node(node);
+                                                });
+                                            }
+                                            active_mention.set(None);
                                             show_mention.set(false);
                                             mention_query.set(String::new());
                                         };
@@ -889,6 +946,7 @@ fn App() -> impl IntoView {
                     editor=editor.clone()
                     renderers=renderers
                     on_files=files_handler
+                    on_mention=on_mention
                     placeholder="Start writing…"
                 />
 

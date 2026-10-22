@@ -50,7 +50,7 @@ examples/
 - Pluggable element renderers for application-specific blocks
 - Block/node selection for void blocks: click an image, delete it, arrow out of it, or type to replace it
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
-- Inline void mentions: insert atoms, delete them as single units, and render them with custom components
+- Inline void mentions: `@`-triggered picker, atoms, atom deletion, and custom renderers
 - Rich fragment paste: HTML by default, optional Markdown parsing, with inline marks/links preserved
 - DOM selection ↔ model selection mapping via `data-text-path` attributes
 - `beforeinput` handling for typing, deletion, formatting, undo/redo and IME-safe composition
@@ -218,6 +218,33 @@ editor.select_after_node(&path); // used when clicking a chip
 
 Register a renderer for the element type to draw the chip. The demo includes a Mention picker with recipient props (`id`, `name`), renders mentions as inline chips, and supports Backspace/Delete as atom deletion. The built-in fallback renders void inline elements as non-editable spans.
 
+Typing `@` opens the picker through the `on_mention` hook:
+
+```rust
+use leptos::prelude::*;
+use leptoslate::{Editable, MentionTrigger};
+
+let on_mention = Callback::new(move |trigger: Option<MentionTrigger>| {
+    if let Some(trigger) = trigger {
+        // trigger.query is the text after @
+        // trigger.range covers "@query"
+        show_picker.set(true);
+    } else {
+        show_picker.set(false);
+    }
+});
+
+view! { <Editable editor=editor on_mention=on_mention /> }
+```
+
+To accept a suggestion, replace the trigger range with an atom:
+
+```rust
+editor.replace_range_with_inline_node(trigger.range, mention_node);
+```
+
+The demo filters suggestions as you type, inserts on selection, dismisses on Escape, and closes on click-away.
+
 ### Block selection
 
 Void blocks (images, dividers, embeds) are selected as nodes rather than text ranges:
@@ -343,7 +370,7 @@ The core has no DOM or Leptos dependency, so it can be used in tests, servers, c
 This is an early implementation, not a drop-in replacement for the entire Slate ecosystem:
 
 - Client-side rendering only; no SSR/hydration adapter yet.
-- A pragmatic core schema instead of Slate's plugin model. Inline links and void mentions are supported; typing `@` to trigger mention autocomplete is not implemented (the demo uses a picker).
+- A pragmatic core schema instead of Slate's plugin model. Inline links and void mentions are supported.
 - HTML paste covers common rich-text tags; tables and deeply nested lists are flattened.
 - Markdown paste is opt-in and intentionally small; it is not a full CommonMark implementation.
 - Element rendering is pluggable, but custom text/mark renderers (for example syntax highlighting) are not exposed yet.
