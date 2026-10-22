@@ -10,7 +10,9 @@ pub struct HistoryBatch {
     pub before_selection: Option<Range>,
     pub after_selection: Option<Range>,
     pub before_node_selection: Option<Path>,
+    pub before_node_selection_end: Option<Path>,
     pub after_node_selection: Option<Path>,
+    pub after_node_selection_end: Option<Path>,
 }
 
 impl HistoryBatch {

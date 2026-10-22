@@ -48,20 +48,20 @@ examples/
 - `EditorHandle` wrapping `RwSignal<Editor>`
 - Schema-driven rendering (`p`, headings, blockquotes, code, lists, links, images, dividers, …)
 - Pluggable element renderers for application-specific blocks
-- Block/node selection for void blocks: click an image, delete it, arrow out of it, or type to replace it
+- Block/node selection for one or more top-level blocks: select, extend, delete, duplicate, copy, or type to replace a range
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
 - Inline void mentions: `@`-triggered picker, atoms, atom deletion, and custom renderers
 - Rich fragment paste: HTML by default, optional Markdown parsing, with inline marks/links preserved
-- Block hover bar with add-below, duplicate, delete and drag-reorder actions
+- Block hover bar with select, add-below, duplicate, delete and drag-reorder actions
 - Nested lists with Tab/Shift+Tab indentation and list-aware editing
 - Selection bubble toolbar for marks near a text selection
 - Model selection syncs from document `selectionchange`, including programmatic selections
-- Undo restores block selection after deleting a void block
+- Undo restores single or multi-block selection, including after a group delete
 - DOM selection ↔ model selection mapping via `data-text-path` attributes
 - `beforeinput` handling for typing, deletion, formatting, undo/redo and IME-safe composition
 - Paste/cut/copy handling with plain text
 - File paste/drop hook for image uploads (`FileHandler`)
-- Keyboard shortcuts: ⌘/Ctrl+B, I, U, Z, Shift+Z, Y, A; Tab inserts spaces
+- Keyboard shortcuts: ⌘/Ctrl+B, I, U, Z, Shift+Z, Y, A, D; Shift+Arrow extends block selection; Tab inserts spaces
 - Placeholder support, active-mark/block state helpers, JSON snapshot
 
 ## Quick start
@@ -206,7 +206,17 @@ Enable a floating bar next to the hovered block:
 view! { <Editable editor=editor hover_bar=true /> }
 ```
 
-The bar provides add-below, duplicate, delete and drag-reorder actions. Drag the handle to move a top-level block; a drop line shows the insertion point. With the handle focused, `ArrowUp` / `ArrowDown` also reorder blocks. The bar keeps editor focus, uses the current schema's default block type for new blocks, and hides when the mouse leaves the editor surface.
+The bar provides select, add-below, duplicate, delete and drag-reorder actions. Drag the handle to move a top-level block; a drop line shows the insertion point. With the handle focused, `ArrowUp` / `ArrowDown` also reorder blocks. The bar keeps editor focus, uses the current schema's default block type for new blocks, and hides when the mouse leaves the editor surface.
+
+### Block selection
+
+Use the ▣ button in the hover bar to select a top-level block. Hold Shift while clicking ▣ on another block to extend the range, or use `Shift+ArrowUp` / `Shift+ArrowDown` from the keyboard. `ArrowUp` / `ArrowDown` move or collapse the selection, `Escape` clears it, and `Backspace` / `Delete` removes every block in the range. `⌘/Ctrl+D` duplicates the range and selects the copies; copy and cut emit plain text.
+
+Custom renderers can style every selected block with `editor.is_node_selected(path)`. Built-in blocks get the `ls-block-selected` class automatically.
+
+```rust
+let selected = editor.is_node_selected(&path);
+```
 
 ### Rich paste
 
@@ -294,13 +304,16 @@ The demo filters suggestions as you type, inserts on selection, dismisses on Esc
 Void blocks (images, dividers, embeds) are selected as nodes rather than text ranges:
 
 ```rust
-editor.select_node(&path);          // clears any text selection
-editor.is_node_selected(&path);     // reactive, for selected chrome
-editor.delete_node_selection();     // Backspace/Delete
-editor.move_selection_off_node(false); // ArrowRight
+editor.select_node(&path);                   // one block, clears any text selection
+eeditor.select_node_range(&[1], &[3]);        // contiguous top-level range
+eeditor.extend_node_selection_to(&path);     // Shift+click another block
+eeditor.extend_node_selection(1);            // Shift+ArrowDown
+editor.is_node_selected(&path);              // true for every block in the range
+editor.delete_node_selection();              // Backspace/Delete
+editor.move_selection_off_node(false);       // ArrowRight
 ```
 
-The built-in void renderer selects on click. Custom renderers can call `editor.select_node(&ctx.path)` and use `is_node_selected` in a reactive class. Backspace/Delete removes the block, Left/Right moves into adjacent text, and typing replaces the block.
+The built-in void renderer selects on click. Custom renderers can call `editor.select_node(&ctx.path)` and use `is_node_selected` in a reactive class. Backspace/Delete removes the selected blocks, Left/Right collapses into adjacent text, and typing replaces the selection.
 
 ### Images and dropped files
 
@@ -418,7 +431,8 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 - HTML paste covers common rich-text tags; tables and deeply nested lists flatten, and inline images inside paragraphs are skipped ([#31](https://github.com/alexichepura/leptoslate/issues/31)).
 - Markdown paste is opt-in and intentionally small; it is not a full CommonMark implementation.
 - Element rendering is pluggable, but custom text/mark renderers (for example syntax highlighting) are not exposed yet ([#29](https://github.com/alexichepura/leptoslate/issues/29)).
-- Node selection targets single blocks; multi-block and range-of-blocks selection is not implemented ([#28](https://github.com/alexichepura/leptoslate/issues/28)).
+- Node selection is a contiguous range of top-level blocks; discontiguous or cross-container block selection is not implemented.
+- Copying a node selection produces plain text; there is no rich block clipboard format yet.
 - List indentation operates on the item under the caret; multi-item indentation is not implemented.
 - IME composition is reconciled per text node, not with Slate's composition-aware range model.
 - The whole rendered document updates when the value changes; there is no benchmark or keyed block rendering yet ([#30](https://github.com/alexichepura/leptoslate/issues/30)).

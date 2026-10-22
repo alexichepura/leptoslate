@@ -13,6 +13,7 @@ export type SelectionJson = {
     focus: { path: number[]; offset: number };
   } | null;
   nodeSelection: number[] | null;
+  nodeSelectionEnd: number[] | null;
 };
 
 export async function waitForEditor(page: Page) {

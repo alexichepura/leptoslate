@@ -227,6 +227,38 @@ test("hover bar adds, duplicates, and deletes blocks", async ({ page }) => {
   await expect.poll(async () => (await getJson(page)).length).toBe(13);
 });
 
+test("multi-block selection deletes a range and undo restores it", async ({
+  page,
+}) => {
+  const first = page.locator('[data-node-path="1"]');
+  const second = page.locator('[data-node-path="2"]');
+  await first.hover();
+  await page.getByTitle("Select block").click();
+  await expect(first).toHaveClass(/ls-block-selected/);
+
+  await page.keyboard.press("Shift+ArrowDown");
+  await expect(first).toHaveClass(/ls-block-selected/);
+  await expect(second).toHaveClass(/ls-block-selected/);
+  await expect(page.locator('[data-node-path="3"]')).not.toHaveClass(
+    /ls-block-selected/,
+  );
+  const selection = await getSelection(page);
+  expect(selection.nodeSelection).toEqual([1]);
+  expect(selection.nodeSelectionEnd).toEqual([2]);
+
+  await page.keyboard.press("Delete");
+  await expect.poll(async () => (await getJson(page)).length).toBe(10);
+
+  await page.getByTitle("Undo (⌘Z)").click();
+  await expect.poll(async () => (await getJson(page)).length).toBe(12);
+  await expect(first).toHaveClass(/ls-block-selected/);
+  await expect(second).toHaveClass(/ls-block-selected/);
+
+  await page.keyboard.press("ArrowUp");
+  await expect(first).toHaveClass(/ls-block-selected/);
+  await expect(second).not.toHaveClass(/ls-block-selected/);
+});
+
 test("drag handle reorders blocks and undo restores order", async ({ page }) => {
   const block = page.locator('[data-node-path="2"]');
   await block.hover();

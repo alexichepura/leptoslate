@@ -673,6 +673,92 @@ fn node_selection_moves_with_structural_operations() {
 }
 
 #[test]
+fn node_selection_ranges_cover_top_level_blocks() {
+    let mut editor = Editor::new(vec![p("one"), p("two"), p("three"), p("four")]);
+    editor.select_node_range(&[1], &[3]);
+
+    assert_eq!(editor.node_selection(), Some([1].as_slice()));
+    assert_eq!(editor.node_selection_end(), Some([3].as_slice()));
+    assert_eq!(editor.node_selections(), vec![vec![1], vec![2], vec![3]]);
+    assert!(editor.is_node_selected(&[2]));
+    assert!(!editor.is_node_selected(&[0]));
+    assert!(!editor.is_node_selected(&[2, 0]));
+    assert_eq!(
+        editor.node_selection_string().as_deref(),
+        Some("two\nthree\nfour")
+    );
+
+    assert!(editor.extend_node_selection(-1));
+    assert_eq!(editor.node_selection_end(), Some([2].as_slice()));
+    assert!(editor.move_node_selection(-1));
+    assert_eq!(editor.node_selection(), Some([1].as_slice()));
+    assert_eq!(editor.node_selection_end(), None);
+}
+
+#[test]
+fn deleting_a_node_range_removes_all_blocks_and_undo_restores_it() {
+    let mut editor = Editor::new(vec![p("one"), p("two"), p("three"), p("four")]);
+    editor.select_node_range(&[1], &[2]);
+    assert!(editor.delete_node_selection());
+
+    assert_eq!(editor.children.len(), 2);
+    assert_eq!(editor.children[0].string(), "one");
+    assert_eq!(editor.children[1].string(), "four");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![1, 0], 0)))
+    );
+    assert!(!editor.has_node_selection());
+
+    assert!(editor.undo());
+    assert_eq!(editor.children.len(), 4);
+    assert_eq!(editor.node_selections(), vec![vec![1], vec![2]]);
+    assert!(editor.selection.is_none());
+
+    assert!(editor.redo());
+    assert_eq!(editor.children.len(), 2);
+    assert!(!editor.has_node_selection());
+}
+
+#[test]
+fn duplicating_a_node_range_selects_the_copies() {
+    let mut editor = Editor::new(vec![p("one"), p("two"), p("three")]);
+    editor.select_node_range(&[1], &[2]);
+    assert!(editor.duplicate_node_selection());
+
+    assert_eq!(editor.children.len(), 5);
+    assert_eq!(editor.children[1].string(), "two");
+    assert_eq!(editor.children[2].string(), "three");
+    assert_eq!(editor.children[3].string(), "two");
+    assert_eq!(editor.children[4].string(), "three");
+    assert_eq!(editor.node_selections(), vec![vec![3], vec![4]]);
+
+    assert!(editor.undo());
+    assert_eq!(editor.children.len(), 3);
+    assert_eq!(editor.node_selections(), vec![vec![1], vec![2]]);
+}
+
+#[test]
+fn node_selection_range_moves_with_structural_operations() {
+    let mut editor = Editor::new(vec![p("one"), image_block(), p("two"), p("three")]);
+    editor.select_node_range(&[1], &[2]);
+
+    editor.insert_node(&[0], p("zero"));
+    assert_eq!(editor.node_selection(), Some([2].as_slice()));
+    assert_eq!(editor.node_selection_end(), Some([3].as_slice()));
+
+    editor.remove_nodes(&[0], 1);
+    assert_eq!(editor.node_selection(), Some([1].as_slice()));
+    assert_eq!(editor.node_selection_end(), Some([2].as_slice()));
+
+    editor
+        .apply_op(leptoslate_core::Operation::RemoveNode { path: vec![1] })
+        .unwrap();
+    assert!(editor.node_selection().is_none());
+    assert!(editor.node_selection_end().is_none());
+}
+
+#[test]
 fn moving_off_a_node_selects_adjacent_text() {
     let mut editor = Editor::new(vec![p("before"), image_block(), p("after")]);
     editor.select_node(&[1]);
