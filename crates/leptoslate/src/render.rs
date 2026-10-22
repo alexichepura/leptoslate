@@ -13,24 +13,6 @@ use crate::{
     renderers::{ElementRenderContext, Renderers, TextRenderContext},
 };
 
-pub(crate) fn render_nodes(
-    renderers: &Renderers,
-    editor: &EditorHandle,
-    schema: &Schema,
-    nodes: &[Node],
-    parent: &[usize],
-) -> Vec<AnyView> {
-    nodes
-        .iter()
-        .enumerate()
-        .map(|(index, node)| {
-            let mut path = parent.to_vec();
-            path.push(index);
-            render_node(renderers, editor, schema, node, &path)
-        })
-        .collect()
-}
-
 pub(crate) fn render_node(
     renderers: &Renderers,
     editor: &EditorHandle,

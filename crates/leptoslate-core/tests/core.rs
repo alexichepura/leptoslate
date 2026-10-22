@@ -600,6 +600,21 @@ fn inserting_a_block_inside_a_list_goes_after_the_list() {
     assert_eq!(editor.children[3].element_type(), Some("p"));
 }
 
+#[test]
+fn node_content_hashes_track_text_and_marks() {
+    let plain = p("hello");
+    let same = p("hello");
+    let changed = p("hello!");
+    assert_eq!(plain.content_hash(), same.content_hash());
+    assert_ne!(plain.content_hash(), changed.content_hash());
+
+    let mut marked = Text::new("hello");
+    marked
+        .properties
+        .insert("bold".into(), serde_json::json!(true));
+    assert_ne!(plain.content_hash(), Node::Text(marked).content_hash());
+}
+
 fn image_block() -> Node {
     Node::Element(Element::new("img", vec![Node::empty_text()]))
 }
