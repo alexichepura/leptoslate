@@ -3,7 +3,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use leptos::prelude::*;
-use leptoslate_core::{Editor, Node, Point, Props};
+use leptoslate_core::{Editor, Node, Path, Point, Props};
 use serde_json::Value;
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
@@ -168,6 +168,16 @@ impl EditorHandle {
     pub fn link_at_selection(&self) -> Option<String> {
         self.state
             .with_untracked(|editor| editor.link_at_selection().map(|(_, href)| href))
+    }
+
+    /// Insert an inline node (mention, embed, …) at the caret.
+    pub fn insert_inline_node(&self, node: Node) -> Option<Path> {
+        self.update(|editor| editor.insert_inline_node(node))
+    }
+
+    /// Place the caret at the start of the text following a node.
+    pub fn select_after_node(&self, path: &[usize]) -> Option<Point> {
+        self.update(|editor| editor.select_after_node(path))
     }
 
     pub fn toggle_list(&self, list_type: &str) {

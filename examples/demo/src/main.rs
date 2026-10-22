@@ -34,6 +34,14 @@ fn link(label: &str, href: &str) -> Node {
     )
 }
 
+fn mention(id: &str, name: &str) -> Node {
+    Node::Element(
+        Element::new("mention", vec![Node::empty_text()])
+            .with_property("id", json!(id))
+            .with_property("name", json!(name)),
+    )
+}
+
 fn callout(value: &str, tone: &str) -> Node {
     Node::Element(Element::new("callout", vec![text(value)]).with_property("tone", json!(tone)))
 }
@@ -219,6 +227,33 @@ fn demo_renderers() -> Renderers {
                         </button>
                     </figcaption>
                 </figure>
+            }
+            .into_any()
+        })
+        .element("mention", |ctx| {
+            let name = ctx.prop_str("name").unwrap_or("unknown").to_string();
+            let class = ctx.class_with("ls-mention");
+            let element_type = ctx.element_type().to_string();
+            let node_path = ctx.node_path;
+            let editor = ctx.editor.clone();
+            let path = ctx.path.clone();
+
+            view! {
+                <span
+                    class=class
+                    data-node-path=node_path
+                    data-type=element_type
+                    contenteditable="false"
+                    on:click=move |ev: MouseEvent| {
+                        ev.prevent_default();
+                        let path = path.clone();
+                        editor.update(|state| {
+                            state.select_after_node(&path);
+                        });
+                    }
+                >
+                    {format!("@{name}")}
+                </span>
             }
             .into_any()
         })
@@ -435,6 +470,9 @@ fn App() -> impl IntoView {
     let image_url = RwSignal::new(String::new());
     let show_link = RwSignal::new(false);
     let link_url = RwSignal::new(String::new());
+    let show_mention = RwSignal::new(false);
+    let mention_query = RwSignal::new(String::new());
+    let people = [("leptos", "Leptos"), ("slate", "Slate"), ("rust", "Rust")];
     let files_handler = {
         let editor = editor.clone();
         FileHandler::new(move |files| {
@@ -517,6 +555,11 @@ fn App() -> impl IntoView {
             link_url.set(editor.link_at_selection().unwrap_or_default());
             show_link.set(true);
         }
+    };
+
+    let toggle_mention = move |_| {
+        show_mention.update(|value| *value = !*value);
+        mention_query.set(String::new());
     };
 
     let apply_link = {
@@ -694,10 +737,18 @@ fn App() -> impl IntoView {
                         >
                             "Image"
                         </button>
+                        <button
+                            class="tool wide"
+                            title="Mention someone"
+                            on:mousedown=move |ev| ev.prevent_default()
+                            on:click=toggle_mention
+                        >
+                            "Mention"
+                        </button>
                     </div>
                 </div>
 
-                <div class="media-bar" class:hidden=move || !show_image.get()>
+                <div class="media-bar image-bar" class:hidden=move || !show_image.get()>
                     <input
                         class="media-input"
                         type="url"
@@ -744,6 +795,59 @@ fn App() -> impl IntoView {
                         class="link-tool"
                         on:mousedown=move |ev| ev.prevent_default()
                         on:click=move |_| show_image.set(false)
+                    >
+                        "Cancel"
+                    </button>
+                </div>
+
+                <div class="media-bar mention-bar" class:hidden=move || !show_mention.get()>
+                    <input
+                        class="media-input"
+                        type="text"
+                        placeholder="Search people…"
+                        prop:value=move || mention_query.get()
+                        on:input=move |ev| mention_query.set(event_target_value(&ev))
+                    />
+                    <div class="mention-suggestions">
+                        {
+                            let editor = editor.clone();
+                            move || {
+                                let query = mention_query.get().to_lowercase();
+                                people
+                                    .iter()
+                                    .filter(move |(_, name)| name.to_lowercase().contains(&query))
+                                    .map(|(id, name)| {
+                                        let id = *id;
+                                        let name = *name;
+                                        let editor = editor.clone();
+                                        let insert = move |_| {
+                                            focus_editor();
+                                            let node = mention(id, name);
+                                            editor.update(|state| {
+                                                state.insert_inline_node(node);
+                                            });
+                                            show_mention.set(false);
+                                            mention_query.set(String::new());
+                                        };
+                                        view! {
+                                            <button
+                                                class="mention-option"
+                                                on:mousedown=move |ev| ev.prevent_default()
+                                                on:click=insert
+                                            >
+                                                {format!("@{name}")}
+                                            </button>
+                                        }
+                                        .into_any()
+                                    })
+                                    .collect::<Vec<_>>()
+                            }
+                        }
+                    </div>
+                    <button
+                        class="link-tool"
+                        on:mousedown=move |ev| ev.prevent_default()
+                        on:click=move |_| show_mention.set(false)
                     >
                         "Cancel"
                     </button>

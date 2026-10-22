@@ -50,6 +50,7 @@ examples/
 - Pluggable element renderers for application-specific blocks
 - Block/node selection for void blocks: click an image, delete it, arrow out of it, or type to replace it
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
+- Inline void mentions: insert atoms, delete them as single units, and render them with custom components
 - DOM selection ↔ model selection mapping via `data-text-path` attributes
 - `beforeinput` handling for typing, deletion, formatting, undo/redo and IME-safe composition
 - Paste/cut/copy handling with plain text
@@ -174,6 +175,23 @@ editor.remove_link();            // unwraps links intersecting the selection
 ```
 
 The built-in renderer prevents link navigation during editing. The demo adds a Link toolbar button with an href bar for Apply/Remove.
+
+### Mentions and inline voids
+
+Inline void nodes are atoms that cannot be edited internally. They still live inside text, are surrounded by text nodes by normalization, and delete as a single unit:
+
+```rust
+let node = Node::Element(
+    Element::new("mention", vec![Node::empty_text()])
+        .with_property("id", serde_json::json!("leptos"))
+        .with_property("name", serde_json::json!("Leptos")),
+);
+
+editor.insert_inline_node(node); // splits text at the caret and selects the text after it
+editor.select_after_node(&path); // used when clicking a chip
+```
+
+Register a renderer for the element type to draw the chip. The demo includes a Mention picker with recipient props (`id`, `name`), renders mentions as inline chips, and supports Backspace/Delete as atom deletion. The built-in fallback renders void inline elements as non-editable spans.
 
 ### Block selection
 
@@ -300,7 +318,8 @@ The core has no DOM or Leptos dependency, so it can be used in tests, servers, c
 This is an early implementation, not a drop-in replacement for the entire Slate ecosystem:
 
 - Client-side rendering only; no SSR/hydration adapter yet.
-- A pragmatic core schema instead of Slate's plugin model. Inline links are supported; inline voids, mentions and rich fragment paste are tracked in #11 and #12.
+- A pragmatic core schema instead of Slate's plugin model. Inline links and void mentions are supported; typing `@` to trigger mention autocomplete is not implemented (the demo uses a picker).
+- Rich HTML/Markdown fragment paste is tracked in #12.
 - Element rendering is pluggable, but custom text/mark renderers (for example syntax highlighting) are not exposed yet.
 - Node selection currently targets single blocks (images, dividers, embeds); multi-block and range-of-blocks selection is not implemented.
 - Undoing the deletion of a block restores the document but places the caret at the document start rather than reselecting the restored block.

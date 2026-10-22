@@ -153,12 +153,38 @@ test("links can be applied to a selection and removed", async ({ page }) => {
     .toBe(false);
 });
 
+test("mentions insert inline voids and delete as atoms", async ({ page }) => {
+  await setCaret(page, "2.0", 0);
+  await page.getByRole("button", { name: "Mention", exact: true }).click();
+  await page.locator(".mention-bar .media-input").fill("lep");
+  await page.getByRole("button", { name: "@Leptos", exact: true }).click();
+
+  await expect(page.locator(".ls-mention")).toHaveCount(1);
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      const mention = json[2].children?.find((node) => node.type === "mention");
+      return mention?.name;
+    })
+    .toBe("Leptos");
+
+  await page.locator(".ls-mention").click();
+  await page.keyboard.press("Backspace");
+  await expect(page.locator(".ls-mention")).toHaveCount(0);
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      return json[2].children?.some((node) => node.type === "mention");
+    })
+    .toBe(false);
+});
+
 test("images can be inserted, node-selected, deleted, and restored", async ({
   page,
 }) => {
   await setCaret(page, "2.0", 0);
   await page.getByRole("button", { name: "Image", exact: true }).click();
-  await page.locator(".media-bar:not(.link-bar) .media-input").fill(SVG_IMAGE);
+  await page.locator(".image-bar .media-input").fill(SVG_IMAGE);
   await page.getByRole("button", { name: "Insert", exact: true }).click();
 
   await expect(page.locator(".ls-media")).toHaveCount(1);
@@ -177,7 +203,7 @@ test("images can be inserted, node-selected, deleted, and restored", async ({
 test("image toolbar controls align and delete the block", async ({ page }) => {
   await setCaret(page, "2.0", 0);
   await page.getByRole("button", { name: "Image", exact: true }).click();
-  await page.locator(".media-bar:not(.link-bar) .media-input").fill(SVG_IMAGE);
+  await page.locator(".image-bar .media-input").fill(SVG_IMAGE);
   await page.getByRole("button", { name: "Insert", exact: true }).click();
   await expect(page.locator(".ls-media")).toHaveCount(1);
 
