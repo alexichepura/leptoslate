@@ -22,6 +22,29 @@ fn custom_element_renderers_can_be_registered() {
 }
 
 #[test]
+fn custom_text_and_mark_renderers_can_be_registered() {
+    let _renderers = Renderers::new()
+        .text(|ctx| {
+            let class = ctx.class;
+            let text_path = ctx.text_path;
+            let style = ctx.style;
+            let text = ctx.text.text;
+            view! {
+                <span class=class data-text-path=text_path style=style>
+                    {text}
+                </span>
+            }
+            .into_any()
+        })
+        .mark_style("highlight", |value| {
+            format!(
+                "background:{}",
+                value.as_str().unwrap_or("rgba(255, 230, 0, .35)")
+            )
+        });
+}
+
+#[test]
 fn file_handlers_are_cloneable() {
     let handler = FileHandler::new(|_files| {});
     let _clone = handler.clone();

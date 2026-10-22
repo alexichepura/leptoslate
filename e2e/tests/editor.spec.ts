@@ -156,6 +156,12 @@ test("contiguous typing is one undo step", async ({ page }) => {
   await expectTopBlockText(page, 2, "Select some text");
 });
 
+test("custom mark styles are applied to text", async ({ page }) => {
+  const code = page.locator('[data-text-path="2.1"]');
+  await expect(code).toHaveCSS("background-color", "rgb(253, 238, 229)");
+  await expect(code).toHaveCSS("color", "rgb(138, 59, 22)");
+});
+
 test("multi-line paste creates new blocks", async ({ page }) => {
   await setCaret(page, "2.0", 0);
   await pasteText(page, "pasted line one\npasted line two");

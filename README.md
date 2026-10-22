@@ -47,7 +47,7 @@ examples/
 
 - `EditorHandle` wrapping `RwSignal<Editor>`
 - Schema-driven rendering (`p`, headings, blockquotes, code, lists, links, images, dividers, …)
-- Pluggable element renderers for application-specific blocks
+- Pluggable element, text and mark renderers for application-specific blocks and styling
 - Block/node selection for one or more top-level blocks: select, extend, delete, duplicate, copy, or type to replace a range
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
 - Inline void mentions: `@`-triggered picker, atoms, atom deletion, and custom renderers
@@ -154,7 +154,34 @@ view! { <Editable editor=editor renderers=renderers /> }
 
 Custom blocks are ordinary elements in the document, so they serialize, normalize and undo like everything else. The demo uses renderers for a callout, a todo block, and images with alignment/delete controls.
 
-Insert them with the core API:
+### Custom text and mark rendering
+
+Override how every text node is rendered, or replace the CSS emitted for individual marks:
+
+```rust
+let renderers = Renderers::new()
+    .text(|ctx| {
+        let class = ctx.class;
+        let text_path = ctx.text_path;
+        let style = ctx.style;
+        view! {
+            <span class=class data-text-path=text_path style=style>
+                {ctx.text.text}
+            </span>
+        }
+        .into_any()
+    })
+    .mark_style("code", |_| {
+        "font-family:ui-monospace;background:#fdeee5;color:#8a3b16".into()
+    })
+    .mark_style("highlight", |value| {
+        format!("background:{}", value.as_str().unwrap_or("yellow"))
+    });
+```
+
+`TextRenderContext` includes the text, its marks, path, `data-text-path` value, default class and default mark CSS. The library wraps custom text views in a `data-text-path` span automatically; keep the original text contiguous inside the custom view so DOM offsets continue to map to document offsets. A mark style callback may return an empty string to suppress a built-in style.
+
+Insert custom blocks with the core API:
 
 ```rust
 use leptoslate::{Element, Node};
@@ -430,7 +457,6 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 - A pragmatic core schema instead of Slate's plugin model. Inline links and void mentions are supported.
 - HTML paste covers common rich-text tags; tables and deeply nested lists flatten, and inline images inside paragraphs are skipped ([#31](https://github.com/alexichepura/leptoslate/issues/31)).
 - Markdown paste is opt-in and intentionally small; it is not a full CommonMark implementation.
-- Element rendering is pluggable, but custom text/mark renderers (for example syntax highlighting) are not exposed yet ([#29](https://github.com/alexichepura/leptoslate/issues/29)).
 - Node selection is a contiguous range of top-level blocks; discontiguous or cross-container block selection is not implemented.
 - Copying a node selection produces plain text; there is no rich block clipboard format yet.
 - List indentation operates on the item under the caret; multi-item indentation is not implemented.

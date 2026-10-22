@@ -7,11 +7,14 @@
 use std::{collections::HashMap, sync::Arc};
 
 use leptos::prelude::AnyView;
-use leptoslate_core::{props, Element, Path};
+use leptoslate_core::{props, Element, Path, Text};
+use serde_json::Value;
 
 use crate::handle::EditorHandle;
 
 type ElementRenderFn = Arc<dyn Fn(ElementRenderContext) -> AnyView + Send + Sync>;
+type TextRenderFn = Arc<dyn Fn(TextRenderContext) -> AnyView + Send + Sync>;
+type MarkStyleFn = Arc<dyn Fn(&Value) -> String + Send + Sync>;
 
 /// Everything a custom element renderer needs.
 ///
@@ -56,7 +59,26 @@ impl ElementRenderContext {
     }
 }
 
-/// A registry of custom element renderers.
+/// Everything a custom text renderer needs.
+///
+/// The renderer is wrapped in a `data-text-path` span automatically. It should
+/// keep `text.text` contiguous so DOM offsets still map to document offsets.
+pub struct TextRenderContext {
+    /// The text node being rendered.
+    pub text: Text,
+    /// The text node's marks/properties.
+    pub marks: leptoslate_core::Props,
+    /// The text node's path in the document.
+    pub path: Path,
+    /// Dot-separated path for `data-text-path`.
+    pub text_path: String,
+    /// Default library class (`ls-text`).
+    pub class: String,
+    /// Default CSS produced by the active mark styles.
+    pub style: String,
+}
+
+/// A registry of custom element, text and mark renderers.
 ///
 /// ```rust,ignore
 /// let renderers = Renderers::new().element("callout", |ctx| {
@@ -73,6 +95,8 @@ impl ElementRenderContext {
 #[derive(Clone, Default)]
 pub struct Renderers {
     elements: Arc<HashMap<String, ElementRenderFn>>,
+    text: Option<TextRenderFn>,
+    mark_styles: Arc<HashMap<String, MarkStyleFn>>,
 }
 
 impl Renderers {
@@ -93,7 +117,45 @@ impl Renderers {
         self
     }
 
+    /// Register a renderer for every text node.
+    ///
+    /// The returned view is wrapped in a `data-text-path` span so selection and
+    /// IME mapping keep working. Use [`TextRenderContext::style`] and
+    /// [`TextRenderContext::class`] for the default mark presentation.
+    pub fn text<F>(mut self, render: F) -> Self
+    where
+        F: Fn(TextRenderContext) -> AnyView + Send + Sync + 'static,
+    {
+        self.text = Some(Arc::new(render));
+        self
+    }
+
+    /// Override the CSS emitted for a mark.
+    ///
+    /// The callback runs for every text node carrying `mark`, whether the value
+    /// is `true`, a string or a custom JSON value. Returning an empty string
+    /// omits the mark from the style attribute.
+    pub fn mark_style<F>(mut self, mark: impl Into<String>, style: F) -> Self
+    where
+        F: Fn(&Value) -> String + Send + Sync + 'static,
+    {
+        Arc::make_mut(&mut self.mark_styles).insert(mark.into(), Arc::new(style));
+        self
+    }
+
     pub(crate) fn get(&self, element_type: &str) -> Option<ElementRenderFn> {
         self.elements.get(element_type).cloned()
+    }
+
+    pub(crate) fn text_renderer(&self) -> Option<TextRenderFn> {
+        self.text.clone()
+    }
+
+    pub(crate) fn custom_mark_style(&self, mark: &str) -> Option<MarkStyleFn> {
+        self.mark_styles.get(mark).cloned()
+    }
+
+    pub(crate) fn custom_mark_keys(&self) -> Vec<String> {
+        self.mark_styles.keys().cloned().collect()
     }
 }
