@@ -95,6 +95,9 @@ fn read_image_file(file: web_sys::File, editor: EditorHandle) {
 
 fn demo_renderers() -> Renderers {
     Renderers::new()
+        .mark_style("code", |_| {
+            "font-family:ui-monospace,SFMono-Regular,Menlo,monospace; background:#fdeee5; color:#8a3b16; border-radius:4px; padding:0 3px;".into()
+        })
         .element("callout", |ctx| {
             let tone = ctx.prop_str("tone").unwrap_or("info").to_string();
             let class = ctx.class_with(&format!("ls-callout ls-callout-{tone}"));

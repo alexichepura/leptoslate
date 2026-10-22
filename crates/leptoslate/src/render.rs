@@ -10,7 +10,7 @@ use web_sys::MouseEvent;
 use crate::{
     dom::path_string,
     handle::EditorHandle,
-    renderers::{ElementRenderContext, Renderers},
+    renderers::{ElementRenderContext, Renderers, TextRenderContext},
 };
 
 pub(crate) fn render_nodes(
@@ -39,17 +39,33 @@ pub(crate) fn render_node(
     path: &[usize],
 ) -> AnyView {
     match node {
-        Node::Text(text) => render_text(text, path),
+        Node::Text(text) => render_text(renderers, text, path),
         Node::Element(element) => render_element(renderers, editor, schema, element, path),
     }
 }
 
-fn render_text(text: &Text, path: &[usize]) -> AnyView {
-    let style = mark_style(&text.properties);
-    let class = "ls-text";
-    let path = path_string(path);
+fn render_text(renderers: &Renderers, text: &Text, path: &[usize]) -> AnyView {
+    let style = mark_style(&text.properties, renderers);
+    let class = "ls-text".to_string();
+    let text_path = path_string(path);
+
+    if let Some(render) = renderers.text_renderer() {
+        let rendered = render(TextRenderContext {
+            text: text.clone(),
+            marks: text.properties.clone(),
+            path: path.to_vec(),
+            text_path: text_path.clone(),
+            class,
+            style,
+        });
+        return view! {
+            <span data-text-path=text_path>{rendered}</span>
+        }
+        .into_any();
+    }
+
     view! {
-        <span class=class data-text-path=path style=style>{text.text.clone()}</span>
+        <span class=class data-text-path=text_path style=style>{text.text.clone()}</span>
     }
     .into_any()
 }
@@ -333,43 +349,84 @@ fn render_void(
     }
 }
 
-fn mark_style(properties: &Props) -> String {
+fn mark_style(properties: &Props, renderers: &Renderers) -> String {
     let mut styles: Vec<String> = Vec::new();
 
-    if get_bool(properties, "bold") {
-        styles.push("font-weight:700".into());
-    }
-    if get_bool(properties, "italic") {
-        styles.push("font-style:italic".into());
-    }
-    if get_bool(properties, "underline") {
-        styles.push("text-decoration-line:underline".into());
-    }
-    if get_bool(properties, "strikethrough") {
-        styles.push("text-decoration-line:line-through".into());
-    }
-    if get_bool(properties, "code") {
-        styles.push("font-family:ui-monospace,SFMono-Regular,Menlo,monospace".into());
-        styles.push("background:rgba(127,127,127,.14)".into());
-        styles.push("border-radius:3px".into());
-        styles.push("padding:0 2px".into());
-    }
-    if get_bool(properties, "superscript") {
-        styles.push("vertical-align:super".into());
-        styles.push("font-size:.75em".into());
-    }
-    if get_bool(properties, "subscript") {
-        styles.push("vertical-align:sub".into());
-        styles.push("font-size:.75em".into());
-    }
-    if let Some(color) = get_str(properties, "color") {
-        if safe_color(color) {
-            styles.push(format!("color:{color}"));
+    let known = [
+        "bold",
+        "italic",
+        "underline",
+        "strikethrough",
+        "code",
+        "superscript",
+        "subscript",
+        "color",
+        "background",
+    ];
+    for key in known {
+        let Some(value) = properties.get(key) else {
+            continue;
+        };
+        if let Some(style) = renderers.custom_mark_style(key) {
+            let style = style(value);
+            if !style.is_empty() {
+                styles.push(style);
+            }
+            continue;
+        }
+        match key {
+            "bold" if get_bool(properties, "bold") => styles.push("font-weight:700".into()),
+            "italic" if get_bool(properties, "italic") => styles.push("font-style:italic".into()),
+            "underline" if get_bool(properties, "underline") => {
+                styles.push("text-decoration-line:underline".into())
+            }
+            "strikethrough" if get_bool(properties, "strikethrough") => {
+                styles.push("text-decoration-line:line-through".into())
+            }
+            "code" if get_bool(properties, "code") => {
+                styles.push("font-family:ui-monospace,SFMono-Regular,Menlo,monospace".into());
+                styles.push("background:rgba(127,127,127,.14)".into());
+                styles.push("border-radius:3px".into());
+                styles.push("padding:0 2px".into());
+            }
+            "superscript" if get_bool(properties, "superscript") => {
+                styles.push("vertical-align:super".into());
+                styles.push("font-size:.75em".into());
+            }
+            "subscript" if get_bool(properties, "subscript") => {
+                styles.push("vertical-align:sub".into());
+                styles.push("font-size:.75em".into());
+            }
+            "color" => {
+                if let Some(color) = get_str(properties, "color") {
+                    if safe_color(color) {
+                        styles.push(format!("color:{color}"));
+                    }
+                }
+            }
+            "background" => {
+                if let Some(background) = get_str(properties, "background") {
+                    if safe_color(background) {
+                        styles.push(format!("background:{background}"));
+                    }
+                }
+            }
+            _ => {}
         }
     }
-    if let Some(background) = get_str(properties, "background") {
-        if safe_color(background) {
-            styles.push(format!("background:{background}"));
+
+    for key in renderers.custom_mark_keys() {
+        if known.contains(&key.as_str()) {
+            continue;
+        }
+        let Some(value) = properties.get(&key) else {
+            continue;
+        };
+        if let Some(style) = renderers.custom_mark_style(&key) {
+            let style = style(value);
+            if !style.is_empty() {
+                styles.push(style);
+            }
         }
     }
 
@@ -383,4 +440,32 @@ fn safe_color(value: &str) -> bool {
             ch.is_ascii_alphanumeric()
                 || matches!(ch, '#' | '(' | ')' | ',' | '.' | '%' | ' ' | '-' | '_')
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mark_style;
+    use crate::Renderers;
+    use leptoslate_core::Props;
+    use serde_json::json;
+
+    #[test]
+    fn custom_mark_styles_replace_defaults() {
+        let mut properties = Props::new();
+        properties.insert("bold".into(), json!(true));
+        properties.insert("code".into(), json!(true));
+        properties.insert("highlight".into(), json!("yellow"));
+
+        let renderers = Renderers::new()
+            .mark_style("bold", |_| "font-weight:900".into())
+            .mark_style("code", |_| String::new())
+            .mark_style("highlight", |value| {
+                format!("background:{}", value.as_str().unwrap_or("yellow"))
+            });
+
+        assert_eq!(
+            mark_style(&properties, &renderers),
+            "font-weight:900;background:yellow"
+        );
+    }
 }
