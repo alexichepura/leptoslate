@@ -69,6 +69,25 @@ pub const EDITOR_STYLES: &str = r#"
     content: "\200b";
 }
 
+.ls-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.ls-hover-bar button:focus-visible,
+.ls-hover-bar .ls-drag-handle:focus-visible,
+.ls-selection-bubble button:focus-visible {
+    outline: 2px solid #b4532a;
+    outline-offset: 1px;
+}
+
 .ls-editor.ls-dragging {
     outline: 2px dashed rgba(180, 83, 42, 0.55);
     outline-offset: -6px;

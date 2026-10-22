@@ -1050,9 +1050,64 @@ pub fn Editable(
                 .with(|state| state.has_mark("code", &Value::Bool(true)))
         }
     };
+    let bubble_bold_pressed = {
+        let editor = editor.clone();
+        move || {
+            editor
+                .state
+                .with(|state| state.has_mark("bold", &Value::Bool(true)))
+        }
+    };
+    let bubble_italic_pressed = {
+        let editor = editor.clone();
+        move || {
+            editor
+                .state
+                .with(|state| state.has_mark("italic", &Value::Bool(true)))
+        }
+    };
+    let bubble_underline_pressed = {
+        let editor = editor.clone();
+        move || {
+            editor
+                .state
+                .with(|state| state.has_mark("underline", &Value::Bool(true)))
+        }
+    };
+    let bubble_strike_pressed = {
+        let editor = editor.clone();
+        move || {
+            editor
+                .state
+                .with(|state| state.has_mark("strikethrough", &Value::Bool(true)))
+        }
+    };
+    let bubble_code_pressed = {
+        let editor = editor.clone();
+        move || {
+            editor
+                .state
+                .with(|state| state.has_mark("code", &Value::Bool(true)))
+        }
+    };
 
     let empty_editor = editor.clone();
     let selection_editor = editor.clone();
+    let live_editor = editor.clone();
+    let live_selection = move || {
+        live_editor.state.with(|state| {
+            if state.has_node_selection() {
+                let count = state.node_selections().len();
+                if count > 1 {
+                    format!("{count} blocks selected")
+                } else {
+                    "Block selected".to_string()
+                }
+            } else {
+                String::new()
+            }
+        })
+    };
     let shell_class = if class.is_empty() {
         "ls-editor-shell".to_string()
     } else {
@@ -1070,6 +1125,9 @@ pub fn Editable(
                 drop_index.set(None);
             }
         >
+            <div class="ls-sr-only" aria-live="polite" aria-atomic="true">
+                {live_selection}
+            </div>
             <div
                 node_ref=content_ref
                 class="ls-editor"
@@ -1154,6 +1212,8 @@ pub fn Editable(
             </div>
             <div
                 class="ls-hover-bar"
+                role="toolbar"
+                aria-label="Block actions"
                 class:visible=move || hovered_block.get().is_some()
                 style=move || hover_style.get()
                 on:mousedown=move |ev: MouseEvent| {
@@ -1221,6 +1281,8 @@ pub fn Editable(
             ></div>
             <div
                 class="ls-selection-bubble"
+                role="toolbar"
+                aria-label="Text formatting"
                 class:visible=move || bubble_visible.get()
                 style=move || bubble_style.get()
                 on:mousedown=move |ev| ev.prevent_default()
@@ -1229,6 +1291,7 @@ pub fn Editable(
                     type="button"
                     class="ls-bubble-mark"
                     class:active=bubble_bold_active
+                    aria-pressed=move || if bubble_bold_pressed() { "true" } else { "false" }
                     title="Bold"
                     aria-label="Bold"
                     on:click=bubble_bold
@@ -1239,6 +1302,7 @@ pub fn Editable(
                     type="button"
                     class="ls-bubble-mark"
                     class:active=bubble_italic_active
+                    aria-pressed=move || if bubble_italic_pressed() { "true" } else { "false" }
                     title="Italic"
                     aria-label="Italic"
                     on:click=bubble_italic
@@ -1249,6 +1313,7 @@ pub fn Editable(
                     type="button"
                     class="ls-bubble-mark"
                     class:active=bubble_underline_active
+                    aria-pressed=move || if bubble_underline_pressed() { "true" } else { "false" }
                     title="Underline"
                     aria-label="Underline"
                     on:click=bubble_underline
@@ -1259,6 +1324,7 @@ pub fn Editable(
                     type="button"
                     class="ls-bubble-mark"
                     class:active=bubble_strike_active
+                    aria-pressed=move || if bubble_strike_pressed() { "true" } else { "false" }
                     title="Strikethrough"
                     aria-label="Strikethrough"
                     on:click=bubble_strike
@@ -1270,6 +1336,7 @@ pub fn Editable(
                     type="button"
                     class="ls-bubble-mark"
                     class:active=bubble_code_active
+                    aria-pressed=move || if bubble_code_pressed() { "true" } else { "false" }
                     title="Inline code"
                     aria-label="Inline code"
                     on:click=bubble_code
