@@ -448,6 +448,7 @@ fn install_test_hook(editor: EditorHandle) {
             serde_json::json!({
                 "selection": state.selection,
                 "nodeSelection": state.node_selection,
+                "nodeSelectionEnd": state.node_selection_end,
             })
         });
         JsValue::from_str(&value.to_string())

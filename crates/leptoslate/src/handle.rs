@@ -232,6 +232,21 @@ impl EditorHandle {
         self.update(|editor| editor.select_node(path));
     }
 
+    /// Extend the node selection to another block.
+    pub fn extend_node_selection_to(&self, path: &[usize]) {
+        self.update(|editor| editor.extend_node_selection_to(path));
+    }
+
+    /// Extend the node selection up or down by one block.
+    pub fn extend_node_selection(&self, direction: isize) -> bool {
+        self.update(|editor| editor.extend_node_selection(direction))
+    }
+
+    /// Move a single block selection or collapse a multi-block range.
+    pub fn move_node_selection(&self, direction: isize) -> bool {
+        self.update(|editor| editor.move_node_selection(direction))
+    }
+
     pub fn clear_node_selection(&self) {
         self.update(Editor::clear_node_selection);
     }
@@ -243,12 +258,20 @@ impl EditorHandle {
 
     /// Reactive check used by custom renderers to style the selected block.
     pub fn is_node_selected(&self, path: &[usize]) -> bool {
-        self.state
-            .with(|editor| editor.node_selection() == Some(path))
+        self.state.with(|editor| editor.is_node_selected(path))
     }
 
     pub fn delete_node_selection(&self) -> bool {
         self.update(Editor::delete_node_selection)
+    }
+
+    pub fn duplicate_node_selection(&self) -> bool {
+        self.update(Editor::duplicate_node_selection)
+    }
+
+    pub fn node_selection_string(&self) -> Option<String> {
+        self.state
+            .with_untracked(|editor| editor.node_selection_string())
     }
 
     pub fn move_selection_off_node(&self, reverse: bool) -> Option<Point> {

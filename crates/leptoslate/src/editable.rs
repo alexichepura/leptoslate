@@ -204,6 +204,26 @@ pub fn Editable(
                     keydown_editor.delete_node_selection();
                     return;
                 }
+                "ArrowUp" if ev.shift_key() => {
+                    ev.prevent_default();
+                    keydown_editor.extend_node_selection(-1);
+                    return;
+                }
+                "ArrowDown" if ev.shift_key() => {
+                    ev.prevent_default();
+                    keydown_editor.extend_node_selection(1);
+                    return;
+                }
+                "ArrowUp" => {
+                    ev.prevent_default();
+                    keydown_editor.move_node_selection(-1);
+                    return;
+                }
+                "ArrowDown" => {
+                    ev.prevent_default();
+                    keydown_editor.move_node_selection(1);
+                    return;
+                }
                 "ArrowLeft" => {
                     ev.prevent_default();
                     keydown_editor.move_selection_off_node(true);
@@ -262,6 +282,10 @@ pub fn Editable(
                 "a" => {
                     ev.prevent_default();
                     keydown_editor.select_all();
+                }
+                "d" if keydown_editor.has_node_selection() => {
+                    ev.prevent_default();
+                    keydown_editor.duplicate_node_selection();
                 }
                 _ => {}
             }
@@ -425,7 +449,10 @@ pub fn Editable(
             return;
         };
         sync_from_dom(&copy_editor, root.unchecked_ref());
-        let text = copy_editor.selection_string().unwrap_or_default();
+        let text = copy_editor
+            .node_selection_string()
+            .or_else(|| copy_editor.selection_string())
+            .unwrap_or_default();
         if let Some(data) = ev.clipboard_data() {
             let _ = data.set_data("text/plain", &text);
         }
@@ -439,12 +466,19 @@ pub fn Editable(
             return;
         };
         sync_from_dom(&cut_editor, root.unchecked_ref());
-        let text = cut_editor.selection_string().unwrap_or_default();
+        let text = cut_editor
+            .node_selection_string()
+            .or_else(|| cut_editor.selection_string())
+            .unwrap_or_default();
         if let Some(data) = ev.clipboard_data() {
             let _ = data.set_data("text/plain", &text);
         }
         ev.prevent_default();
-        cut_editor.delete_selection();
+        if cut_editor.has_node_selection() {
+            cut_editor.delete_node_selection();
+        } else {
+            cut_editor.delete_selection();
+        }
     };
 
     let hover_editor = editor.clone();
@@ -547,15 +581,20 @@ pub fn Editable(
             let Some(path) = hovered.get_untracked() else {
                 return;
             };
+            if let Some(root) = content.get() {
+                let _ = root.focus();
+            }
+            if editor.has_node_selection() && editor.is_node_selected(&path) {
+                editor.duplicate_node_selection();
+                hovered.set(None);
+                return;
+            }
             let node = editor
                 .state
                 .with_untracked(|state| state.node(&path).cloned());
             let Some(node) = node else {
                 return;
             };
-            if let Some(root) = content.get() {
-                let _ = root.focus();
-            }
             editor.update(|state| {
                 state.insert_block_after(&path, node);
             });
@@ -574,9 +613,34 @@ pub fn Editable(
             if let Some(root) = content.get() {
                 let _ = root.focus();
             }
-            editor.update(|state| {
-                state.remove_block_at(&path);
-            });
+            if editor.has_node_selection() && editor.is_node_selected(&path) {
+                editor.delete_node_selection();
+            } else {
+                editor.update(|state| {
+                    state.remove_block_at(&path);
+                });
+            }
+            hovered.set(None);
+        }
+    };
+
+    let select_block = {
+        let editor = editor.clone();
+        let hovered = hovered_block;
+        let content = content_ref;
+        move |ev: MouseEvent| {
+            ev.prevent_default();
+            let Some(path) = hovered.get_untracked() else {
+                return;
+            };
+            if let Some(root) = content.get() {
+                let _ = root.focus();
+            }
+            if ev.shift_key() {
+                editor.extend_node_selection_to(&path);
+            } else {
+                editor.select_node(&path);
+            }
             hovered.set(None);
         }
     };
@@ -1041,6 +1105,14 @@ pub fn Editable(
                 >
                     "⠿"
                 </span>
+                <button
+                    type="button"
+                    title="Select block"
+                    aria-label="Select block"
+                    on:click=select_block
+                >
+                    "▣"
+                </button>
                 <button
                     type="button"
                     title="Add block below"

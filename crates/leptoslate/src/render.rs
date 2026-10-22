@@ -125,12 +125,21 @@ fn render_element(
         );
     }
 
+    let class_editor = editor.clone();
+    let class_path = path.to_vec();
+    let class = move || {
+        if class_editor.is_node_selected(&class_path) {
+            format!("{class} ls-block-selected")
+        } else {
+            class.clone()
+        }
+    };
     render_block(&tag, class, node_path, element_type, children)
 }
 
 fn render_block(
     tag: &str,
-    class: String,
+    class: impl Fn() -> String + Send + 'static,
     node_path: String,
     element_type: String,
     children: Vec<AnyView>,

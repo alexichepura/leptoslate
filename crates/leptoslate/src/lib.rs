@@ -85,6 +85,12 @@ pub const EDITOR_STYLES: &str = r#"
     border-radius: 4px;
 }
 
+.ls-block.ls-block-selected {
+    background: rgba(180, 83, 42, 0.08);
+    box-shadow: inset 3px 0 0 #b4532a;
+    border-radius: 3px;
+}
+
 .ls-hover-bar {
     position: absolute;
     z-index: 30;

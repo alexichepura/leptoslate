@@ -187,7 +187,7 @@ impl Editor {
 
     pub fn delete_range(&mut self, range: Range) {
         self.transaction(|editor| {
-            editor.node_selection = None;
+            editor.clear_node_selection();
             editor.selection = Some(range);
             editor.delete_selection_inner();
         });
@@ -1285,8 +1285,8 @@ impl Editor {
 
     /// The leaf block paths intersecting the current selection.
     pub fn blocks_in_selection(&self) -> Vec<Path> {
-        if let Some(node) = &self.node_selection {
-            return vec![node.clone()];
+        if self.has_node_selection() {
+            return self.node_selections();
         }
         let Some(range) = &self.selection else {
             return Vec::new();
@@ -1417,7 +1417,7 @@ impl Editor {
     /// Insert text at an explicit point.
     pub fn insert_text_at(&mut self, at: &Point, text: &str) {
         self.transaction(|editor| {
-            editor.node_selection = None;
+            editor.clear_node_selection();
             editor.selection = Some(Range::collapsed(at.clone()));
             editor.insert_text_inner(text);
         });
@@ -1687,7 +1687,7 @@ impl Editor {
     /// from an `@query` trigger.
     pub fn replace_range_with_inline_node(&mut self, range: Range, node: Node) -> Option<Path> {
         self.transaction(|editor| {
-            editor.node_selection = None;
+            editor.clear_node_selection();
             editor.selection = Some(range);
             editor.insert_inline_node(node)
         })
@@ -1800,7 +1800,7 @@ impl Editor {
             };
 
             let insert_at = child_path(&parent, index + 1);
-            editor.node_selection = None;
+            editor.clear_node_selection();
             editor
                 .apply(Operation::InsertNode {
                     path: insert_at.clone(),
@@ -1833,9 +1833,11 @@ impl Editor {
         let mut inserted = None;
 
         self.transaction(|editor| {
-            let selected_node = editor.node_selection.take();
-            let mut block = if let Some(node) = selected_node {
-                node
+            let selected_blocks = editor.node_selections();
+            let mut block = if let Some(block) = selected_blocks.last() {
+                let block = block.clone();
+                editor.clear_node_selection();
+                block
             } else {
                 let point = editor
                     .selection
@@ -1930,7 +1932,7 @@ impl Editor {
         if at.is_empty() || self.node(at).is_none() {
             return None;
         }
-        self.node_selection = None;
+        self.clear_node_selection();
 
         let parent = at[..at.len() - 1].to_vec();
         let index = *at.last()?;
@@ -1966,10 +1968,38 @@ impl Editor {
     }
 
     pub(crate) fn delete_selected_node_inner(&mut self) -> bool {
-        let Some(path) = self.node_selection.take() else {
+        let selected = self.node_selections();
+        let (Some(first), Some(last)) = (
+            selected.first().and_then(|path| path.first().copied()),
+            selected.last().and_then(|path| path.first().copied()),
+        ) else {
             return false;
         };
-        self.remove_block_at_inner(&path);
+        self.clear_node_selection();
+
+        let is_void = |path: &[usize]| {
+            self.node(path)
+                .and_then(Node::as_element)
+                .map(|element| self.schema.is_void(&element.element_type))
+                .unwrap_or(true)
+        };
+        let next = last + 1;
+        let target = if next < self.children.len() && !is_void(&[next]) {
+            self.first_text_point_in(&[next])
+        } else {
+            None
+        }
+        .or_else(|| {
+            first
+                .checked_sub(1)
+                .filter(|previous| !is_void(&[*previous]))
+                .and_then(|previous| self.last_text_point_in(&[previous]))
+        });
+        self.selection = target.map(Range::collapsed);
+
+        for index in (first..=last).rev() {
+            let _ = self.apply(Operation::RemoveNode { path: vec![index] });
+        }
         true
     }
 

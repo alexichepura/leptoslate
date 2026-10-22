@@ -22,7 +22,9 @@ struct PendingBatch {
     before_selection: Option<Range>,
     after_selection: Option<Range>,
     before_node_selection: Option<path::Path>,
+    before_node_selection_end: Option<path::Path>,
     after_node_selection: Option<path::Path>,
+    after_node_selection_end: Option<path::Path>,
 }
 
 impl PendingBatch {
@@ -42,6 +44,8 @@ pub struct Editor {
     /// An explicit block/node selection, used for void blocks such as images.
     /// Mutually exclusive with a text [`Range`] selection.
     pub node_selection: Option<path::Path>,
+    /// The focus end of a multi-block node selection.
+    pub node_selection_end: Option<path::Path>,
     pub marks: Option<Props>,
     pub schema: Schema,
     pub history: History,
@@ -63,6 +67,7 @@ impl Editor {
             children,
             selection: None,
             node_selection: None,
+            node_selection_end: None,
             marks: None,
             schema: Schema::default(),
             history: History::default(),
@@ -272,6 +277,7 @@ impl Editor {
     /// Expand the selection to the whole document.
     pub fn select_all(&mut self) {
         self.node_selection = None;
+        self.node_selection_end = None;
         if let (Some(start), Some(end)) = (self.start_point(), self.end_point()) {
             self.selection = Some(Range::new(start, end));
             self.history.break_coalescing();
@@ -281,6 +287,7 @@ impl Editor {
     pub fn select(&mut self, range: Range) {
         self.selection = Some(range);
         self.node_selection = None;
+        self.node_selection_end = None;
         self.marks = None;
         self.history.break_coalescing();
     }
@@ -292,26 +299,122 @@ impl Editor {
     pub fn deselect(&mut self) {
         self.selection = None;
         self.node_selection = None;
+        self.node_selection_end = None;
         self.marks = None;
         self.history.break_coalescing();
     }
 
     /// Select an element as a block, clearing any text selection.
     ///
-    /// This is primarily used for void blocks (images, dividers, embeds) that
-    /// have no editable text.
+    /// The selection is stored as the top-level block containing `at`, so
+    /// multi-block ranges stay simple and stable.
     pub fn select_node(&mut self, at: &[usize]) {
-        if at.is_empty() || !self.node(at).map(Node::is_element).unwrap_or(false) {
+        let Some(index) = at.first().copied() else {
+            return;
+        };
+        if self
+            .children
+            .get(index)
+            .and_then(Node::as_element)
+            .is_none()
+        {
             return;
         }
         self.selection = None;
         self.marks = None;
-        self.node_selection = Some(at.to_vec());
+        self.node_selection = Some(vec![index]);
+        self.node_selection_end = None;
         self.history.break_coalescing();
+    }
+
+    /// Select a contiguous range of top-level blocks.
+    pub fn select_node_range(&mut self, anchor: &[usize], focus: &[usize]) {
+        let (Some(anchor), Some(focus)) = (anchor.first().copied(), focus.first().copied()) else {
+            return;
+        };
+        if anchor >= self.children.len() || focus >= self.children.len() {
+            return;
+        }
+        self.selection = None;
+        self.marks = None;
+        self.node_selection = Some(vec![anchor]);
+        self.node_selection_end = (anchor != focus).then(|| vec![focus]);
+        self.history.break_coalescing();
+    }
+
+    /// Extend the node selection to another top-level block.
+    pub fn extend_node_selection_to(&mut self, at: &[usize]) {
+        let Some(index) = at.first().copied() else {
+            return;
+        };
+        if index >= self.children.len() {
+            return;
+        }
+        if self.node_selection.is_none() {
+            self.select_node(at);
+            return;
+        }
+        let anchor = self.node_selection.as_ref().unwrap()[0];
+        self.selection = None;
+        self.marks = None;
+        self.node_selection_end = (anchor != index).then(|| vec![index]);
+        self.history.break_coalescing();
+    }
+
+    /// Extend a node selection by one top-level block.
+    pub fn extend_node_selection(&mut self, direction: isize) -> bool {
+        let Some(anchor) = self
+            .node_selection
+            .as_ref()
+            .and_then(|path| path.first().copied())
+        else {
+            return false;
+        };
+        let focus = self
+            .node_selection_end
+            .as_ref()
+            .and_then(|path| path.first().copied())
+            .unwrap_or(anchor);
+        let next = focus as isize + direction;
+        if next < 0 || next as usize >= self.children.len() {
+            return false;
+        }
+        let next = next as usize;
+        self.selection = None;
+        self.marks = None;
+        self.node_selection_end = (anchor != next).then(|| vec![next]);
+        self.history.break_coalescing();
+        true
+    }
+
+    /// Move a single-block selection to the previous/next block, or collapse a
+    /// range to its first/last block.
+    pub fn move_node_selection(&mut self, direction: isize) -> bool {
+        let selected = self.node_selections();
+        let (Some(first), Some(last)) = (
+            selected.first().and_then(|path| path.first().copied()),
+            selected.last().and_then(|path| path.first().copied()),
+        ) else {
+            return false;
+        };
+        if self.node_selection_end.is_some() {
+            let target = if direction < 0 { first } else { last };
+            self.node_selection = Some(vec![target]);
+            self.node_selection_end = None;
+            self.history.break_coalescing();
+            return true;
+        }
+        let next = first as isize + direction;
+        if next < 0 || next as usize >= self.children.len() {
+            return false;
+        }
+        self.select_node(&[next as usize]);
+        true
     }
 
     pub fn clear_node_selection(&mut self) {
         self.node_selection = None;
+        self.node_selection_end = None;
     }
 
     pub fn has_node_selection(&self) -> bool {
@@ -322,6 +425,55 @@ impl Editor {
         self.node_selection.as_deref()
     }
 
+    pub fn node_selection_end(&self) -> Option<&[usize]> {
+        self.node_selection_end.as_deref()
+    }
+
+    /// All top-level paths in the node selection.
+    pub fn node_selections(&self) -> Vec<path::Path> {
+        let Some(anchor) = self
+            .node_selection
+            .as_ref()
+            .and_then(|path| path.first().copied())
+        else {
+            return Vec::new();
+        };
+        let focus = self
+            .node_selection_end
+            .as_ref()
+            .and_then(|path| path.first().copied())
+            .unwrap_or(anchor);
+        let (start, end) = if anchor <= focus {
+            (anchor, focus)
+        } else {
+            (focus, anchor)
+        };
+        (start..=end)
+            .filter(|index| *index < self.children.len())
+            .map(|index| vec![index])
+            .collect()
+    }
+
+    /// Whether `at` is one of the selected top-level blocks.
+    pub fn is_node_selected(&self, at: &[usize]) -> bool {
+        self.node_selections().iter().any(|path| path == at)
+    }
+
+    pub fn node_selection_string(&self) -> Option<String> {
+        let paths = self.node_selections();
+        if paths.is_empty() {
+            return None;
+        }
+        Some(
+            paths
+                .iter()
+                .filter_map(|path| self.node(path))
+                .map(Node::string)
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+    }
+
     /// Delete the selected block and move the caret to a neighbour.
     pub fn delete_node_selection(&mut self) -> bool {
         if self.node_selection.is_none() {
@@ -330,12 +482,64 @@ impl Editor {
         self.transaction(|editor| {
             editor.delete_selected_node_inner();
         });
+        if self.selection.is_none() {
+            self.selection = self.start_point().map(Range::collapsed);
+        }
         true
+    }
+
+    /// Duplicate every block in the node selection and select the copies.
+    pub fn duplicate_node_selection(&mut self) -> bool {
+        let paths = self.node_selections();
+        if paths.is_empty() {
+            return false;
+        }
+        self.transaction(|editor| {
+            let last = paths.last().and_then(|path| path.first().copied())?;
+            let nodes: Vec<Node> = paths
+                .iter()
+                .filter_map(|path| editor.node(path).cloned())
+                .collect();
+            let count = nodes.len();
+            for (offset, node) in nodes.into_iter().enumerate() {
+                editor
+                    .apply(Operation::InsertNode {
+                        path: vec![last + 1 + offset],
+                        node,
+                    })
+                    .ok()?;
+            }
+            editor.node_selection = Some(vec![last + 1]);
+            editor.node_selection_end = (count > 1).then(|| vec![last + count]);
+            editor.selection = None;
+            Some(())
+        })
+        .is_some()
     }
 
     /// Move out of a block selection into the previous or next text block.
     pub fn move_selection_off_node(&mut self, reverse: bool) -> Option<Point> {
+        if self.node_selection_end.is_some() {
+            let selected = self.node_selections();
+            let target_path = if reverse {
+                selected.first()
+            } else {
+                selected.last()
+            }?;
+            let point = if reverse {
+                self.first_text_point_in(target_path)?
+            } else {
+                self.last_text_point_in(target_path)?
+            };
+            self.clear_node_selection();
+            self.selection = Some(Range::collapsed(point.clone()));
+            self.marks = None;
+            self.history.break_coalescing();
+            return Some(point);
+        }
+
         let path = self.node_selection.take()?;
+        self.node_selection_end = None;
         if path.is_empty() {
             return None;
         }
@@ -551,7 +755,9 @@ impl Editor {
             before_selection: self.selection.clone(),
             after_selection: None,
             before_node_selection: self.node_selection.clone(),
+            before_node_selection_end: self.node_selection_end.clone(),
             after_node_selection: None,
+            after_node_selection_end: None,
         });
 
         let result = f(self);
@@ -575,7 +781,9 @@ impl Editor {
             before_selection: self.selection.clone(),
             after_selection: None,
             before_node_selection: self.node_selection.clone(),
+            before_node_selection_end: self.node_selection_end.clone(),
             after_node_selection: None,
+            after_node_selection_end: None,
         });
 
         let result = self.apply_inner(op);
@@ -589,11 +797,22 @@ impl Editor {
         self.apply_value(&op)?;
 
         if let Some(node) = &self.node_selection {
-            self.node_selection = path::transform_with_affinity(node, &op, Affinity::Forward);
+            self.node_selection = path::transform_with_affinity(node, &op, Affinity::Forward)
+                .and_then(|path| path.first().copied())
+                .map(|index| vec![index]);
+        }
+        if let Some(node) = &self.node_selection_end {
+            self.node_selection_end = path::transform_with_affinity(node, &op, Affinity::Forward)
+                .and_then(|path| path.first().copied())
+                .map(|index| vec![index]);
+        }
+        if self.node_selection.is_none() || self.node_selection_end == self.node_selection {
+            self.node_selection_end = None;
         }
 
         if let Operation::SetSelection { new_properties, .. } = &op {
             self.node_selection = None;
+            self.node_selection_end = None;
             self.selection = new_properties.clone();
         } else if let Some(selection) = &self.selection {
             self.selection = selection.transform(&op, Affinity::Forward);
@@ -610,12 +829,15 @@ impl Editor {
             if !batch.is_empty() {
                 batch.after_selection = self.selection.clone();
                 batch.after_node_selection = self.node_selection.clone();
+                batch.after_node_selection_end = self.node_selection_end.clone();
                 self.history.push(HistoryBatch {
                     ops: batch.ops,
                     before_selection: batch.before_selection,
                     after_selection: batch.after_selection,
                     before_node_selection: batch.before_node_selection,
+                    before_node_selection_end: batch.before_node_selection_end,
                     after_node_selection: batch.after_node_selection,
+                    after_node_selection_end: batch.after_node_selection_end,
                 });
             }
         }
@@ -623,12 +845,35 @@ impl Editor {
     }
 
     pub(crate) fn sanitize_selection(&mut self) {
-        if let Some(node) = self.node_selection.clone() {
-            if self.node(&node).map(Node::is_element).unwrap_or(false) {
+        if let Some(anchor) = self
+            .node_selection
+            .as_ref()
+            .and_then(|path| path.first().copied())
+        {
+            if anchor >= self.children.len() || self.children[anchor].as_element().is_none() {
+                self.node_selection = None;
+                self.node_selection_end = None;
+            } else {
+                if let Some(focus) = self
+                    .node_selection_end
+                    .as_ref()
+                    .and_then(|path| path.first().copied())
+                {
+                    if focus >= self.children.len() || self.children[focus].as_element().is_none() {
+                        self.node_selection_end = None;
+                    }
+                }
+                if self
+                    .node_selection_end
+                    .as_ref()
+                    .and_then(|path| path.first().copied())
+                    == Some(anchor)
+                {
+                    self.node_selection_end = None;
+                }
                 self.selection = None;
                 return;
             }
-            self.node_selection = None;
         }
 
         let Some(range) = self.selection.clone() else {
@@ -1032,6 +1277,7 @@ impl Editor {
         }
         self.selection = batch.before_selection.clone();
         self.node_selection = batch.before_node_selection.clone();
+        self.node_selection_end = batch.before_node_selection_end.clone();
         self.marks = None;
         self.sanitize_selection();
         if self.selection.is_none() && self.node_selection.is_none() {
@@ -1054,6 +1300,7 @@ impl Editor {
         }
         self.selection = batch.after_selection.clone();
         self.node_selection = batch.after_node_selection.clone();
+        self.node_selection_end = batch.after_node_selection_end.clone();
         self.marks = None;
         self.sanitize_selection();
         if self.selection.is_none() && self.node_selection.is_none() {
