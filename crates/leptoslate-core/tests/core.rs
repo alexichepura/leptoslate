@@ -1043,3 +1043,22 @@ fn inserting_a_fragment_at_the_block_start_does_not_leave_an_empty_block() {
         Some(Range::collapsed(Point::new(vec![1, 0], 0)))
     );
 }
+
+#[test]
+fn inserts_a_block_after_an_explicit_block_path() {
+    let mut editor = Editor::new(vec![p("one"), p("two")]);
+    let inserted = editor.insert_block_after(&[0], p("middle"));
+
+    assert_eq!(inserted, Some(vec![1]));
+    assert_eq!(editor.children.len(), 3);
+    assert_eq!(editor.children[0].string(), "one");
+    assert_eq!(editor.children[1].string(), "middle");
+    assert_eq!(editor.children[2].string(), "two");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![1, 0], 0)))
+    );
+
+    assert!(editor.undo());
+    assert_eq!(editor.children.len(), 2);
+}

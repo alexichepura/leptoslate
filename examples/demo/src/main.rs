@@ -947,6 +947,7 @@ fn App() -> impl IntoView {
                     renderers=renderers
                     on_files=files_handler
                     on_mention=on_mention
+                    hover_bar=true
                     placeholder="Start writing…"
                 />
 
