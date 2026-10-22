@@ -1202,6 +1202,183 @@ impl Editor {
         });
     }
 
+    /// Insert a parsed fragment at the current selection.
+    ///
+    /// A single paragraph-shaped block is merged into the current text so
+    /// inline marks and links survive. Multi-block fragments split the current
+    /// top-level block and insert between the two halves.
+    pub fn insert_fragment(&mut self, nodes: Vec<Node>) {
+        if nodes.is_empty() {
+            return;
+        }
+
+        let inline_children = if nodes.len() == 1 {
+            match &nodes[0] {
+                Node::Element(element) if element.element_type == "p" => {
+                    let inline = element.children.iter().all(|child| {
+                        child.is_text()
+                            || child
+                                .element_type()
+                                .map(|kind| self.schema.is_inline(kind))
+                                .unwrap_or(false)
+                    });
+                    inline.then(|| element.children.clone())
+                }
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        self.transaction(|editor| {
+            if editor.node_selection.is_some() {
+                editor.delete_selected_node_inner();
+            }
+            if editor
+                .selection
+                .as_ref()
+                .map(|range| !range.is_collapsed())
+                .unwrap_or(false)
+            {
+                editor.delete_selection_inner();
+            }
+
+            if let Some(children) = inline_children {
+                editor.insert_inline_children_inner(children);
+            } else {
+                editor.insert_block_fragment_inner(nodes);
+            }
+        });
+    }
+
+    pub fn insert_html(&mut self, html: &str) {
+        let nodes = crate::fragment::parse_html(html);
+        self.insert_fragment(nodes);
+    }
+
+    pub fn insert_markdown(&mut self, markdown: &str) {
+        let nodes = crate::fragment::parse_markdown(markdown);
+        self.insert_fragment(nodes);
+    }
+
+    fn insert_inline_children_inner(&mut self, children: Vec<Node>) {
+        if children.is_empty() {
+            return;
+        }
+
+        let Some(point) = self
+            .selection
+            .as_ref()
+            .map(|range| range.anchor.clone())
+            .or_else(|| self.end_point())
+        else {
+            return;
+        };
+        let Some(point) = self.text_point(&point) else {
+            return;
+        };
+        if point.path.len() < 2 {
+            return;
+        }
+
+        let parent = point.path[..point.path.len() - 1].to_vec();
+        let index = *point.path.last().unwrap();
+        let split = point.offset > 0;
+        if split
+            && self
+                .apply_split(&point.path, point.offset, Props::new())
+                .is_err()
+        {
+            return;
+        }
+
+        let start = if split { index + 1 } else { index };
+        let count = children.len();
+        for (insert_at, child) in (start..).zip(children) {
+            let mut path = parent.clone();
+            path.push(insert_at);
+            if self
+                .apply(Operation::InsertNode { path, node: child })
+                .is_err()
+            {
+                return;
+            }
+        }
+
+        let after_path = child_path(&parent, start + count);
+        if let Some(point) = self.first_text_point_in(&after_path) {
+            self.selection = Some(Range::collapsed(point));
+        }
+    }
+
+    fn insert_block_fragment_inner(&mut self, nodes: Vec<Node>) {
+        if nodes.is_empty() {
+            return;
+        }
+        let Some(point) = self
+            .selection
+            .as_ref()
+            .map(|range| range.anchor.clone())
+            .or_else(|| self.end_point())
+        else {
+            return;
+        };
+        let Some(point) = self.text_point(&point) else {
+            return;
+        };
+        if point.path.is_empty() {
+            return;
+        }
+
+        let top = path::parent(&point.path).and_then(|parent| parent.first().copied());
+        let Some(top) = top else {
+            return;
+        };
+
+        let at_start = point.offset == 0 && point.path[1..].iter().all(|index| *index == 0);
+        let count = nodes.len();
+        let (insert_at, caret_path) = if at_start {
+            (top, top + count)
+        } else {
+            let Some(tail) = self.split_top_level_at_point(&point) else {
+                return;
+            };
+            (tail, tail + count)
+        };
+
+        for (offset, node) in nodes.into_iter().enumerate() {
+            if self
+                .apply(Operation::InsertNode {
+                    path: vec![insert_at + offset],
+                    node,
+                })
+                .is_err()
+            {
+                return;
+            }
+        }
+
+        if let Some(point) = self.first_text_point_in(&[caret_path]) {
+            self.selection = Some(Range::collapsed(point));
+        }
+    }
+
+    fn split_top_level_at_point(&mut self, point: &Point) -> Option<usize> {
+        let leaf = point.path.clone();
+        self.apply_split(&leaf, point.offset, Props::new()).ok()?;
+        let mut caret = Point::new(path::next(&leaf), 0);
+        self.selection = Some(Range::collapsed(caret.clone()));
+
+        for depth in (1..leaf.len()).rev() {
+            let ancestor = leaf[..depth].to_vec();
+            let position = caret.path.get(depth).copied()?;
+            self.apply_split(&ancestor, position, Props::new()).ok()?;
+            caret = self.selection.as_ref()?.anchor.clone();
+        }
+
+        caret.path.first().copied()
+    }
+
     /// Insert an inline node at the caret and move the caret into the text
     /// after it. Used for mentions, inline embeds and other atoms.
     pub fn insert_inline_node(&mut self, node: Node) -> Option<Path> {

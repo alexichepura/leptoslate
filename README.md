@@ -51,6 +51,7 @@ examples/
 - Block/node selection for void blocks: click an image, delete it, arrow out of it, or type to replace it
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
 - Inline void mentions: insert atoms, delete them as single units, and render them with custom components
+- Rich fragment paste: HTML by default, optional Markdown parsing, with inline marks/links preserved
 - DOM selection ↔ model selection mapping via `data-text-path` attributes
 - `beforeinput` handling for typing, deletion, formatting, undo/redo and IME-safe composition
 - Paste/cut/copy handling with plain text
@@ -162,6 +163,30 @@ editor.update(|state| {
 ```
 
 Void blocks (images, dividers) automatically get a paragraph after them so typing can continue. `remove_block_at` and `set_node_properties` are available for custom block toolbars.
+
+### Rich paste
+
+`Editable` parses `text/html` clipboard data by default. Pasting a single paragraph merges its inline content and marks into the current block; multi-block fragments split the current top-level block and insert between the halves.
+
+```rust
+view! {
+    <Editable
+        editor=editor
+        paste_html=true       // default
+        paste_markdown=false  // opt-in
+    />
+}
+```
+
+The core API is available directly too:
+
+```rust
+editor.insert_html("<h2>Title</h2><p>Hello <strong>world</strong></p>");
+editor.insert_markdown("# Title\n\nHello **world**");
+editor.insert_fragment(parsed_nodes);
+```
+
+Supported HTML includes paragraphs, headings, lists, blockquotes, code blocks, links, emphasis, line breaks, images and rules. Markdown supports headings, paragraphs, flat lists, blockquotes, fenced code, rules and common inline marks/links.
 
 ### Links
 
@@ -319,7 +344,8 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 
 - Client-side rendering only; no SSR/hydration adapter yet.
 - A pragmatic core schema instead of Slate's plugin model. Inline links and void mentions are supported; typing `@` to trigger mention autocomplete is not implemented (the demo uses a picker).
-- Rich HTML/Markdown fragment paste is tracked in #12.
+- HTML paste covers common rich-text tags; tables and deeply nested lists are flattened.
+- Markdown paste is opt-in and intentionally small; it is not a full CommonMark implementation.
 - Element rendering is pluggable, but custom text/mark renderers (for example syntax highlighting) are not exposed yet.
 - Node selection currently targets single blocks (images, dividers, embeds); multi-block and range-of-blocks selection is not implemented.
 - Undoing the deletion of a block restores the document but places the caret at the document start rather than reselecting the restored block.

@@ -920,3 +920,126 @@ fn selecting_after_an_inline_void_lands_in_following_text() {
         Some(Range::collapsed(Point::new(vec![0, 2], 0)))
     );
 }
+
+#[test]
+fn parses_html_fragments_into_slate_nodes() {
+    use leptoslate_core::fragment::parse_html;
+
+    let nodes = parse_html(
+        r#"<h2>Heading</h2>
+        <p>Hello <strong>bold</strong> and <a href="https://leptos.dev">a link</a>.</p>
+        <ul><li>One</li><li>Two</li></ul>"#,
+    );
+
+    assert_eq!(nodes.len(), 3);
+    assert_eq!(nodes[0].element_type(), Some("h2"));
+    assert_eq!(nodes[0].string(), "Heading");
+
+    let paragraph = nodes[1].as_element().unwrap();
+    assert_eq!(paragraph.element_type, "p");
+    assert!(paragraph.children.iter().any(|child| {
+        child
+            .as_text()
+            .map(|text| text.text == "bold" && text.properties.get("bold").is_some())
+            .unwrap_or(false)
+    }));
+    assert!(paragraph.children.iter().any(|child| {
+        child
+            .element_type()
+            .map(|kind| kind == "a")
+            .unwrap_or(false)
+    }));
+
+    let list = nodes[2].as_element().unwrap();
+    assert_eq!(list.element_type, "ul");
+    assert_eq!(list.children.len(), 2);
+    assert_eq!(list.children[0].string(), "One");
+    assert_eq!(list.children[1].string(), "Two");
+}
+
+#[test]
+fn parses_markdown_fragments_into_slate_nodes() {
+    use leptoslate_core::fragment::parse_markdown;
+
+    let nodes = parse_markdown(
+        "# Title\n\nHello **bold** and [link](https://leptos.dev).\n\n- one\n- two\n\n> quote\n\n```rust\nlet x = 1;\n```",
+    );
+
+    assert_eq!(nodes.len(), 5);
+    assert_eq!(nodes[0].element_type(), Some("h1"));
+    assert_eq!(nodes[0].string(), "Title");
+    assert_eq!(nodes[1].element_type(), Some("p"));
+    assert!(nodes[1].as_element().unwrap().children.iter().any(|child| {
+        child
+            .as_text()
+            .map(|text| text.text == "bold" && text.properties.get("bold").is_some())
+            .unwrap_or(false)
+    }));
+    assert_eq!(nodes[2].element_type(), Some("ul"));
+    assert_eq!(nodes[2].children().len(), 2);
+    assert_eq!(nodes[3].element_type(), Some("blockquote"));
+    assert_eq!(nodes[4].element_type(), Some("code"));
+    assert_eq!(
+        nodes[4].get_prop("language"),
+        Some(&serde_json::json!("rust"))
+    );
+}
+
+#[test]
+fn inserting_an_inline_fragment_merges_into_the_current_block() {
+    let mut editor = Editor::new(vec![p("hello")]);
+    editor.select_point(Point::new(vec![0, 0], 2));
+    editor.insert_fragment(vec![Node::Element(Element::paragraph(vec![
+        Node::Text(Text::new("X")),
+        Node::Text(Text::new("Y").with_property("bold", serde_json::json!(true))),
+    ]))]);
+
+    assert_eq!(editor.children.len(), 1);
+    assert_eq!(editor.children[0].string(), "heXYllo");
+    assert_eq!(
+        editor.element(&[0]).unwrap().children[1].get_prop("bold"),
+        Some(&serde_json::json!(true))
+    );
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 2], 0)))
+    );
+}
+
+#[test]
+fn inserting_a_block_fragment_splits_the_current_block() {
+    let mut editor = Editor::new(vec![p("hello")]);
+    editor.select_point(Point::new(vec![0, 0], 2));
+    editor.insert_fragment(vec![
+        Node::Element(Element::new("h2", vec![Node::Text(Text::new("Title"))])),
+        Node::Element(Element::paragraph(vec![Node::Text(Text::new("Body"))])),
+    ]);
+
+    assert_eq!(editor.children.len(), 4);
+    assert_eq!(editor.children[0].string(), "he");
+    assert_eq!(editor.children[1].element_type(), Some("h2"));
+    assert_eq!(editor.children[2].string(), "Body");
+    assert_eq!(editor.children[3].string(), "llo");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![3, 0], 0)))
+    );
+}
+
+#[test]
+fn inserting_a_fragment_at_the_block_start_does_not_leave_an_empty_block() {
+    let mut editor = Editor::new(vec![p("hello")]);
+    editor.select_point(Point::new(vec![0, 0], 0));
+    editor.insert_fragment(vec![Node::Element(Element::new(
+        "h2",
+        vec![Node::Text(Text::new("Title"))],
+    ))]);
+
+    assert_eq!(editor.children.len(), 2);
+    assert_eq!(editor.children[0].element_type(), Some("h2"));
+    assert_eq!(editor.children[1].string(), "hello");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![1, 0], 0)))
+    );
+}

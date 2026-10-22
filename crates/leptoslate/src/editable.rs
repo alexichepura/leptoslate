@@ -36,6 +36,12 @@ pub fn Editable(
     /// Receives files pasted or dropped onto the editor.
     #[prop(optional)]
     on_files: Option<FileHandler>,
+    /// Parse `text/html` clipboard data into blocks and marks.
+    #[prop(default = true)]
+    paste_html: bool,
+    /// Parse plain text as Markdown when no HTML is available.
+    #[prop(default = false)]
+    paste_markdown: bool,
 ) -> impl IntoView {
     let content_ref = NodeRef::<Div>::new();
     let composing = RwSignal::new(false);
@@ -248,12 +254,34 @@ pub fn Editable(
             return;
         }
 
+        let html = data
+            .as_ref()
+            .and_then(|data| data.get_data("text/html").ok())
+            .unwrap_or_default();
+        if paste_html && !html.trim().is_empty() {
+            let nodes = leptoslate_core::fragment::parse_html(&html);
+            if !nodes.is_empty() {
+                paste_editor.insert_fragment(nodes);
+                return;
+            }
+        }
+
         let text = data
             .and_then(|data| data.get_data("text/plain").ok())
             .unwrap_or_default();
-        if !text.is_empty() {
-            paste_editor.insert_plain_text(&text);
+        if text.is_empty() {
+            return;
         }
+
+        if paste_markdown {
+            let nodes = leptoslate_core::fragment::parse_markdown(&text);
+            if !nodes.is_empty() {
+                paste_editor.insert_fragment(nodes);
+                return;
+            }
+        }
+
+        paste_editor.insert_plain_text(&text);
     };
 
     let drop_editor = editor.clone();
