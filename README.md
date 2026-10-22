@@ -63,6 +63,7 @@ examples/
 - Paste/cut/copy handling with plain text
 - File paste/drop hook for image uploads (`FileHandler`)
 - Keyboard shortcuts: ⌘/Ctrl+B, I, U, Z, Shift+Z, Y, A, D; Shift+Arrow extends block selection; Tab inserts spaces
+- Accessible toolbar semantics: arrow/Home/End navigation, `aria-pressed` states, labelled floating toolbars and live block-selection announcements
 - Placeholder support, active-mark/block state helpers, JSON snapshot
 
 ## Quick start
@@ -450,6 +451,12 @@ The core has no DOM or Leptos dependency, so it can be used in tests, servers, c
 - **Rendering.** Top-level blocks are keyed by index and content hash, so selection-only updates leave the DOM alone and typing recreates only the changed block.
 - **Input.** Editing is driven by `beforeinput`, which is prevented and translated into operations. IME composition is allowed in the DOM and reconciled on `compositionend`.
 
+### Accessibility
+
+The demo toolbar uses `role="toolbar"` with arrow-key, Home and End navigation. Mark, block and list buttons expose `aria-pressed`; the selection bubble mirrors mark state the same way. The block hover bar and selection bubble are labelled toolbars with visible `:focus-visible` outlines. Node-selection changes are announced through a polite live region, and the mention picker exposes listbox/option semantics.
+
+The Playwright suite includes an accessibility-focused test for toolbar roles, pressed state, keyboard focus movement, floating-toolbar labels and the live region. Manual screen-reader testing is still recommended before treating the component as fully certified.
+
 ## Performance
 
 Top-level blocks are rendered through a keyed list. Each key combines the block index with a content hash, so selection-only changes do not touch the DOM and a text edit recreates only the affected block. Nested content still renders with its parent block.
@@ -475,7 +482,7 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 - Copying a node selection produces plain text; there is no rich block clipboard format yet.
 - List indentation operates on the item under the caret; multi-item indentation is not implemented.
 - IME composition is reconciled per text node, not with Slate's composition-aware range model.
-- There has not been a full accessibility audit yet ([#32](https://github.com/alexichepura/leptoslate/issues/32)).
+- Automated ARIA and keyboard tests are in place, but there has not been a manual screen-reader certification.
 - No collaborative editing, OT/CRDT, or remote operation rebasing.
 
 ## License

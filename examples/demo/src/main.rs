@@ -349,12 +349,22 @@ fn MarkButton(
                 .with(|state| state.has_mark(mark, &Value::Bool(true)))
         }
     };
+    let pressed = {
+        let editor = editor.clone();
+        move || {
+            editor
+                .state
+                .with(|state| state.has_mark(mark, &Value::Bool(true)))
+        }
+    };
     let title = if title.is_empty() { label } else { title };
 
     view! {
         <button
             class="tool"
             class:active=active
+            aria-pressed=move || if pressed() { "true" } else { "false" }
+            aria-label=title
             title=title
             on:mousedown=move |ev| ev.prevent_default()
             on:click=move |_| editor_click.toggle_mark(mark, Value::Bool(true))
@@ -386,12 +396,28 @@ fn BlockButton(
             })
         }
     };
+    let pressed = {
+        let editor = editor.clone();
+        move || {
+            editor.state.with(|state| {
+                state
+                    .selection
+                    .as_ref()
+                    .and_then(|range| state.leaf_block_path(range.start()))
+                    .and_then(|path| state.element(&path))
+                    .map(|element| element.element_type == block_type)
+                    .unwrap_or(false)
+            })
+        }
+    };
     let title = if title.is_empty() { label } else { title };
 
     view! {
         <button
             class="tool"
             class:active=active
+            aria-pressed=move || if pressed() { "true" } else { "false" }
+            aria-label=title
             title=title
             on:mousedown=move |ev| ev.prevent_default()
             on:click=move |_| editor_click.set_block(block_type)
@@ -420,11 +446,34 @@ fn ListButton(editor: EditorHandle, list_type: &'static str, label: &'static str
         }
     };
 
+    let pressed = {
+        let editor = editor.clone();
+        move || {
+            editor.state.with(|state| {
+                let Some(range) = &state.selection else {
+                    return false;
+                };
+                let top = range.start().path.first().copied().unwrap_or(0);
+                state
+                    .element(&[top])
+                    .map(|element| element.element_type == list_type)
+                    .unwrap_or(false)
+            })
+        }
+    };
+    let name = if list_type == "ul" {
+        "Bulleted list"
+    } else {
+        "Numbered list"
+    };
+
     view! {
         <button
             class="tool"
             class:active=active
-            title=label
+            aria-pressed=move || if pressed() { "true" } else { "false" }
+            aria-label=name
+            title=name
             on:mousedown=move |ev| ev.prevent_default()
             on:click=move |_| editor_click.toggle_list(list_type)
         >
@@ -504,6 +553,39 @@ fn install_mention_click_away(show: RwSignal<bool>, active: RwSignal<Option<Ment
     handler.forget();
 }
 
+fn focus_element(element: &web_sys::Element) {
+    if let Some(element) = element.dyn_ref::<web_sys::HtmlElement>() {
+        let _ = element.focus();
+    }
+}
+
+fn focus_toolbar_edge(ev: &KeyboardEvent, first: bool) {
+    let Some(target) = ev
+        .target()
+        .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+    else {
+        return;
+    };
+    let Some(toolbar) = target.closest(".toolbar").ok().flatten() else {
+        return;
+    };
+    let Ok(nodes) = toolbar.query_selector_all("button.tool:not(:disabled)") else {
+        return;
+    };
+    ev.prevent_default();
+    let index = if first {
+        0
+    } else {
+        nodes.length().saturating_sub(1)
+    };
+    if let Some(item) = nodes
+        .item(index)
+        .and_then(|node| node.dyn_into::<web_sys::Element>().ok())
+    {
+        focus_element(&item);
+    }
+}
+
 #[component]
 fn App() -> impl IntoView {
     let editor = EditorHandle::new(initial_document());
@@ -539,6 +621,41 @@ fn App() -> impl IntoView {
                 }
             }
         })
+    };
+
+    let toolbar_keys = move |ev: KeyboardEvent| {
+        let direction = match ev.key().as_str() {
+            "ArrowRight" => 1isize,
+            "ArrowLeft" => -1,
+            "Home" => return focus_toolbar_edge(&ev, true),
+            "End" => return focus_toolbar_edge(&ev, false),
+            _ => return,
+        };
+        ev.prevent_default();
+        let Some(target) = ev
+            .target()
+            .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+        else {
+            return;
+        };
+        let Some(toolbar) = target.closest(".toolbar").ok().flatten() else {
+            return;
+        };
+        let Ok(nodes) = toolbar.query_selector_all("button.tool:not(:disabled)") else {
+            return;
+        };
+        let items: Vec<web_sys::Element> = (0..nodes.length())
+            .filter_map(|index| nodes.item(index))
+            .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
+            .collect();
+        let Some(current) = items
+            .iter()
+            .position(|item| item.is_same_node(Some(&target)))
+        else {
+            return;
+        };
+        let next = (current as isize + direction).rem_euclid(items.len() as isize) as usize;
+        focus_element(&items[next]);
     };
 
     let undo_disabled = {
@@ -698,11 +815,17 @@ fn App() -> impl IntoView {
             </header>
 
             <section class="surface">
-                <div class="toolbar" role="toolbar" aria-label="Formatting">
+                <div
+                    class="toolbar"
+                    role="toolbar"
+                    aria-label="Formatting"
+                    on:keydown=toolbar_keys
+                >
                     <div class="group">
                         <button
                             class="tool"
                             title="Undo (⌘Z)"
+                            aria-label="Undo"
                             disabled=undo_disabled
                             on:mousedown=move |ev| ev.prevent_default()
                             on:click={
@@ -717,6 +840,7 @@ fn App() -> impl IntoView {
                         <button
                             class="tool"
                             title="Redo (⇧⌘Z)"
+                            aria-label="Redo"
                             disabled=redo_disabled
                             on:mousedown=move |ev| ev.prevent_default()
                             on:click={
@@ -741,6 +865,7 @@ fn App() -> impl IntoView {
                         <button
                             class="tool wide"
                             title="Link"
+                            aria-label="Link"
                             on:mousedown=move |ev| ev.prevent_default()
                             on:click=toggle_link
                         >
@@ -766,6 +891,7 @@ fn App() -> impl IntoView {
                         <button
                             class="tool"
                             title="Insert divider"
+                            aria-label="Insert divider"
                             on:mousedown=move |ev| ev.prevent_default()
                             on:click=insert_divider
                         >
@@ -779,6 +905,7 @@ fn App() -> impl IntoView {
                         <button
                             class="tool wide"
                             title="Insert callout"
+                            aria-label="Callout"
                             on:mousedown=move |ev| ev.prevent_default()
                             on:click=insert_callout
                         >
@@ -787,6 +914,7 @@ fn App() -> impl IntoView {
                         <button
                             class="tool wide"
                             title="Insert todo"
+                            aria-label="Todo"
                             on:mousedown=move |ev| ev.prevent_default()
                             on:click=insert_todo
                         >
@@ -795,6 +923,7 @@ fn App() -> impl IntoView {
                         <button
                             class="tool wide"
                             title="Insert image"
+                            aria-label="Image"
                             on:mousedown=move |ev| ev.prevent_default()
                             on:click=move |_| show_image.update(|value| *value = !*value)
                         >
@@ -803,6 +932,7 @@ fn App() -> impl IntoView {
                         <button
                             class="tool wide"
                             title="Mention someone"
+                            aria-label="Mention"
                             on:mousedown=move |ev| ev.prevent_default()
                             on:click=toggle_mention
                         >
@@ -863,7 +993,12 @@ fn App() -> impl IntoView {
                     </button>
                 </div>
 
-                <div class="media-bar mention-bar" class:hidden=move || !show_mention.get()>
+                <div
+                    class="media-bar mention-bar"
+                    role="listbox"
+                    aria-label="Mention suggestions"
+                    class:hidden=move || !show_mention.get()
+                >
                     <input
                         class="media-input"
                         type="text"
@@ -903,6 +1038,8 @@ fn App() -> impl IntoView {
                                         view! {
                                             <button
                                                 class="mention-option"
+                                                role="option"
+                                                aria-selected="false"
                                                 on:mousedown=move |ev| ev.prevent_default()
                                                 on:click=insert
                                             >

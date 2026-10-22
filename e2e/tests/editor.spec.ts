@@ -238,6 +238,39 @@ test("HTML can be dropped at a point in the document", async ({ page }) => {
   ).toBe(true);
 });
 
+test("toolbar and floating controls expose accessible state", async ({
+  page,
+}) => {
+  await expect(
+    page.getByRole("toolbar", { name: "Formatting", exact: true }),
+  ).toBeVisible();
+  const bold = page.getByRole("button", { name: "Bold (⌘B)" });
+  const italic = page.getByRole("button", { name: "Italic (⌘I)" });
+  await expect(bold).toHaveAttribute("aria-pressed", "false");
+
+  await bold.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(italic).toBeFocused();
+
+  await page.locator('[data-node-path="2"]').hover();
+  const blockActions = page.getByRole("toolbar", { name: "Block actions" });
+  await expect(blockActions).toHaveClass(/visible/);
+  await page.getByRole("button", { name: "Select block" }).click();
+  await expect(page.locator('[aria-live="polite"]')).toHaveText(
+    "Block selected",
+  );
+
+  await page.locator('[data-text-path="2.0"]').click();
+  await selectText(page, "2.0", 0, 6);
+  const formatting = page.getByRole("toolbar", { name: "Text formatting" });
+  await expect(formatting).toHaveClass(/visible/);
+  await formatting.getByRole("button", { name: "Bold" }).click();
+  await expect(bold).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    formatting.getByRole("button", { name: "Bold" }),
+  ).toHaveAttribute("aria-pressed", "true");
+});
+
 test("custom mark styles are applied to text", async ({ page }) => {
   const code = page.locator('[data-text-path="2.1"]');
   await expect(code).toHaveCSS("background-color", "rgb(253, 238, 229)");
@@ -543,7 +576,7 @@ test("mentions insert inline voids and delete as atoms", async ({ page }) => {
   await setCaret(page, "2.0", 0);
   await page.getByRole("button", { name: "Mention", exact: true }).click();
   await page.locator(".mention-bar .media-input").fill("lep");
-  await page.getByRole("button", { name: "@Leptos", exact: true }).click();
+  await page.getByRole("option", { name: "@Leptos", exact: true }).click();
 
   await expect(page.locator(".ls-mention")).toHaveCount(1);
   await expect
