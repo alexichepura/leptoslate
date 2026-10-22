@@ -156,6 +156,88 @@ test("contiguous typing is one undo step", async ({ page }) => {
   await expectTopBlockText(page, 2, "Select some text");
 });
 
+test("HTML paste preserves nested lists, tables and inline images", async ({
+  page,
+}) => {
+  await setCaret(page, "2.0", 0);
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData(
+      "text/html",
+      '<ul><li>Parent<ul><li>Child</li></ul></li></ul><table><tr><th>Name</th><th>Value</th></tr><tr><td>A</td><td>1</td></tr></table><p>Before <img src="data:image/png;base64,abc" alt="inline"> after</p>',
+    );
+    document
+      .querySelector(".ls-editor")!
+      .dispatchEvent(
+        new ClipboardEvent("paste", {
+          clipboardData: data,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+  });
+
+  const json = await getJson(page);
+  const nested = json.find(
+    (node) =>
+      node.type === "ul" &&
+      node.children?.[0]?.children?.some(
+        (child) => child.type === "ul" && plainText(child) === "Child",
+      ),
+  );
+  expect(nested).toBeTruthy();
+  expect(plainText(nested!)).toBe("ParentChild");
+
+  const header = json.find((node) => plainText(node) === "Name | Value");
+  expect(header?.type).toBe("p");
+  expect(header?.children?.[0]?.bold).toBe(true);
+  expect(json.some((node) => plainText(node) === "A | 1")).toBe(true);
+
+  const inlineImage = json.find((node) =>
+    node.children?.some((child) => child.type === "inline-image"),
+  );
+  expect(inlineImage).toBeTruthy();
+  expect(
+    inlineImage?.children?.find((child) => child.type === "inline-image")
+      ?.src,
+  ).toBe("data:image/png;base64,abc");
+});
+
+test("HTML can be dropped at a point in the document", async ({ page }) => {
+  const box = await page.locator('[data-text-path="2.0"]').boundingBox();
+  expect(box).not.toBeNull();
+  await page.evaluate(
+    ({ x, y }) => {
+      const data = new DataTransfer();
+      data.setData("text/html", "<p>Dropped <strong>HTML</strong></p>");
+      document.querySelector(".ls-editor")!.dispatchEvent(
+        new DragEvent("drop", {
+          dataTransfer: data,
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    },
+    { x: box!.x + 5, y: box!.y + 5 },
+  );
+
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      return json.some((node) => plainText(node).includes("Dropped HTML"));
+    })
+    .toBe(true);
+  const json = await getJson(page);
+  const dropped = json.find((node) => plainText(node).includes("Dropped"));
+  expect(
+    dropped?.children?.some(
+      (child) => child.text === "HTML" && child.bold === true,
+    ),
+  ).toBe(true);
+});
+
 test("custom mark styles are applied to text", async ({ page }) => {
   const code = page.locator('[data-text-path="2.1"]');
   await expect(code).toHaveCSS("background-color", "rgb(253, 238, 229)");

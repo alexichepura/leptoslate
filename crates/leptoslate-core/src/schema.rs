@@ -83,6 +83,7 @@ impl Default for Schema {
             .with_rule("li", ElementRule::block("li"))
             .with_rule("hr", ElementRule::void("hr"))
             .with_rule("img", ElementRule::void("img"))
+            .with_rule("inline-image", ElementRule::inline_void("img"))
             .with_rule("a", ElementRule::inline("a"))
             .with_rule("span", ElementRule::inline("span"))
             .with_rule("mention", ElementRule::inline_void("span"))

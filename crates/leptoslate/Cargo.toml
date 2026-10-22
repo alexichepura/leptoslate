@@ -39,6 +39,7 @@ features = [
     "DomRect",
     "HtmlSpanElement",
     "DragEvent",
+    "CaretPosition",
     "File",
     "FileList",
 ]

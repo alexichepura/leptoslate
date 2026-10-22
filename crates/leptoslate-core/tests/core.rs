@@ -1061,6 +1061,50 @@ fn parses_html_fragments_into_slate_nodes() {
 }
 
 #[test]
+fn html_paste_preserves_nested_lists_tables_and_inline_images() {
+    use leptoslate_core::fragment::parse_html;
+
+    let nodes = parse_html(
+        r#"<ul><li>Parent<ul><li>Child</li></ul></li></ul>
+        <table><tr><th>Name</th><th>Value</th></tr><tr><td>A</td><td>1</td></tr></table>
+        <p>Before <img src="data:image/png;base64,abc" alt="inline"> after</p>"#,
+    );
+
+    let list = &nodes[0];
+    assert_eq!(list.element_type(), Some("ul"));
+    let item = &list.children()[0];
+    assert_eq!(item.element_type(), Some("li"));
+    assert_eq!(item.string(), "ParentChild");
+    assert_eq!(item.children().len(), 2);
+    assert_eq!(item.children()[0].string(), "Parent");
+    assert_eq!(item.children()[1].element_type(), Some("ul"));
+
+    let header = &nodes[1];
+    assert_eq!(header.element_type(), Some("p"));
+    assert_eq!(header.string(), "Name | Value");
+    assert!(header.children().iter().any(|child| {
+        child
+            .as_text()
+            .map(|text| text.text == "Name" && text.properties.get("bold").is_some())
+            .unwrap_or(false)
+    }));
+    let row = &nodes[2];
+    assert_eq!(row.string(), "A | 1");
+
+    let paragraph = &nodes[3];
+    assert!(paragraph.children().iter().any(|child| {
+        child
+            .as_element()
+            .map(|element| {
+                element.element_type == "inline-image"
+                    && element.properties.get("src")
+                        == Some(&serde_json::json!("data:image/png;base64,abc"))
+            })
+            .unwrap_or(false)
+    }));
+}
+
+#[test]
 fn parses_markdown_fragments_into_slate_nodes() {
     use leptoslate_core::fragment::parse_markdown;
 

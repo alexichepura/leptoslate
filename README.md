@@ -52,7 +52,7 @@ examples/
 - Block/node selection for one or more top-level blocks: select, extend, delete, duplicate, copy, or type to replace a range
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
 - Inline void mentions: `@`-triggered picker, atoms, atom deletion, and custom renderers
-- Rich fragment paste: HTML by default, optional Markdown parsing, with inline marks/links preserved
+- Rich fragment paste and drop: HTML by default, optional Markdown parsing, with marks, links, nested lists, table-row fallbacks and inline images
 - Block hover bar with select, add-below, duplicate, delete and drag-reorder actions
 - Nested lists with Tab/Shift+Tab indentation and list-aware editing
 - Selection bubble toolbar for marks near a text selection
@@ -268,7 +268,7 @@ editor.insert_markdown("# Title\n\nHello **world**");
 editor.insert_fragment(parsed_nodes);
 ```
 
-Supported HTML includes paragraphs, headings, lists, blockquotes, code blocks, links, emphasis, line breaks, images and rules. Markdown supports headings, paragraphs, flat lists, blockquotes, fenced code, rules and common inline marks/links.
+Supported HTML includes paragraphs, headings, nested lists, blockquotes, code blocks, links, emphasis, line breaks, block and inline images, and rules. Tables paste as one paragraph per row, with cells separated by ` | ` and header cells bold. Dropping `text/html` or `text/plain` at a point in the editor follows the same fragment path. Markdown supports headings, paragraphs, flat lists, blockquotes, fenced code, rules and common inline marks/links.
 
 ### Links
 
@@ -447,7 +447,7 @@ The core has no DOM or Leptos dependency, so it can be used in tests, servers, c
 
 - **Character offsets.** The model counts Unicode scalar values, unlike Slate's UTF-16 offsets. `leptoslate-core::text` converts at the DOM boundary. This avoids splitting surrogate pairs inside Rust strings.
 - **Transactions.** Each public transform groups operations into one undoable batch. Normalization operations are recorded too, so undo reverses the exact document state.
-- **Rendering.** The renderer reads a `Memo` of the document tree, so selection-only updates (dragging a selection, toolbar state) do not rebuild the contenteditable DOM.
+- **Rendering.** Top-level blocks are keyed by index and content hash, so selection-only updates leave the DOM alone and typing recreates only the changed block.
 - **Input.** Editing is driven by `beforeinput`, which is prevented and translated into operations. IME composition is allowed in the DOM and reconciled on `compositionend`.
 
 ## Performance
@@ -469,7 +469,7 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 
 - Client-side rendering only; no SSR/hydration adapter yet.
 - A pragmatic core schema instead of Slate's plugin model. Inline links and void mentions are supported.
-- HTML paste covers common rich-text tags; tables and deeply nested lists flatten, and inline images inside paragraphs are skipped ([#31](https://github.com/alexichepura/leptoslate/issues/31)).
+- Tables are not a native document block; HTML tables paste as one paragraph per row with cells separated by ` | `. Markdown tables and nested Markdown lists are not parsed.
 - Markdown paste is opt-in and intentionally small; it is not a full CommonMark implementation.
 - Node selection is a contiguous range of top-level blocks; discontiguous or cross-container block selection is not implemented.
 - Copying a node selection produces plain text; there is no rich block clipboard format yet.

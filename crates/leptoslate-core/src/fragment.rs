@@ -144,7 +144,7 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
             "sup" => self.inline_children(tag, &marks_with(marks, "superscript")),
             "sub" => self.inline_children(tag, &marks_with(marks, "subscript")),
             "br" => vec![Node::text("\n")],
-            "img" => Vec::new(),
+            "img" => vec![self.inline_image(tag)],
             "a" => {
                 let children = self.inline_children(tag, marks);
                 if children.is_empty() {
@@ -176,7 +176,7 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
                         if name == "br" {
                             out.push(Node::text("\n"));
                         } else if name == "img" {
-                            // Inline images are not part of the current schema.
+                            out.push(self.inline_image(child));
                         } else {
                             out.extend(self.inline(child, &name, marks));
                         }
@@ -239,16 +239,7 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
             }
             "html" | "body" | "div" | "section" | "article" | "header" | "footer" | "main"
             | "aside" | "nav" | "address" | "figcaption" => self.container(tag),
-            "table" => {
-                let text = normalize_whitespace(tag.inner_text(self.parser).as_ref())
-                    .trim()
-                    .to_string();
-                if text.is_empty() {
-                    Vec::new()
-                } else {
-                    vec![Node::Element(Element::new("p", vec![Node::text(text)]))]
-                }
-            }
+            "table" => self.table(tag),
             "style" | "script" | "meta" | "title" | "head" | "link" => Vec::new(),
             _ => self.container(tag),
         }
@@ -290,7 +281,7 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
     }
 
     fn list_item(&self, tag: &tl::HTMLTag<'a>) -> Node {
-        let inline = self.inline_children(tag, &Props::new());
+        let inline = self.inline_children_without_lists(tag, &Props::new());
         let mut nested = Vec::new();
         for handle in tag.children().top().as_slice() {
             if let Some(child) = handle
@@ -312,6 +303,83 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
             children.extend(nested);
             Node::Element(Element::new("li", children))
         }
+    }
+
+    fn inline_children_without_lists(&self, tag: &tl::HTMLTag<'a>, marks: &Props) -> Vec<Node> {
+        let mut out = Vec::new();
+        for handle in tag.children().top().as_slice() {
+            if let Some(node) = handle.get(self.parser) {
+                match node {
+                    tl::Node::Raw(bytes) => {
+                        push_text(&mut out, bytes.as_utf8_str().as_ref(), marks, false)
+                    }
+                    tl::Node::Tag(child) => {
+                        let name = child.name().as_utf8_str().to_ascii_lowercase();
+                        match name.as_str() {
+                            "ul" | "ol" => {}
+                            "br" => out.push(Node::text("\n")),
+                            "img" => out.push(self.inline_image(child)),
+                            _ => out.extend(self.inline(child, &name, marks)),
+                        }
+                    }
+                    tl::Node::Comment(_) => {}
+                }
+            }
+        }
+        out
+    }
+
+    fn table(&self, tag: &tl::HTMLTag<'a>) -> Vec<Node> {
+        let mut rows = Vec::new();
+        self.table_rows(tag, &mut rows);
+        rows
+    }
+
+    fn table_rows(&self, tag: &tl::HTMLTag<'a>, rows: &mut Vec<Node>) {
+        for handle in tag.children().top().as_slice() {
+            let Some(child) = handle.get(self.parser).and_then(tl::Node::as_tag) else {
+                continue;
+            };
+            let name = child.name().as_utf8_str().to_ascii_lowercase();
+            match name.as_str() {
+                "tr" => rows.push(self.table_row(child)),
+                "thead" | "tbody" | "tfoot" => self.table_rows(child, rows),
+                _ => {}
+            }
+        }
+    }
+
+    fn table_row(&self, tag: &tl::HTMLTag<'a>) -> Node {
+        let mut inline = Vec::new();
+        for handle in tag.children().top().as_slice() {
+            let Some(cell) = handle.get(self.parser).and_then(tl::Node::as_tag) else {
+                continue;
+            };
+            let name = cell.name().as_utf8_str().to_ascii_lowercase();
+            if !matches!(name.as_str(), "td" | "th") {
+                continue;
+            }
+            if !inline.is_empty() {
+                inline.push(Node::text(" | "));
+            }
+            let marks = if name == "th" {
+                marks_with(&Props::new(), "bold")
+            } else {
+                Props::new()
+            };
+            inline.extend(self.inline_children(cell, &marks));
+        }
+        Node::Element(Element::new("p", inline))
+    }
+
+    fn inline_image(&self, tag: &tl::HTMLTag<'a>) -> Node {
+        let src = attr(tag, self.parser, "src").unwrap_or_default();
+        let alt = attr(tag, self.parser, "alt").unwrap_or_default();
+        Node::Element(
+            Element::new("inline-image", vec![Node::empty_text()])
+                .with_property("src", json!(src))
+                .with_property("alt", json!(alt)),
+        )
     }
 
     fn image(&self, tag: &tl::HTMLTag<'a>) -> Node {
