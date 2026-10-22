@@ -15,10 +15,16 @@ use crate::{
     handle::EditorHandle,
     media::FileHandler,
     mention::{MentionHandler, MentionTrigger},
-    render::render_nodes,
+    render::render_node,
     renderers::Renderers,
     EDITOR_STYLES,
 };
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct BlockKey {
+    index: usize,
+    hash: u64,
+}
 
 /// A Slate-style rich text editor surface for Leptos.
 ///
@@ -73,13 +79,9 @@ pub fn Editable(
     let drop_style = RwSignal::new(String::new());
     let selection_listener = StoredValue::new(None::<SendWrapper<Closure<dyn FnMut()>>>);
 
-    let view_editor = editor.clone();
     let render_editor = editor.clone();
-    let document = Memo::new(move |_| {
-        view_editor
-            .state
-            .with(|state| (state.schema.clone(), state.children.clone()))
-    });
+    let schema_editor = editor.clone();
+    let schema = Memo::new(move |_| schema_editor.state.with(|state| state.schema.clone()));
 
     let beforeinput_editor = editor.clone();
     let beforeinput_ref = content_ref;
@@ -1065,16 +1067,53 @@ pub fn Editable(
                 on:compositionstart=handle_composition_start
                 on:compositionend=handle_composition_end
             >
-                {move || {
-                    let (schema, children) = document.get();
-                    render_nodes(
-                        &renderers,
-                        &render_editor,
-                        &schema,
-                        &children,
-                        &[],
-                    )
-                }}
+                <For
+                    each={{
+                        let editor = render_editor.clone();
+                        move || {
+                            editor.state.with(|state| {
+                                state
+                                    .children
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(index, node)| BlockKey {
+                                        index,
+                                        hash: node.content_hash(),
+                                    })
+                                    .collect::<Vec<_>>()
+                            })
+                        }
+                    }}
+                    key={|key: &BlockKey| (key.index, key.hash)}
+                    children={
+                        let renderers = renderers.clone();
+                        let editor = render_editor.clone();
+                        move |key: BlockKey| {
+                            let renderers = renderers.clone();
+                            let editor = editor.clone();
+                            let index = key.index;
+                            let node = editor
+                                .state
+                                .with_untracked(|state| state.children.get(index).cloned());
+                            view! {
+                                {move || {
+                                    let schema = schema.get();
+                                    match &node {
+                                        Some(node) => render_node(
+                                            &renderers,
+                                            &editor,
+                                            &schema,
+                                            node,
+                                            &[index],
+                                        ),
+                                        None => ().into_any(),
+                                    }
+                                }}
+                            }
+                            .into_any()
+                        }
+                    }
+                />
             </div>
             <div
                 class="ls-hover-bar"

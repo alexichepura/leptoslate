@@ -7,7 +7,8 @@
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
-    "install-browsers": "playwright install chromium"
+    "install-browsers": "playwright install chromium",
+    "test:perf": "playwright test --config playwright.perf.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1"

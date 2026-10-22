@@ -42,6 +42,7 @@ examples/
   - inline elements are surrounded by text
 - Undo/redo with grouped transactions, inverse operations and selection restore
 - Consecutive typing coalesces into one undo step until the selection moves or a non-text edit happens
+- Top-level blocks are keyed by content, so typing only re-renders the changed block
 
 **Leptos integration**
 
@@ -449,6 +450,19 @@ The core has no DOM or Leptos dependency, so it can be used in tests, servers, c
 - **Rendering.** The renderer reads a `Memo` of the document tree, so selection-only updates (dragging a selection, toolbar state) do not rebuild the contenteditable DOM.
 - **Input.** Editing is driven by `beforeinput`, which is prevented and translated into operations. IME composition is allowed in the DOM and reconciled on `compositionend`.
 
+## Performance
+
+Top-level blocks are rendered through a keyed list. Each key combines the block index with a content hash, so selection-only changes do not touch the DOM and a text edit recreates only the affected block. Nested content still renders with its parent block.
+
+The browser benchmark loads 1,000 paragraphs, places the caret in the middle, types 16 characters, and counts DOM mutation records:
+
+```bash
+cd e2e
+npm run test:perf   # release build of the demo
+```
+
+On the development machine used for this repository (Chromium, release WASM), the benchmark records **32 mutation records for 16 keystrokes** and completes in **about 300 ms** (~19 ms per keystroke). The test asserts fewer than 100 mutation records and under five seconds in the debug build as a regression guard; absolute latency depends on the machine.
+
 ## Limitations
 
 This is an early implementation, not a drop-in replacement for the entire Slate ecosystem:
@@ -461,7 +475,6 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 - Copying a node selection produces plain text; there is no rich block clipboard format yet.
 - List indentation operates on the item under the caret; multi-item indentation is not implemented.
 - IME composition is reconciled per text node, not with Slate's composition-aware range model.
-- The whole rendered document updates when the value changes; there is no benchmark or keyed block rendering yet ([#30](https://github.com/alexichepura/leptoslate/issues/30)).
 - There has not been a full accessibility audit yet ([#32](https://github.com/alexichepura/leptoslate/issues/32)).
 - No collaborative editing, OT/CRDT, or remote operation rebasing.
 

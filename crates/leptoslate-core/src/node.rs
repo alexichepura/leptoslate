@@ -119,6 +119,45 @@ pub enum Node {
 }
 
 impl Node {
+    /// A deterministic hash of this node's type, properties and text content.
+    ///
+    /// Used by the view layer to key block rendering without adding persistent
+    /// IDs to the document model. Hash collisions are possible in principle but
+    /// vanishingly unlikely at 64 bits.
+    pub fn content_hash(&self) -> u64 {
+        use std::hash::Hasher;
+
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.hash_content(&mut hasher);
+        hasher.finish()
+    }
+
+    fn hash_content<H: std::hash::Hasher>(&self, hasher: &mut H) {
+        use std::hash::Hash;
+
+        match self {
+            Node::Element(element) => {
+                0u8.hash(hasher);
+                element.element_type.hash(hasher);
+                for (key, value) in &element.properties {
+                    key.hash(hasher);
+                    value.to_string().hash(hasher);
+                }
+                for child in &element.children {
+                    child.hash_content(hasher);
+                }
+            }
+            Node::Text(text) => {
+                1u8.hash(hasher);
+                text.text.hash(hasher);
+                for (key, value) in &text.properties {
+                    key.hash(hasher);
+                    value.to_string().hash(hasher);
+                }
+            }
+        }
+    }
+
     pub fn text(text: impl Into<String>) -> Self {
         Node::Text(Text::new(text))
     }

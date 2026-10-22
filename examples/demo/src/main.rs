@@ -463,6 +463,16 @@ fn install_test_hook(editor: EditorHandle) {
     );
     selection.forget();
 
+    let load_editor = editor.clone();
+    let load = Closure::<dyn Fn(JsValue)>::new(move |value: JsValue| {
+        let Some(json) = value.as_string() else {
+            return;
+        };
+        let _ = load_editor.set_json(&json);
+    });
+    let _ = js_sys::Reflect::set(&hook, &"load".into(), load.as_ref().unchecked_ref());
+    load.forget();
+
     let _ = js_sys::Reflect::set(&window, &"__leptoslate".into(), &hook.into());
 }
 
