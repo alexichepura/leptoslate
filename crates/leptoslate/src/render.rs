@@ -197,12 +197,14 @@ fn render_inline(
     match tag {
         "a" => {
             let href = get_str(properties, "href").unwrap_or("#").to_string();
+            let prevent_navigation = move |ev: MouseEvent| ev.prevent_default();
             view! {
                 <a
                     class=class
                     href=href
                     data-node-path=node_path
                     data-type=data_type
+                    on:click=prevent_navigation
                 >
                     {children}
                 </a>

@@ -28,6 +28,12 @@ fn list_item(children: Vec<Node>) -> Node {
     Node::Element(Element::new("li", children))
 }
 
+fn link(label: &str, href: &str) -> Node {
+    Node::Element(
+        Element::new("a", vec![Node::Text(Text::new(label))]).with_property("href", json!(href)),
+    )
+}
+
 fn callout(value: &str, tone: &str) -> Node {
     Node::Element(Element::new("callout", vec![text(value)]).with_property("tone", json!(tone)))
 }
@@ -229,7 +235,7 @@ fn initial_document() -> Vec<Node> {
             text("A Rust rewrite of "),
             marked("Slate", &[("bold", bold.clone())]),
             text(" for "),
-            marked("Leptos", &[("italic", italic.clone())]),
+            link("Leptos", "https://leptos.dev"),
             text(". The document model, operations, normalization engine and undo history are pure Rust; this page is the Leptos view layer."),
         ]),
         paragraph(vec![
@@ -427,6 +433,8 @@ fn App() -> impl IntoView {
     let show_json = RwSignal::new(false);
     let show_image = RwSignal::new(false);
     let image_url = RwSignal::new(String::new());
+    let show_link = RwSignal::new(false);
+    let link_url = RwSignal::new(String::new());
     let files_handler = {
         let editor = editor.clone();
         FileHandler::new(move |files| {
@@ -496,6 +504,53 @@ fn App() -> impl IntoView {
             });
             image_url.set(String::new());
             show_image.set(false);
+        }
+    };
+
+    let toggle_link = {
+        let editor = editor.clone();
+        move |_| {
+            if show_link.get_untracked() {
+                show_link.set(false);
+                return;
+            }
+            link_url.set(editor.link_at_selection().unwrap_or_default());
+            show_link.set(true);
+        }
+    };
+
+    let apply_link = {
+        let editor = editor.clone();
+        move |_| {
+            let value = link_url.get_untracked().trim().to_string();
+            if value.is_empty() {
+                return;
+            }
+            let href = if value.starts_with("http://")
+                || value.starts_with("https://")
+                || value.starts_with("mailto:")
+                || value.starts_with('/')
+                || value.starts_with('#')
+            {
+                value
+            } else {
+                format!("https://{value}")
+            };
+            focus_editor();
+            if editor.update(|state| state.set_link(&href)) {
+                show_link.set(false);
+            }
+        }
+    };
+
+    let remove_link = {
+        let editor = editor.clone();
+        move |_| {
+            focus_editor();
+            editor.update(|state| {
+                state.remove_link();
+            });
+            show_link.set(false);
         }
     };
 
@@ -577,6 +632,14 @@ fn App() -> impl IntoView {
                         <MarkButton editor=editor.clone() mark="underline" label="U" title="Underline (⌘U)" />
                         <MarkButton editor=editor.clone() mark="strikethrough" label="S" title="Strikethrough" />
                         <MarkButton editor=editor.clone() mark="code" label="<>" title="Inline code" />
+                        <button
+                            class="tool wide"
+                            title="Link"
+                            on:mousedown=move |ev| ev.prevent_default()
+                            on:click=toggle_link
+                        >
+                            "Link"
+                        </button>
                     </div>
 
                     <div class="divider"></div>
@@ -684,6 +747,38 @@ fn App() -> impl IntoView {
                     >
                         "Cancel"
                     </button>
+                </div>
+
+                <div class="media-bar link-bar" class:hidden=move || !show_link.get()>
+                    <input
+                        class="media-input"
+                        type="url"
+                        placeholder="https://leptos.dev"
+                        prop:value=move || link_url.get()
+                        on:input=move |ev| link_url.set(event_target_value(&ev))
+                    />
+                    <button
+                        class="tool wide"
+                        on:mousedown=move |ev| ev.prevent_default()
+                        on:click=apply_link
+                    >
+                        "Apply"
+                    </button>
+                    <button
+                        class="tool wide"
+                        on:mousedown=move |ev| ev.prevent_default()
+                        on:click=remove_link
+                    >
+                        "Remove"
+                    </button>
+                    <button
+                        class="link-tool"
+                        on:mousedown=move |ev| ev.prevent_default()
+                        on:click=move |_| show_link.set(false)
+                    >
+                        "Cancel"
+                    </button>
+                    <span class="media-hint">"Select text, then apply a URL"</span>
                 </div>
 
                 <Editable

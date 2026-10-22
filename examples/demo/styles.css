@@ -440,6 +440,11 @@ body {
     color: var(--accent);
     text-decoration: underline;
     text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+.surface .ls-inline-a:hover {
+    background: var(--accent-soft);
 }
 
 .surface-footer {

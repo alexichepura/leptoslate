@@ -690,3 +690,120 @@ fn moving_off_a_node_selects_adjacent_text() {
         Some(Range::collapsed(Point::new(vec![0, 0], 6)))
     );
 }
+
+fn link_node(label: &str, href: &str) -> Node {
+    Node::Element(
+        Element::new("a", vec![Node::Text(Text::new(label))])
+            .with_property("href", serde_json::json!(href)),
+    )
+}
+
+#[test]
+fn links_wrap_the_selection_and_update_the_href() {
+    let mut editor = Editor::new(vec![p("hello world")]);
+    editor.selection = Some(Range::new(
+        Point::new(vec![0, 0], 0),
+        Point::new(vec![0, 0], 5),
+    ));
+
+    assert!(editor.set_link("https://leptos.dev"));
+    let link_path = editor
+        .element(&[0])
+        .unwrap()
+        .children
+        .iter()
+        .position(|node| node.element_type() == Some("a"))
+        .map(|index| vec![0, index])
+        .expect("link element");
+    let link = editor.element(&link_path).unwrap();
+    assert_eq!(link.children[0].string(), "hello");
+    assert_eq!(
+        link.properties.get("href"),
+        Some(&serde_json::json!("https://leptos.dev"))
+    );
+
+    assert_eq!(
+        editor.link_at_selection(),
+        Some((link_path.clone(), "https://leptos.dev".into()))
+    );
+
+    assert!(editor.set_link("https://example.com"));
+    assert_eq!(
+        editor.element(&link_path).unwrap().properties.get("href"),
+        Some(&serde_json::json!("https://example.com"))
+    );
+
+    assert!(editor.remove_link());
+    assert!(editor
+        .element(&[0])
+        .unwrap()
+        .children
+        .iter()
+        .all(|node| node.element_type() != Some("a")));
+    assert_eq!(editor.children[0].string(), "hello world");
+}
+
+#[test]
+fn set_link_requires_a_selection_or_existing_link() {
+    let mut editor = Editor::new(vec![p("hello")]);
+    editor.select_point(Point::new(vec![0, 0], 1));
+    assert!(!editor.set_link("https://leptos.dev"));
+    assert!(editor.link_at_selection().is_none());
+}
+
+#[test]
+fn backspace_and_delete_work_at_link_boundaries() {
+    let mut editor = Editor::new(vec![Node::Element(Element::paragraph(vec![
+        Node::Text(Text::new("ab")),
+        link_node("cd", "https://leptos.dev"),
+        Node::Text(Text::new("ef")),
+    ]))]);
+
+    editor.select_point(Point::new(vec![0, 1, 0], 0));
+    editor.delete_backward();
+    assert_eq!(editor.children[0].string(), "acdef");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 0], 1)))
+    );
+
+    editor.select_point(Point::new(vec![0, 1, 0], 2));
+    editor.delete_forward();
+    assert_eq!(editor.children[0].string(), "acdf");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 1, 0], 2)))
+    );
+}
+
+#[test]
+fn deleting_across_a_link_removes_the_link_element() {
+    let mut editor = Editor::new(vec![Node::Element(Element::paragraph(vec![
+        Node::Text(Text::new("ab")),
+        link_node("cd", "https://leptos.dev"),
+        Node::Text(Text::new("ef")),
+    ]))]);
+    editor.selection = Some(Range::new(
+        Point::new(vec![0, 0], 1),
+        Point::new(vec![0, 2], 1),
+    ));
+    editor.delete_selection();
+
+    assert_eq!(editor.children[0].string(), "af");
+    assert!(editor
+        .element(&[0])
+        .unwrap()
+        .children
+        .iter()
+        .all(|node| node.element_type() != Some("a")));
+}
+
+#[test]
+fn normalization_removes_empty_inline_elements() {
+    let editor = Editor::new(vec![Node::Element(Element::paragraph(vec![
+        Node::Element(Element::new("a", vec![Node::empty_text()])),
+    ]))]);
+    assert_eq!(editor.children[0].children().len(), 1);
+    assert_eq!(editor.children[0].children()[0].string(), "");
+    assert_eq!(editor.children[0].children()[0].element_type(), None);
+}

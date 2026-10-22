@@ -123,12 +123,42 @@ test("custom todo state and toolbar-inserted callouts are serialized", async ({
     .toBe(2);
 });
 
+test("links can be applied to a selection and removed", async ({ page }) => {
+  await selectText(page, "2.0", 0, 6);
+  await page.getByRole("button", { name: "Link", exact: true }).click();
+  await page.locator(".link-bar .media-input").fill("leptos.dev");
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
+
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      const paragraph = json[2];
+      return paragraph.children?.some(
+        (node) =>
+          node.type === "a" &&
+          node.href === "https://leptos.dev" &&
+          plainText(node) === "Select",
+      );
+    })
+    .toBe(true);
+
+  await page.getByRole("button", { name: "Link", exact: true }).click();
+  await page.getByRole("button", { name: "Remove", exact: true }).click();
+
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      return json[2].children?.some((node) => node.type === "a");
+    })
+    .toBe(false);
+});
+
 test("images can be inserted, node-selected, deleted, and restored", async ({
   page,
 }) => {
   await setCaret(page, "2.0", 0);
   await page.getByRole("button", { name: "Image", exact: true }).click();
-  await page.locator(".media-input").fill(SVG_IMAGE);
+  await page.locator(".media-bar:not(.link-bar) .media-input").fill(SVG_IMAGE);
   await page.getByRole("button", { name: "Insert", exact: true }).click();
 
   await expect(page.locator(".ls-media")).toHaveCount(1);
@@ -147,7 +177,7 @@ test("images can be inserted, node-selected, deleted, and restored", async ({
 test("image toolbar controls align and delete the block", async ({ page }) => {
   await setCaret(page, "2.0", 0);
   await page.getByRole("button", { name: "Image", exact: true }).click();
-  await page.locator(".media-input").fill(SVG_IMAGE);
+  await page.locator(".media-bar:not(.link-bar) .media-input").fill(SVG_IMAGE);
   await page.getByRole("button", { name: "Insert", exact: true }).click();
   await expect(page.locator(".ls-media")).toHaveCount(1);
 

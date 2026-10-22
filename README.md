@@ -49,6 +49,7 @@ examples/
 - Schema-driven rendering (`p`, headings, blockquotes, code, lists, links, images, dividers, …)
 - Pluggable element renderers for application-specific blocks
 - Block/node selection for void blocks: click an image, delete it, arrow out of it, or type to replace it
+- Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
 - DOM selection ↔ model selection mapping via `data-text-path` attributes
 - `beforeinput` handling for typing, deletion, formatting, undo/redo and IME-safe composition
 - Paste/cut/copy handling with plain text
@@ -160,6 +161,19 @@ editor.update(|state| {
 ```
 
 Void blocks (images, dividers) automatically get a paragraph after them so typing can continue. `remove_block_at` and `set_node_properties` are available for custom block toolbars.
+
+### Links
+
+Links are inline elements with an `href` property:
+
+```rust
+editor.select_point(point);      // or select a text range
+editor.set_link("https://leptos.dev"); // wraps the selection or updates the link at the caret
+editor.link_at_selection();      // Some(href) when the caret is inside a link
+editor.remove_link();            // unwraps links intersecting the selection
+```
+
+The built-in renderer prevents link navigation during editing. The demo adds a Link toolbar button with an href bar for Apply/Remove.
 
 ### Block selection
 
@@ -286,7 +300,7 @@ The core has no DOM or Leptos dependency, so it can be used in tests, servers, c
 This is an early implementation, not a drop-in replacement for the entire Slate ecosystem:
 
 - Client-side rendering only; no SSR/hydration adapter yet.
-- A pragmatic core schema instead of Slate's plugin model. Inline elements are supported by the schema/renderer, but rich inline editing (links with editable text, mentions) is minimal.
+- A pragmatic core schema instead of Slate's plugin model. Inline links are supported; inline voids, mentions and rich fragment paste are tracked in #11 and #12.
 - Element rendering is pluggable, but custom text/mark renderers (for example syntax highlighting) are not exposed yet.
 - Node selection currently targets single blocks (images, dividers, embeds); multi-block and range-of-blocks selection is not implemented.
 - Undoing the deletion of a block restores the document but places the caret at the document start rather than reselecting the restored block.
