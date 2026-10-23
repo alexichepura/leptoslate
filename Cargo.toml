@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/leptoslate-core",
     "crates/leptoslate",
+    "crates/leptoslate-rich",
     "examples/demo",
 ]
 

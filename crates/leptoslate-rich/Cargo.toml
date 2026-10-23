@@ -1,0 +1,11 @@
+[package]
+name = "leptoslate-rich"
+description = "Batteries-included, configurable editor preset for leptoslate."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+leptoslate = { path = "../leptoslate" }
+leptos = { workspace = true }

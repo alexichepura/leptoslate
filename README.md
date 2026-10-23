@@ -10,6 +10,7 @@ The workspace contains a framework-agnostic document engine with the same concep
 crates/
   leptoslate-core/   document model, operations, transforms, normalization, history
   leptoslate/        Leptos renderer, EditorHandle, DOM selection mapping, input handling
+  leptoslate-rich/   configurable rich-text preset and extension facade
 examples/
   demo/              Trunk-based demo application
 ```
@@ -52,6 +53,7 @@ examples/
 - Table creation plus row/column authoring controls in the demo
 - Pluggable element, text and mark renderers for application-specific blocks and styling
 - Composable `EditablePlugin` hooks for keydown, beforeinput, paste, copy, cut and drop behavior
+- Configurable `RichEditor` preset in the `leptoslate-rich` facade crate
 - Block/node selection for one or more top-level blocks: select, extend, delete, duplicate, copy, or type to replace a range
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
 - Inline void mentions: `@`-triggered picker, atoms, atom deletion, and custom renderers
@@ -379,6 +381,23 @@ editor.move_selection_off_node(false);       // ArrowRight
 
 The built-in void renderer selects on click. Custom renderers can call `editor.select_node(&ctx.path)` and use `is_node_selected` in a reactive class. Backspace/Delete removes the selected blocks, Left/Right collapses into adjacent text, and typing replaces the selection.
 
+### Rich preset
+
+`leptoslate-rich` provides a configurable batteries-included entry point without taking away the lower-level APIs:
+
+```rust
+use leptoslate_rich::prelude::*;
+
+let config = RichConfig::new()
+    .with_hover_bar(false)
+    .with_markdown_paste(true)
+    .with_plugin(MyPlugin);
+
+view! { <RichEditor editor=editor config=config placeholder="Write…" /> }
+```
+
+`RichConfig` can also accept custom renderers, behavior plugins and file/mention handlers. Applications that need full control can keep using `Editable` directly. The preset is intentionally compositional: it is not a separate editor implementation.
+
 ### Behavior plugins
 
 `EditablePlugin` hooks run before the built-in handlers. Returning `true` means the event is handled and normal processing is skipped:
@@ -542,6 +561,7 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 
 - Client-side rendering only; no SSR/hydration adapter yet.
 - A pragmatic core schema and behavior-plugin layer instead of Slate's full plugin model. Inline links and void mentions are supported; core normalization/operation middleware is not yet pluggable.
+- `leptoslate-rich` currently composes existing rich behavior; lists, tables and paste are not yet extracted into separate feature crates.
 - Table editing covers creation, cell navigation and row/column insertion/deletion; `colspan`/`rowspan` and Markdown tables are not implemented yet.
 - Markdown paste is opt-in and intentionally small; it is not a full CommonMark implementation.
 - Node selection is a contiguous range of top-level blocks; discontiguous or cross-container block selection is not implemented.
