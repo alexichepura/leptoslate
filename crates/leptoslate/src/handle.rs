@@ -59,9 +59,10 @@ impl EditorHandle {
         let (schema, features) = self
             .state
             .with_untracked(|editor| (editor.schema.clone(), editor.features.clone()));
-        let mut editor = Editor::new(children);
+        // Install features before the first normalization so feature-owned
+        // containers (tables, lists, …) are normalized correctly on load.
+        let mut editor = Editor::new_with_features(children, features);
         editor.set_schema(schema);
-        editor.set_features(features);
         self.state.set(editor);
     }
 
