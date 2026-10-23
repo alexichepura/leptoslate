@@ -79,6 +79,28 @@ test("structured tables render with semantic markup", async ({ page }) => {
   ]);
 });
 
+test("toolbar inserts a table and table controls edit it", async ({ page }) => {
+  await page.getByRole("button", { name: "Table", exact: true }).click();
+  await expect(page.locator(".table-bar")).not.toHaveClass(/hidden/);
+  const table = page.locator(".ls-table-wrap table").last();
+  await expect(table.locator("thead tr")).toHaveCount(1);
+  await expect(table.locator("thead th")).toHaveCount(3);
+  await expect(table.locator("tbody tr")).toHaveCount(2);
+
+  await table.locator("tbody td").first().click();
+  await page.getByRole("button", { name: "Add row below" }).click();
+  await expect(table.locator("tbody tr")).toHaveCount(3);
+
+  await page.getByRole("button", { name: "Add column after" }).click();
+  await expect(table.locator("thead th")).toHaveCount(4);
+
+  await page.getByRole("button", { name: "Delete row" }).click();
+  await expect(table.locator("tbody tr")).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Delete column" }).click();
+  await expect(table.locator("thead th")).toHaveCount(3);
+});
+
 test("table cells navigate and resist structural deletion", async ({ page }) => {
   await page.evaluate(
     (json) => (window as any).__leptoslate.load(json),

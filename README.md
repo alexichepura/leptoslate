@@ -49,6 +49,7 @@ examples/
 - `EditorHandle` wrapping `RwSignal<Editor>`
 - Schema-driven rendering (`p`, headings, blockquotes, code, lists, tables, links, images, dividers, …)
 - Structured table blocks (`table`, `thead`, `tbody`, `tfoot`, `tr`, `th`, `td`) with semantic rendering
+- Table creation plus row/column authoring controls in the demo
 - Pluggable element, text and mark renderers for application-specific blocks and styling
 - Block/node selection for one or more top-level blocks: select, extend, delete, duplicate, copy, or type to replace a range
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
@@ -265,9 +266,10 @@ let table = Node::Element(Element::new("table", vec![
 
 Cells keep inline content, including marks and links. `Enter` is inert inside a cell, `Tab` / `Shift+Tab` move between cells, and `Backspace`/`Delete` at a cell boundary do not merge or destroy the table. Block and list transforms are ignored while the caret is inside a cell.
 
-Table edits are available through the handle:
+Create a table and edit it through the handle:
 
 ```rust
+editor.insert_table(3, 3, true); // rows, columns, header row
 editor.insert_table_row_after();
 editor.delete_table_row();
 editor.insert_table_column_after();
@@ -507,7 +509,7 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 
 - Client-side rendering only; no SSR/hydration adapter yet.
 - A pragmatic core schema instead of Slate's plugin model. Inline links and void mentions are supported.
-- Table editing covers simple cell navigation and row/column insertion/deletion; `colspan`/`rowspan`, rich table creation controls and Markdown tables are not implemented yet.
+- Table editing covers creation, cell navigation and row/column insertion/deletion; `colspan`/`rowspan` and Markdown tables are not implemented yet.
 - Markdown paste is opt-in and intentionally small; it is not a full CommonMark implementation.
 - Node selection is a contiguous range of top-level blocks; discontiguous or cross-container block selection is not implemented.
 - List indentation operates on the item under the caret; multi-item indentation is not implemented.

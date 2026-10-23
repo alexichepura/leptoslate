@@ -212,6 +212,11 @@ impl EditorHandle {
         })
     }
 
+    /// Insert a table after the current selection.
+    pub fn insert_table(&self, rows: usize, cols: usize, header: bool) -> Option<Path> {
+        self.update(|editor| editor.insert_table(rows, cols, header))
+    }
+
     pub fn insert_table_row_after(&self) -> bool {
         self.update(Editor::insert_table_row_after)
     }

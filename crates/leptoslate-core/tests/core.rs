@@ -49,6 +49,35 @@ fn table_doc() -> Editor {
 }
 
 #[test]
+fn insert_table_creates_optional_header_and_undoes() {
+    let mut editor = Editor::empty();
+    editor.select_point(Point::new(vec![0, 0], 0));
+    let inserted = editor.insert_table(3, 2, true).expect("table path");
+    assert_eq!(inserted, vec![1]);
+
+    let table = editor.element(&[1]).unwrap();
+    assert_eq!(table.element_type, "table");
+    assert_eq!(table.children[0].element_type(), Some("thead"));
+    assert_eq!(table.children[0].children()[0].children().len(), 2);
+    assert_eq!(table.children[1].element_type(), Some("tbody"));
+    assert_eq!(table.children[1].children().len(), 2);
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![1, 0, 0, 0, 0], 0)))
+    );
+
+    assert!(editor.undo());
+    assert_eq!(editor.children.len(), 1);
+
+    editor.select_point(Point::new(vec![0, 0], 0));
+    let inserted = editor.insert_table(2, 3, false).expect("table path");
+    let table = editor.element(&inserted).unwrap();
+    assert_eq!(table.children[0].element_type(), Some("tbody"));
+    assert_eq!(table.children[0].children().len(), 2);
+    assert_eq!(table.children[0].children()[0].children().len(), 3);
+}
+
+#[test]
 fn table_cell_navigation_and_boundaries() {
     let mut editor = table_doc();
     editor.select_point(Point::new(vec![0, 0, 0, 0, 0], 0));
