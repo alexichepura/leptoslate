@@ -1510,17 +1510,72 @@ impl Editor {
     // Lists
     // ---------------------------------------------------------------------
 
-    /// Indent the current list item under its previous sibling.
+    /// Indent the current list item, or every selected item, under its
+    /// previous sibling.
     pub fn indent_list(&mut self) -> bool {
-        self.transaction(|editor| editor.indent_list_inner())
-            .is_some()
+        self.transaction(|editor| {
+            let items = editor.list_items_in_selection();
+            if items.len() <= 1 {
+                return editor.indent_list_inner();
+            }
+            let mut changed = false;
+            for li in items.into_iter().rev() {
+                if let Some(point) = editor.first_text_point_in(&li) {
+                    editor.selection = Some(Range::collapsed(point));
+                    if editor.indent_list_inner().is_some() {
+                        changed = true;
+                    }
+                }
+            }
+            changed.then_some(())
+        })
+        .is_some()
     }
 
-    /// Outdent the current list item, lifting it out of the list at the top
-    /// level or into the parent list when nested.
+    /// Outdent the current list item, or every selected item, lifting it out of
+    /// the list at the top level or into the parent list when nested.
     pub fn outdent_list(&mut self) -> bool {
-        self.transaction(|editor| editor.outdent_list_inner())
-            .is_some()
+        self.transaction(|editor| {
+            let items = editor.list_items_in_selection();
+            if items.len() <= 1 {
+                return editor.outdent_list_inner();
+            }
+            let mut changed = false;
+            for li in items.into_iter().rev() {
+                if let Some(point) = editor.first_text_point_in(&li) {
+                    editor.selection = Some(Range::collapsed(point));
+                    if editor.outdent_list_inner().is_some() {
+                        changed = true;
+                    }
+                }
+            }
+            changed.then_some(())
+        })
+        .is_some()
+    }
+
+    fn list_items_in_selection(&self) -> Vec<Path> {
+        let Some(range) = self.selection.as_ref() else {
+            return Vec::new();
+        };
+        let mut points = Vec::new();
+        if range.is_collapsed() {
+            points.push(range.start().path.clone());
+        } else {
+            points.extend(self.text_paths_in_range(range));
+            points.push(range.start().path.clone());
+            points.push(range.end().path.clone());
+        }
+        let mut items: Vec<Path> = points
+            .into_iter()
+            .filter_map(|path| {
+                self.list_context(&Point::new(path, 0))
+                    .map(|(li, _, _, _)| li)
+            })
+            .collect();
+        items.sort_by(|a, b| path::compare(a, b));
+        items.dedup();
+        items
     }
 
     fn indent_list_inner(&mut self) -> Option<()> {

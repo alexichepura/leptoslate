@@ -1604,6 +1604,73 @@ fn indenting_a_list_item_nests_it_under_the_previous_item() {
 }
 
 #[test]
+fn indenting_multiple_list_items_nests_the_selection() {
+    let mut editor = Editor::new(vec![list("ul", vec!["one", "two", "three", "four"])]);
+    editor.selection = Some(Range::new(
+        Point::new(vec![0, 1, 0], 0),
+        Point::new(vec![0, 3, 0], 5),
+    ));
+
+    assert!(editor.indent_list());
+    assert_eq!(editor.document_string(), "one\ntwo\nthree\nfour\n");
+    assert_eq!(editor.element(&[0]).unwrap().children.len(), 1);
+    assert_eq!(editor.node(&[0, 0]).unwrap().string(), "onetwothreefour");
+    assert_eq!(editor.element(&[0, 0, 1]).unwrap().children.len(), 1);
+    assert_eq!(editor.node(&[0, 0, 1, 0]).unwrap().string(), "twothreefour");
+    assert_eq!(editor.element(&[0, 0, 1, 0, 1]).unwrap().children.len(), 1);
+    assert_eq!(
+        editor.node(&[0, 0, 1, 0, 1, 0]).unwrap().string(),
+        "threefour"
+    );
+
+    assert!(editor.undo());
+    assert_eq!(editor.element(&[0]).unwrap().children.len(), 4);
+}
+
+#[test]
+fn outdenting_multiple_nested_items_preserves_order() {
+    let nested = Node::Element(Element::new(
+        "ul",
+        vec![
+            Node::Element(Element::new("li", vec![Node::Text(Text::new("one"))])),
+            Node::Element(Element::new(
+                "li",
+                vec![
+                    Node::Text(Text::new("two")),
+                    Node::Element(Element::new(
+                        "ul",
+                        vec![
+                            Node::Element(Element::new(
+                                "li",
+                                vec![Node::Text(Text::new("child one"))],
+                            )),
+                            Node::Element(Element::new(
+                                "li",
+                                vec![Node::Text(Text::new("child two"))],
+                            )),
+                        ],
+                    )),
+                ],
+            )),
+        ],
+    ));
+    let mut editor = Editor::new(vec![nested]);
+    editor.selection = Some(Range::new(
+        Point::new(vec![0, 1, 1, 0, 0], 0),
+        Point::new(vec![0, 1, 1, 1, 0], 9),
+    ));
+
+    assert!(editor.outdent_list());
+    let ul = editor.element(&[0]).unwrap();
+    assert_eq!(ul.children.len(), 4);
+    assert_eq!(ul.children[0].string(), "one");
+    assert_eq!(ul.children[1].string(), "two");
+    assert_eq!(ul.children[2].string(), "child one");
+    assert_eq!(ul.children[3].string(), "child two");
+    assert_eq!(ul.children[1].children().len(), 1);
+}
+
+#[test]
 fn cannot_indent_the_first_list_item() {
     let mut editor = Editor::new(vec![list("ul", vec!["one", "two"])]);
     editor.select_point(Point::new(vec![0, 0, 0], 0));
