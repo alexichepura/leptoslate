@@ -1209,19 +1209,18 @@ fn html_paste_preserves_nested_lists_tables_and_inline_images() {
     assert_eq!(item.children()[0].string(), "Parent");
     assert_eq!(item.children()[1].element_type(), Some("ul"));
 
-    let header = &nodes[1];
-    assert_eq!(header.element_type(), Some("p"));
-    assert_eq!(header.string(), "Name | Value");
-    assert!(header.children().iter().any(|child| {
-        child
-            .as_text()
-            .map(|text| text.text == "Name" && text.properties.get("bold").is_some())
-            .unwrap_or(false)
-    }));
-    let row = &nodes[2];
-    assert_eq!(row.string(), "A | 1");
+    let table = &nodes[1];
+    assert_eq!(table.element_type(), Some("table"));
+    assert_eq!(table.children()[0].element_type(), Some("thead"));
+    let header_row = &table.children()[0].children()[0];
+    assert_eq!(header_row.element_type(), Some("tr"));
+    assert_eq!(header_row.children()[0].string(), "Name");
+    assert_eq!(header_row.children()[0].element_type(), Some("th"));
+    let body_row = &table.children()[1].children()[0];
+    assert_eq!(body_row.children()[0].string(), "A");
+    assert_eq!(body_row.children()[1].string(), "1");
 
-    let paragraph = &nodes[3];
+    let paragraph = &nodes[2];
     assert!(paragraph.children().iter().any(|child| {
         child
             .as_element()
@@ -1232,6 +1231,33 @@ fn html_paste_preserves_nested_lists_tables_and_inline_images() {
             })
             .unwrap_or(false)
     }));
+}
+
+#[test]
+fn html_tables_preserve_inline_marks_and_links() {
+    use leptoslate_core::fragment::parse_html;
+
+    let nodes = parse_html(
+        r#"<table><thead><tr><th>Model</th></tr></thead><tbody><tr><td><strong>Zeekr</strong> <a href="/zeekr">001</a></td></tr></tbody></table>"#,
+    );
+    let table = &nodes[0];
+    assert_eq!(table.element_type(), Some("table"));
+    assert_eq!(table.children()[0].element_type(), Some("thead"));
+    let cell = &table.children()[1].children()[0].children()[0];
+    assert_eq!(cell.element_type(), Some("td"));
+    assert!(cell.children().iter().any(|child| {
+        child
+            .as_text()
+            .map(|text| text.text == "Zeekr" && text.properties.get("bold").is_some())
+            .unwrap_or(false)
+    }));
+    let link = cell.children()[2].as_element().unwrap();
+    assert_eq!(link.element_type, "a");
+    assert_eq!(
+        link.properties.get("href"),
+        Some(&serde_json::json!("/zeekr"))
+    );
+    assert_eq!(link.children[0].string(), "001");
 }
 
 #[test]

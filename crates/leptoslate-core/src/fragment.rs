@@ -330,46 +330,109 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
     }
 
     fn table(&self, tag: &tl::HTMLTag<'a>) -> Vec<Node> {
-        let mut rows = Vec::new();
-        self.table_rows(tag, &mut rows);
-        rows
-    }
-
-    fn table_rows(&self, tag: &tl::HTMLTag<'a>, rows: &mut Vec<Node>) {
+        let mut children = Vec::new();
+        let mut loose_rows = Vec::new();
         for handle in tag.children().top().as_slice() {
             let Some(child) = handle.get(self.parser).and_then(tl::Node::as_tag) else {
                 continue;
             };
             let name = child.name().as_utf8_str().to_ascii_lowercase();
             match name.as_str() {
-                "tr" => rows.push(self.table_row(child)),
-                "thead" | "tbody" | "tfoot" => self.table_rows(child, rows),
+                "thead" | "tbody" | "tfoot" => {
+                    if let Some(section) = self.table_section(child, &name) {
+                        children.push(section);
+                    }
+                }
+                "tr" => {
+                    if let Some(row) = self.table_row(child) {
+                        loose_rows.push(row);
+                    }
+                }
                 _ => {}
             }
         }
+        if !loose_rows.is_empty() {
+            let header_count = if children.is_empty() {
+                loose_rows
+                    .iter()
+                    .take_while(|row| {
+                        !row.children().is_empty()
+                            && row
+                                .children()
+                                .iter()
+                                .all(|cell| cell.element_type() == Some("th"))
+                    })
+                    .count()
+            } else {
+                0
+            };
+            if header_count > 0 {
+                let body = loose_rows.split_off(header_count);
+                children.push(Node::Element(Element::new("thead", loose_rows)));
+                if !body.is_empty() {
+                    children.push(Node::Element(Element::new("tbody", body)));
+                }
+            } else {
+                children.push(Node::Element(Element::new("tbody", loose_rows)));
+            }
+        }
+
+        if children.is_empty() {
+            let text = normalize_whitespace(tag.inner_text(self.parser).as_ref())
+                .trim()
+                .to_string();
+            return if text.is_empty() {
+                Vec::new()
+            } else {
+                vec![Node::Element(Element::new("p", vec![Node::text(text)]))]
+            };
+        }
+
+        vec![Node::Element(Element::new("table", children))]
     }
 
-    fn table_row(&self, tag: &tl::HTMLTag<'a>) -> Node {
-        let mut inline = Vec::new();
-        for handle in tag.children().top().as_slice() {
-            let Some(cell) = handle.get(self.parser).and_then(tl::Node::as_tag) else {
-                continue;
-            };
-            let name = cell.name().as_utf8_str().to_ascii_lowercase();
-            if !matches!(name.as_str(), "td" | "th") {
-                continue;
-            }
-            if !inline.is_empty() {
-                inline.push(Node::text(" | "));
-            }
-            let marks = if name == "th" {
-                marks_with(&Props::new(), "bold")
-            } else {
-                Props::new()
-            };
-            inline.extend(self.inline_children(cell, &marks));
+    fn table_section(&self, tag: &tl::HTMLTag<'a>, name: &str) -> Option<Node> {
+        let rows: Vec<Node> = tag
+            .children()
+            .top()
+            .as_slice()
+            .iter()
+            .filter_map(|handle| handle.get(self.parser).and_then(tl::Node::as_tag))
+            .filter(|child| child.name().as_utf8_str() == "tr")
+            .filter_map(|row| self.table_row(row))
+            .collect();
+        if rows.is_empty() {
+            None
+        } else {
+            Some(Node::Element(Element::new(name, rows)))
         }
-        Node::Element(Element::new("p", inline))
+    }
+
+    fn table_row(&self, tag: &tl::HTMLTag<'a>) -> Option<Node> {
+        let cells: Vec<Node> = tag
+            .children()
+            .top()
+            .as_slice()
+            .iter()
+            .filter_map(|handle| handle.get(self.parser).and_then(tl::Node::as_tag))
+            .filter_map(|cell| {
+                let name = cell.name().as_utf8_str().to_ascii_lowercase();
+                matches!(name.as_str(), "td" | "th").then(|| self.table_cell(cell, &name))
+            })
+            .collect();
+        if cells.is_empty() {
+            None
+        } else {
+            Some(Node::Element(Element::new("tr", cells)))
+        }
+    }
+
+    fn table_cell(&self, tag: &tl::HTMLTag<'a>, name: &str) -> Node {
+        let mut children = self.inline_children(tag, &Props::new());
+        if children.is_empty() {
+            children.push(Node::empty_text());
+        }
+        Node::Element(Element::new(name, children))
     }
 
     fn inline_image(&self, tag: &tl::HTMLTag<'a>) -> Node {

@@ -53,7 +53,7 @@ examples/
 - Block/node selection for one or more top-level blocks: select, extend, delete, duplicate, copy, or type to replace a range
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
 - Inline void mentions: `@`-triggered picker, atoms, atom deletion, and custom renderers
-- Rich fragment paste and drop: HTML by default, optional Markdown parsing, with marks, links, nested lists, table-row fallbacks and inline images
+- Rich fragment paste and drop: HTML by default, optional Markdown parsing, with marks, links, nested lists, structured tables and inline images
 - Block hover bar with select, add-below, duplicate, delete and drag-reorder actions
 - Nested lists with Tab/Shift+Tab indentation and list-aware editing
 - Selection bubble toolbar for marks near a text selection
@@ -296,7 +296,7 @@ editor.insert_markdown("# Title\n\nHello **world**");
 editor.insert_fragment(parsed_nodes);
 ```
 
-Supported HTML includes paragraphs, headings, nested lists, blockquotes, code blocks, links, emphasis, line breaks, block and inline images, and rules. Tables paste as one paragraph per row, with cells separated by ` | ` and header cells bold. Dropping `text/html` or `text/plain` at a point in the editor follows the same fragment path. Markdown supports headings, paragraphs, flat lists, blockquotes, fenced code, rules and common inline marks/links.
+Supported HTML includes paragraphs, headings, nested lists, blockquotes, code blocks, links, emphasis, line breaks, structured tables, block and inline images, and rules. Tables keep their `thead`/`tbody`/`tr`/`th`/`td` structure, infer a header row from leading `<th>` rows, and preserve inline marks/links in cells; malformed tables fall back to a paragraph of their text. Dropping `text/html` or `text/plain` at a point in the editor follows the same fragment path. Markdown supports headings, paragraphs, flat lists, blockquotes, fenced code, rules and common inline marks/links.
 
 ### Links
 
@@ -503,7 +503,7 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 
 - Client-side rendering only; no SSR/hydration adapter yet.
 - A pragmatic core schema instead of Slate's plugin model. Inline links and void mentions are supported.
-- Structured table nodes render and round-trip, but table-aware navigation and structured HTML paste are still limited. Markdown tables and nested Markdown lists are not parsed.
+- Table editing covers simple cell navigation and row/column insertion/deletion; `colspan`/`rowspan`, rich table creation controls and Markdown tables are not implemented yet.
 - Markdown paste is opt-in and intentionally small; it is not a full CommonMark implementation.
 - Node selection is a contiguous range of top-level blocks; discontiguous or cross-container block selection is not implemented.
 - Copying a node selection produces plain text; there is no rich block clipboard format yet.
