@@ -283,16 +283,21 @@ let table = Node::Element(Element::new("table", vec![
 ]));
 ```
 
-Cells keep inline content, including marks and links. With the rich preset, `Enter` is inert inside a cell, `Tab` / `Shift+Tab` move between cells, and `Backspace`/`Delete` at a cell boundary do not merge or destroy the table. Block and list transforms are ignored while the caret is inside a cell. Applications using base `Editable` can install `RichTablePlugin` themselves.
+Cells keep inline content, including marks and links. With the rich preset, `Enter` is inert inside a cell, `Tab` / `Shift+Tab` move between cells, and `Backspace`/`Delete` at a cell boundary do not merge or destroy the table. Block and list transforms are ignored while the caret is inside a cell. Tables are owned by `leptoslate-rich`: `RichTableFeature` installs the table schema rules, keeps cells inline, removes empty table containers, and vetoes block transforms inside cells. Applications using base `Editable` install the feature (or use `RichConfig::install`) and add `RichTablePlugin` themselves.
 
 Create a table and edit it through the handle:
 
 ```rust
+use leptoslate_rich::{TableHandle, TableTransforms};
+
 editor.insert_table(3, 3, true); // rows, columns, header row
 editor.insert_table_row_after();
 editor.delete_table_row();
 editor.insert_table_column_after();
 editor.delete_table_column();
+
+editor.state.with(|state| state.table_cell_at_selection());
+```
 ```
 
 ### Rich paste
