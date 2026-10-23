@@ -79,6 +79,59 @@ test("structured tables render with semantic markup", async ({ page }) => {
   ]);
 });
 
+test("rich preset owns list and table markup and styles", async ({ page }) => {
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([
+      {
+        type: "ul",
+        children: [{ type: "li", children: [{ text: "one" }] }],
+      },
+      {
+        type: "table",
+        children: [
+          {
+            type: "tbody",
+            children: [
+              {
+                type: "tr",
+                children: [{ type: "td", children: [{ text: "cell" }] }],
+              },
+            ],
+          },
+        ],
+      },
+    ]),
+  );
+
+  const list = page.locator("ul.ls-list").first();
+  await expect(list).toHaveCount(1);
+  await expect(list.locator("li.ls-list-item")).toHaveText(["one"]);
+  expect(
+    await list.evaluate((element) => getComputedStyle(element).paddingLeft),
+  ).not.toBe("0px");
+  expect(
+    await list
+      .locator("li.ls-list-item")
+      .first()
+      .evaluate((element) => getComputedStyle(element).display),
+  ).toBe("list-item");
+
+  const table = page.locator(".ls-table-wrap table.ls-table").first();
+  await expect(table).toHaveCount(1);
+  await expect(table.locator("td")).toHaveText("cell");
+  expect(
+    await table.evaluate((element) => getComputedStyle(element).borderCollapse),
+  ).toBe("collapse");
+
+  const richStyle = await page.evaluate(() =>
+    Array.from(document.querySelectorAll("style"))
+      .map((element) => element.textContent ?? "")
+      .some((text) => text.includes(".ls-table-wrap table")),
+  );
+  expect(richStyle).toBe(true);
+});
+
 test("toolbar inserts a table and table controls edit it", async ({ page }) => {
   await page.getByRole("button", { name: "Table", exact: true }).click();
   await expect(page.locator(".table-bar")).not.toHaveClass(/hidden/);

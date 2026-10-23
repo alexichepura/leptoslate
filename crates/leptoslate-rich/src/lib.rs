@@ -7,12 +7,14 @@
 use leptos::prelude::*;
 mod list;
 mod plugins;
+mod renderers;
 mod table;
 
 use leptoslate::core::{Feature, FeatureSet};
 use leptoslate::Editable as LeptoslateEditable;
 pub use list::{ListContext, ListHandle, ListTransforms, RichListFeature, RichListPlugin};
 pub use plugins::{RichClipboardPlugin, RichPastePlugin};
+pub use renderers::{rich_renderers, RICH_STYLES};
 pub use table::{RichTableFeature, RichTablePlugin, TableHandle, TableTransforms};
 
 /// Configuration for [`RichEditor`].
@@ -164,9 +166,10 @@ pub fn RichEditor(
     if config.table_behaviour {
         plugins.push(RichTablePlugin);
     }
-    let renderers = config.renderers.clone();
+    let renderers = rich_renderers().merge(config.renderers.clone());
 
     view! {
+        <style>{RICH_STYLES}</style>
         <LeptoslateEditable
             editor=editor
             renderers=renderers
