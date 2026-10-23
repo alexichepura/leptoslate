@@ -170,6 +170,16 @@ impl EditorHandle {
             .with_untracked(|editor| editor.link_at_selection().map(|(_, href)| href))
     }
 
+    /// The node path and href of the link at the current selection.
+    pub fn link_node_at_selection(&self) -> Option<(Path, String)> {
+        self.state.with_untracked(Editor::link_at_selection)
+    }
+
+    /// Update the href and text of the link at the current selection.
+    pub fn update_link_at_selection(&self, href: &str, text: &str) -> bool {
+        self.update(|editor| editor.update_link_at_selection(href, text))
+    }
+
     /// Whether the caret is inside a table cell.
     pub fn in_table_cell(&self) -> bool {
         self.state

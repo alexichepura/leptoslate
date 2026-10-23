@@ -306,10 +306,12 @@ Links are inline elements with an `href` property:
 editor.select_point(point);      // or select a text range
 editor.set_link("https://leptos.dev"); // wraps the selection or updates the link at the caret
 editor.link_at_selection();      // Some(href) when the caret is inside a link
+editor.link_node_at_selection(); // Some((link_path, href)) for a link editor
+editor.update_link_at_selection("/docs", "docs"); // href + text in one undo step
 editor.remove_link();            // unwraps links intersecting the selection
 ```
 
-The built-in renderer prevents link navigation during editing. The demo adds a Link toolbar button with an href bar for Apply/Remove.
+`update_link_at_selection` preserves the existing children and marks when the text is unchanged. When the text changes, it replaces the link text with one text node carrying the first child text node’s marks. Empty link text is rejected. The built-in renderer prevents link navigation during editing. The demo adds a Link toolbar button with an href bar for Apply/Remove.
 
 ### Mentions and inline voids
 
