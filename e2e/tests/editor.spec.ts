@@ -127,7 +127,7 @@ test("rich preset owns list and table markup and styles", async ({ page }) => {
   const richStyle = await page.evaluate(() =>
     Array.from(document.querySelectorAll("style"))
       .map((element) => element.textContent ?? "")
-      .some((text) => text.includes(".ls-table-wrap table")),
+      .some((text) => text.includes(".ls-table")),
   );
   expect(richStyle).toBe(true);
 });

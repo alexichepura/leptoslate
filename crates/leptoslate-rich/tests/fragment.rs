@@ -110,7 +110,7 @@ fn html_paste_preserves_nested_lists_tables_and_inline_images() {
 #[test]
 fn html_tables_preserve_inline_marks_and_links() {
     let nodes = parse_html(
-        r#"<table><thead><tr><th>Model</th></tr></thead><tbody><tr><td><strong>Zeekr</strong> <a href="/zeekr">001</a></td></tr></tbody></table>"#,
+        r#"<table><thead><tr><th>Model</th></tr></thead><tbody><tr><td><strong>Example</strong> <a href="/zeekr">001</a></td></tr></tbody></table>"#,
     );
     let table = &nodes[0];
     assert_eq!(table.element_type(), Some("table"));
@@ -120,7 +120,7 @@ fn html_tables_preserve_inline_marks_and_links() {
     assert!(cell.children().iter().any(|child| {
         child
             .as_text()
-            .map(|text| text.text == "Zeekr" && text.properties.get("bold").is_some())
+            .map(|text| text.text == "Example" && text.properties.get("bold").is_some())
             .unwrap_or(false)
     }));
     let link = cell.children()[2].as_element().unwrap();

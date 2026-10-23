@@ -24,9 +24,30 @@ pub const RICH_STYLES: &str = r#"
     margin: 0.75em 0;
 }
 
-.ls-table-wrap table {
+.ls-table {
     width: 100%;
     border-collapse: collapse;
+    display: table;
+}
+
+.ls-table-head {
+    display: table-header-group;
+}
+
+.ls-table-body {
+    display: table-row-group;
+}
+
+.ls-table-foot {
+    display: table-footer-group;
+}
+
+.ls-table-row {
+    display: table-row;
+}
+
+.ls-table-cell {
+    display: table-cell;
 }
 
 .ls-table-wrap th,
@@ -101,7 +122,7 @@ fn rich_element(ctx: ElementRenderContext) -> AnyView {
         }
         "li" => tag!(li, format!("{class} ls-list-item")),
         "table" => {
-            let class = format!("{class} ls-table");
+            let class = "ls-table".to_string();
             view! {
                 <div class="ls-table-wrap">
                     <table
@@ -115,12 +136,12 @@ fn rich_element(ctx: ElementRenderContext) -> AnyView {
             }
             .into_any()
         }
-        "thead" => tag!(thead, class),
-        "tbody" => tag!(tbody, class),
-        "tfoot" => tag!(tfoot, class),
-        "tr" => tag!(tr, class),
-        "th" => tag!(th, class),
-        "td" => tag!(td, class),
+        "thead" => tag!(thead, "ls-table-head".to_string()),
+        "tbody" => tag!(tbody, "ls-table-body".to_string()),
+        "tfoot" => tag!(tfoot, "ls-table-foot".to_string()),
+        "tr" => tag!(tr, "ls-table-row".to_string()),
+        "th" => tag!(th, "ls-table-cell ls-table-heading".to_string()),
+        "td" => tag!(td, "ls-table-cell".to_string()),
         _ => tag!(div, class),
     }
 }
@@ -144,7 +165,7 @@ mod tests {
 
     #[test]
     fn rich_styles_own_table_and_list_css() {
-        assert!(RICH_STYLES.contains(".ls-table-wrap table"));
+        assert!(RICH_STYLES.contains(".ls-table"));
         assert!(RICH_STYLES.contains(".ls-block.ls-list"));
         assert!(RICH_STYLES.contains(".ls-block.ls-list-item"));
         assert!(!leptoslate::EDITOR_STYLES.contains(".ls-table-wrap"));

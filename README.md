@@ -419,6 +419,8 @@ view! { <RichEditor editor=editor config=config placeholder="Write…" /> }
 
 `RichConfig` can also accept custom renderers, behavior plugins and file/mention handlers, and can disable list/table keyboard plugins with `with_list_behaviour` / `with_table_behaviour`. Applications that need full control can keep using `Editable` directly. The preset is intentionally compositional: it is not a separate editor implementation.
 
+Base `Editable` is the lower-level surface: it owns generic text editing, selection mapping and plain-text/file fallbacks. Rich list/table transforms, schema, normalization, renderers, styles and HTML/Markdown paste live in `leptoslate-rich`; `RichEditor` installs them automatically. Applications using `Editable` directly must install the corresponding rich features, renderers and plugins.
+
 `RichEditor` composes rich table/list renderers with the renderers you pass in (`Renderers::merge`, your entries win) and injects `RICH_STYLES` for the matching markup. The base renderer stays minimal: list and table tags are rich-owned, so a custom `RichConfig::with_renderers` renderer can replace any of them.
 
 ```rust
@@ -613,7 +615,6 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 
 - Client-side rendering only; no SSR/hydration adapter yet.
 - A pragmatic core schema, feature normalizer and behavior-plugin layer instead of Slate's full plugin model. Operation middleware is not yet pluggable.
-- List/table transforms, schema, normalization, renderers and the HTML/Markdown parser live in `leptoslate-rich`. Base `Editable` users must install the rich features/renderers and paste plugin for that behavior.
 - Table editing covers creation, cell navigation and row/column insertion/deletion; `colspan`/`rowspan` and Markdown tables are not implemented yet.
 - Markdown paste is opt-in and intentionally small; it is not a full CommonMark implementation.
 - Node selection is a contiguous range of top-level blocks; discontiguous or cross-container block selection is not implemented.
