@@ -847,6 +847,34 @@ test("drag handle reorders blocks and undo restores order", async ({ page }) => 
     .toContain("Select some text");
 });
 
+test("list type buttons switch between bulleted and numbered lists", async ({
+  page,
+}) => {
+  await page.locator('[data-text-path="4.1.0"]').click();
+  await page.getByRole("button", { name: "Numbered list" }).click();
+  await expect.poll(async () => (await getJson(page))[4]?.type).toBe("ol");
+
+  await page.getByRole("button", { name: "Bulleted list" }).click();
+  await expect.poll(async () => (await getJson(page))[4]?.type).toBe("ul");
+});
+
+test("table blocks can be reordered with the drag handle", async ({ page }) => {
+  const block = page.locator('[data-node-path="7"]');
+  await block.scrollIntoViewIfNeeded();
+  await block.hover();
+  const handle = await page.getByTitle("Drag to move (↑/↓)").boundingBox();
+  const target = await page.locator('[data-node-path="6"]').boundingBox();
+  expect(handle).not.toBeNull();
+  expect(target).not.toBeNull();
+
+  await page.mouse.move(handle!.x + handle!.width / 2, handle!.y + handle!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target!.x + 100, target!.y + 5, { steps: 12 });
+  await page.mouse.up();
+
+  await expect.poll(async () => (await getJson(page))[6]?.type).toBe("table");
+});
+
 test("Tab and Shift+Tab indent and outdent list items", async ({ page }) => {
   await setCaret(page, "4.1.0", 1);
   await page.keyboard.press("Tab");

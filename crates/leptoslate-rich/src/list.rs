@@ -171,9 +171,22 @@ impl ListTransforms for Editor {
             };
             let top_index = range.start().path.first().copied().unwrap_or(0);
 
-            // Unwrap an existing list under the cursor.
+            // Unwrap an existing list under the cursor, or switch its type.
             if let Some(Node::Element(list)) = editor.children.get(top_index) {
                 if editor.schema.is_list(&list.element_type) {
+                    if list.element_type != list_type {
+                        let mut properties = leptoslate::Props::new();
+                        properties.insert("type".into(), serde_json::json!(list.element_type));
+                        let mut new_properties = leptoslate::Props::new();
+                        new_properties.insert("type".into(), serde_json::json!(list_type));
+                        let _ = editor.apply_operation(Operation::SetNode {
+                            path: vec![top_index],
+                            properties,
+                            new_properties,
+                        });
+                        return;
+                    }
+
                     let list_children = list.children.clone();
                     let list_path = vec![top_index];
                     let mut paragraphs = Vec::new();
