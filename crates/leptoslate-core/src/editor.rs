@@ -65,6 +65,18 @@ impl Editor {
     /// Create an editor from a document. The document is normalized and the
     /// caret is placed at its start.
     pub fn new(children: Vec<Node>) -> Self {
+        Self::build(children, FeatureSet::default())
+    }
+
+    /// Create an editor with features installed before the first normalization.
+    ///
+    /// Use this when the initial document contains feature-owned containers
+    /// (tables, lists, …) whose invariants must apply from the start.
+    pub fn new_with_features(children: Vec<Node>, features: FeatureSet) -> Self {
+        Self::build(children, features)
+    }
+
+    fn build(children: Vec<Node>, features: FeatureSet) -> Self {
         let mut editor = Self {
             children,
             selection: None,
@@ -82,6 +94,8 @@ impl Editor {
             editor.children.push(Node::Element(Element::empty("p")));
         }
 
+        features.install_schema(&mut editor.schema);
+        editor.features = features;
         editor.normalize();
         editor.history = History::default();
         editor.selection = editor.first_text_point_in(&[]).map(Range::collapsed);

@@ -13,7 +13,7 @@ use leptoslate::core::{Feature, FeatureSet};
 use leptoslate::Editable as LeptoslateEditable;
 pub use list::{ListContext, ListHandle, ListTransforms, RichListFeature, RichListPlugin};
 pub use plugins::{RichClipboardPlugin, RichPastePlugin};
-pub use table::RichTablePlugin;
+pub use table::{RichTableFeature, RichTablePlugin, TableHandle, TableTransforms};
 
 /// Configuration for [`RichEditor`].
 #[derive(Clone)]
@@ -40,7 +40,9 @@ impl Default for RichConfig {
             paste_markdown: false,
             renderers: leptoslate::Renderers::default(),
             plugins: leptoslate::EditablePlugins::default(),
-            features: FeatureSet::new().with(RichListFeature),
+            features: FeatureSet::new()
+                .with(RichListFeature)
+                .with(RichTableFeature),
             file_handler: None,
             mention_handler: None,
             list_behaviour: true,
@@ -190,6 +192,7 @@ pub use leptoslate::*;
 pub mod prelude {
     pub use crate::{
         ListContext, ListHandle, ListTransforms, RichConfig, RichEditor, RichListFeature,
+        RichTableFeature, TableHandle, TableTransforms,
     };
     pub use leptoslate::core::*;
     pub use leptoslate::*;

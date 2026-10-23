@@ -52,8 +52,21 @@ pub trait Feature: Send + Sync {
     /// Run before a block type change.
     ///
     /// Features can unwrap or normalize their containers first (for example a
-    /// list unwraps its items before turning them into paragraphs).
-    fn before_set_block(&self, _editor: &mut Editor, _element_type: &str) {}
+    /// list unwraps its items before turning them into paragraphs). Returning
+    /// `true` means the feature handled the request and the block type must not
+    /// change (for example a table cell rejecting block transforms).
+    fn before_set_block(&self, _editor: &mut Editor, _element_type: &str) -> bool {
+        false
+    }
+
+    /// Whether a container should hold inline content only.
+    ///
+    /// Core treats a container as inline when its first child is inline.
+    /// Features use this hook for containers whose content model is fixed (for
+    /// example table cells) regardless of their children.
+    fn inline_container(&self, _editor: &Editor, _element_type: &str) -> bool {
+        false
+    }
 }
 
 /// An ordered collection of document features.

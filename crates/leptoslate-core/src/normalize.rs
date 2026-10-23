@@ -50,23 +50,26 @@ impl Editor {
 
         let mut iterations = 0;
         while iterations < 2_000 {
-            if let Some(fix) = self.find_fix() {
+            // Features run first so they can remove or reshape their own
+            // containers before the generic core constraints see them.
+            let feature_op = self
+                .features
+                .snapshot()
+                .iter()
+                .find_map(|feature| feature.normalize(self));
+            if let Some(operation) = feature_op {
                 iterations += 1;
-                if self.apply_fix(fix).is_err() {
+                if self.apply_inner(operation).is_err() {
                     break;
                 }
                 continue;
             }
 
-            let feature_op = self
-                .features
-                .iter()
-                .find_map(|feature| feature.normalize(self));
-            let Some(operation) = feature_op else {
+            let Some(fix) = self.find_fix() else {
                 break;
             };
             iterations += 1;
-            if self.apply_inner(operation).is_err() {
+            if self.apply_fix(fix).is_err() {
                 break;
             }
         }
@@ -85,17 +88,6 @@ impl Editor {
                 if self.schema.is_inline(&element.element_type)
                     && !self.schema.is_void(&element.element_type)
                     && element.text_len() == 0
-                {
-                    return Some(Fix::RemoveNode { path: at.to_vec() });
-                }
-            }
-        }
-
-        if children.is_empty() && !is_root {
-            if let Some(element) = self.element(at) {
-                if self.schema.is_table(&element.element_type)
-                    || self.schema.is_table_section(&element.element_type)
-                    || self.schema.is_table_row(&element.element_type)
                 {
                     return Some(Fix::RemoveNode { path: at.to_vec() });
                 }
@@ -123,15 +115,25 @@ impl Editor {
                 .map(|kind| !self.schema.is_inline(kind))
                 .unwrap_or(false)
         });
-        let should_have_inlines = if is_root || has_block {
+        let element_type = self
+            .node(at)
+            .and_then(Node::element_type)
+            .unwrap_or(self.schema.default_block.as_str());
+        // Features can pin a container's content model regardless of what is
+        // currently inside it (table cells are always inline containers).
+        let feature_inline_container = self
+            .features
+            .snapshot()
+            .iter()
+            .any(|feature| feature.inline_container(self, element_type));
+        let should_have_inlines = if is_root {
+            false
+        } else if feature_inline_container {
+            true
+        } else if has_block {
             false
         } else {
-            let element_type = self
-                .node(at)
-                .and_then(Node::element_type)
-                .unwrap_or(self.schema.default_block.as_str());
             self.schema.is_inline(element_type)
-                || self.schema.is_table_cell(element_type)
                 || children.first().map(Node::is_text).unwrap_or(false)
                 || children
                     .first()

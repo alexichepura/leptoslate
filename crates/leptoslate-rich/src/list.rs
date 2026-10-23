@@ -4,6 +4,7 @@
 //! / `li` schema rules, the indent/outdent/toggle transforms and the structural
 //! hooks that keep Enter and Backspace inside list items.
 
+use crate::TableTransforms;
 use leptoslate::core::{path, Feature};
 use leptoslate::{
     EditablePlugin, Editor, EditorHandle, Element, ElementRule, Node, Operation, Path, Point,
@@ -136,16 +137,17 @@ impl Feature for RichListFeature {
         }
     }
 
-    fn before_set_block(&self, editor: &mut Editor, element_type: &str) {
+    fn before_set_block(&self, editor: &mut Editor, element_type: &str) -> bool {
         if editor.schema.is_list(element_type) {
-            return;
+            return false;
         }
         let Some(range) = editor.selection.clone() else {
-            return;
+            return false;
         };
         if let Some(list_type) = list_ancestor_type(editor, range.start()) {
             editor.toggle_list(&list_type);
         }
+        false
     }
 }
 
