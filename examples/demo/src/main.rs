@@ -665,6 +665,7 @@ fn App() -> impl IntoView {
     let link_url = RwSignal::new(String::new());
     let show_mention = RwSignal::new(false);
     let table_style = RwSignal::new(String::new());
+    let block_dragging = RwSignal::new(false);
     let mention_query = RwSignal::new(String::new());
     let active_mention = RwSignal::new(None::<MentionTrigger>);
     let people = [("leptos", "Leptos"), ("slate", "Slate"), ("rust", "Rust")];
@@ -725,6 +726,21 @@ fn App() -> impl IntoView {
         let next = (current as isize + direction).rem_euclid(items.len() as isize) as usize;
         focus_element(&items[next]);
     };
+
+    let drag_start_listener = window_event_listener_untyped("dragstart", move |_| {
+        block_dragging.set(true);
+    });
+    let drag_end_listener = window_event_listener_untyped("dragend", move |_| {
+        block_dragging.set(false);
+    });
+    let drop_listener = window_event_listener_untyped("drop", move |_| {
+        block_dragging.set(false);
+    });
+    on_cleanup(move || {
+        drag_start_listener.remove();
+        drag_end_listener.remove();
+        drop_listener.remove();
+    });
 
     let rich_config = RichConfig::new()
         .with_renderers(renderers)
@@ -1104,7 +1120,7 @@ fn App() -> impl IntoView {
 
                 <div
                     class="media-bar table-bar"
-                    class:hidden=move || !table_active()
+                    class:hidden=move || !table_active() || block_dragging.get()
                     style=move || table_style.get()
                 >
                     <span class="media-hint">"Table:"</span>

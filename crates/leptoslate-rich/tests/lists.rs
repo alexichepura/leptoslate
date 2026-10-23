@@ -56,6 +56,19 @@ fn toggling_bullet_list_wraps_and_unwraps() {
 }
 
 #[test]
+fn switching_list_type_changes_the_list_element() {
+    let mut editor = list_editor(vec![list("ul", vec!["one", "two"])]);
+    editor.select_point(Point::new(vec![0, 0, 0], 1));
+
+    editor.toggle_list("ol");
+    assert_eq!(editor.element(&[0]).unwrap().element_type, "ol");
+    assert_eq!(editor.element(&[0]).unwrap().children.len(), 2);
+
+    editor.toggle_list("ul");
+    assert_eq!(editor.element(&[0]).unwrap().element_type, "ul");
+}
+
+#[test]
 fn enter_inside_a_list_item_keeps_the_list() {
     let mut editor = list_editor(vec![list("ul", vec!["one", "two"])]);
     editor.select_point(Point::new(vec![0, 0, 0], 3));

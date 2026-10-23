@@ -612,4 +612,10 @@ body {
     border: 1px solid var(--line);
     border-radius: 10px;
     box-shadow: var(--shadow-2);
+    pointer-events: none;
+}
+
+.table-bar button,
+.table-bar .media-hint {
+    pointer-events: auto;
 }
