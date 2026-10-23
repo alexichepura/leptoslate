@@ -158,6 +158,10 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
                     children
                 }
             }
+            "span" => {
+                let marks = self.span_marks(tag, marks);
+                self.inline_children(tag, &marks)
+            }
             "script" | "style" | "template" => Vec::new(),
             _ => self.inline_children(tag, marks),
         }
@@ -186,6 +190,67 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
             }
         }
         out
+    }
+
+    fn span_marks(&self, tag: &tl::HTMLTag<'a>, marks: &Props) -> Props {
+        let mut marks = marks.clone();
+        if let Some(value) = attr(tag, self.parser, "data-marks") {
+            for key in value.split(',') {
+                let key = key.trim();
+                if !key.is_empty() {
+                    marks.insert(key.to_string(), json!(true));
+                }
+            }
+        }
+        if let Some(style) = attr(tag, self.parser, "style") {
+            for declaration in style.split(';') {
+                let Some((name, value)) = declaration.split_once(':') else {
+                    continue;
+                };
+                let name = name.trim().to_ascii_lowercase();
+                let value = value.trim();
+                match name.as_str() {
+                    "font-weight" => {
+                        if value.eq_ignore_ascii_case("bold")
+                            || value
+                                .parse::<u32>()
+                                .map(|weight| weight >= 600)
+                                .unwrap_or(false)
+                        {
+                            marks.insert("bold".into(), json!(true));
+                        }
+                    }
+                    "font-style" if value.eq_ignore_ascii_case("italic") => {
+                        marks.insert("italic".into(), json!(true));
+                    }
+                    "text-decoration" | "text-decoration-line" => {
+                        if value.contains("underline") {
+                            marks.insert("underline".into(), json!(true));
+                        }
+                        if value.contains("line-through") {
+                            marks.insert("strikethrough".into(), json!(true));
+                        }
+                    }
+                    "font-family" if value.contains("monospace") || value.contains("Menlo") => {
+                        marks.insert("code".into(), json!(true));
+                    }
+                    "vertical-align" if value.eq_ignore_ascii_case("super") => {
+                        marks.insert("superscript".into(), json!(true));
+                    }
+                    "vertical-align" if value.eq_ignore_ascii_case("sub") => {
+                        marks.insert("subscript".into(), json!(true));
+                    }
+                    "color" => {
+                        marks.insert("color".into(), json!(value));
+                    }
+                    "background" | "background-color" => {
+                        marks.insert("background".into(), json!(value));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        marks
     }
 
     fn block(&self, tag: &tl::HTMLTag<'a>, name: &str) -> Vec<Node> {

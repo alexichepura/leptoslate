@@ -124,6 +124,143 @@ test("table cells navigate and resist structural deletion", async ({ page }) => 
   );
 });
 
+test("copy includes HTML marks and pastes them back", async ({ page }) => {
+  await page
+    .context()
+    .grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([
+      { type: "p", children: [{ text: "Bold", bold: true }] },
+    ]),
+  );
+  await selectText(page, "0.0", 0, 4);
+  const modifier = process.platform === "darwin" ? "Meta" : "Control";
+  await page.keyboard.press(`${modifier}+C`);
+  const copied = await page.evaluate(async () => {
+    const items = await navigator.clipboard.read();
+    const out: Record<string, string> = {};
+    for (const item of items) {
+      for (const type of item.types) {
+        out[type] = await (await item.getType(type)).text();
+      }
+    }
+    return out;
+  });
+  expect(copied["text/plain"]).toBe("Bold");
+  expect(copied["text/html"]).toContain("font-weight");
+
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([{ type: "p", children: [{ text: "" }] }]),
+  );
+  await setCaret(page, "0.0", 0);
+  await page.evaluate((html) => {
+    const data = new DataTransfer();
+    data.setData("text/html", html);
+    data.setData("text/plain", "Bold");
+    document.querySelector(".ls-editor")!.dispatchEvent(
+      new ClipboardEvent("paste", {
+        clipboardData: data,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  }, copied["text/html"]);
+  await expect
+    .poll(async () => (await getJson(page))[0]?.children?.[0]?.bold)
+    .toBe(true);
+});
+
+test("cut writes rich HTML and removes the model text", async ({ page }) => {
+  await page
+    .context()
+    .grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([
+      { type: "p", children: [{ text: "Cut", bold: true }] },
+    ]),
+  );
+  await selectText(page, "0.0", 0, 3);
+  const modifier = process.platform === "darwin" ? "Meta" : "Control";
+  await page.keyboard.press(`${modifier}+X`);
+  const copied = await page.evaluate(async () => {
+    const items = await navigator.clipboard.read();
+    const out: Record<string, string> = {};
+    for (const item of items) {
+      for (const type of item.types) {
+        out[type] = await (await item.getType(type)).text();
+      }
+    }
+    return out;
+  });
+  expect(copied["text/plain"]).toBe("Cut");
+  expect(copied["text/html"]).toContain("font-weight");
+  await expect.poll(async () => plainText((await getJson(page))[0])).toBe("");
+});
+
+test("copying a selected table preserves the table structure", async ({
+  page,
+}) => {
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([
+      {
+        type: "table",
+        children: [
+          {
+            type: "tbody",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  { type: "td", children: [{ text: "A" }] },
+                  { type: "td", children: [{ text: "B" }] },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]),
+  );
+  await page.locator('[data-node-path="0"]').hover();
+  await page.getByRole("button", { name: "Select block" }).click();
+  const html = await page.evaluate(() => {
+    const data = new DataTransfer();
+    document.querySelector(".ls-editor")!.dispatchEvent(
+      new ClipboardEvent("copy", {
+        clipboardData: data,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    return data.getData("text/html");
+  });
+  expect(html).toContain("<table");
+  expect(html).toContain("<td");
+
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([{ type: "p", children: [{ text: "" }] }]),
+  );
+  await setCaret(page, "0.0", 0);
+  await page.evaluate((copied) => {
+    const data = new DataTransfer();
+    data.setData("text/html", copied);
+    document.querySelector(".ls-editor")!.dispatchEvent(
+      new ClipboardEvent("paste", {
+        clipboardData: data,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  }, html);
+  await expect(page.locator(".ls-table-wrap table")).toHaveCount(1);
+  await expect.poll(async () => (await getJson(page))[0]?.type).toBe("table");
+});
+
 test("typing inserts text and keeps the model selection in sync", async ({
   page,
 }) => {

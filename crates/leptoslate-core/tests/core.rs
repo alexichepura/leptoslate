@@ -1263,6 +1263,36 @@ fn parses_html_fragments_into_slate_nodes() {
 }
 
 #[test]
+fn html_spans_preserve_copy_marks() {
+    use leptoslate_core::fragment::parse_html;
+
+    let nodes = parse_html(
+        r#"<p><span data-marks="bold,italic">marked</span><span style="text-decoration-line:underline;color:#b4532a">styled</span></p>"#,
+    );
+    let paragraph = &nodes[0];
+    let marked = paragraph.children()[0].as_text().unwrap();
+    assert_eq!(marked.text, "marked");
+    assert_eq!(
+        marked.properties.get("bold"),
+        Some(&serde_json::json!(true))
+    );
+    assert_eq!(
+        marked.properties.get("italic"),
+        Some(&serde_json::json!(true))
+    );
+
+    let styled = paragraph.children()[1].as_text().unwrap();
+    assert_eq!(
+        styled.properties.get("underline"),
+        Some(&serde_json::json!(true))
+    );
+    assert_eq!(
+        styled.properties.get("color"),
+        Some(&serde_json::json!("#b4532a"))
+    );
+}
+
+#[test]
 fn html_paste_preserves_nested_lists_tables_and_inline_images() {
     use leptoslate_core::fragment::parse_html;
 
