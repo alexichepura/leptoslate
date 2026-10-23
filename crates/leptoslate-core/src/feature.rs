@@ -6,9 +6,13 @@
 
 use std::{fmt, sync::Arc};
 
-use crate::{Editor, Operation, Schema};
+use crate::{Editor, Operation, Path, Point, Schema};
 
 /// A composable document feature.
+///
+/// Features own model-level schema rules, normalization invariants and the
+/// structural hooks that a specialized block family (lists, tables, …) needs.
+/// DOM/event behavior stays in the Leptos plugin layer.
 pub trait Feature: Send + Sync {
     /// Install or replace schema rules when the feature is attached.
     fn install_schema(&self, _schema: &mut Schema) {}
@@ -20,6 +24,36 @@ pub trait Feature: Send + Sync {
     fn normalize(&self, _editor: &Editor) -> Option<Operation> {
         None
     }
+
+    /// Handle Backspace at the start of a leaf block.
+    ///
+    /// Called with the caret at offset zero of a block. Returning `true` means
+    /// the feature performed the transform and the core fallback must be
+    /// skipped. List features use this to lift or merge list items.
+    fn handle_backspace(&self, _editor: &mut Editor, _point: &Point) -> bool {
+        false
+    }
+
+    /// The ancestor depth at which Enter should stop splitting.
+    ///
+    /// The core splits the leaf block and every ancestor up to (and including)
+    /// this depth. Returning a smaller depth keeps specialized containers (for
+    /// example a list item) intact while still splitting nested paragraphs.
+    fn split_stop_depth(&self, _editor: &Editor, _point: &Point) -> Option<usize> {
+        None
+    }
+
+    /// Adjust the block that a newly inserted block is placed after.
+    ///
+    /// Features can climb out of their containers so a block inserted from a
+    /// toolbar lands next to the container rather than inside it.
+    fn adjust_insert_block(&self, _editor: &Editor, _block: &mut Path) {}
+
+    /// Run before a block type change.
+    ///
+    /// Features can unwrap or normalize their containers first (for example a
+    /// list unwraps its items before turning them into paragraphs).
+    fn before_set_block(&self, _editor: &mut Editor, _element_type: &str) {}
 }
 
 /// An ordered collection of document features.
@@ -57,14 +91,23 @@ impl FeatureSet {
         self.features.is_empty()
     }
 
+    /// Attached features in priority order.
+    pub fn iter(&self) -> impl Iterator<Item = &Arc<dyn Feature>> {
+        self.features.iter()
+    }
+
+    /// A cheap snapshot of the attached features.
+    ///
+    /// This is useful when a hook needs `&mut Editor`: the snapshot keeps the
+    /// feature list independent of the borrow.
+    pub fn snapshot(&self) -> Vec<Arc<dyn Feature>> {
+        (*self.features).clone()
+    }
+
     pub(crate) fn install_schema(&self, schema: &mut Schema) {
         for feature in self.features.iter() {
             feature.install_schema(schema);
         }
-    }
-
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &Arc<dyn Feature>> {
-        self.features.iter()
     }
 }
 

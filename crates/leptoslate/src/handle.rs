@@ -54,10 +54,14 @@ impl EditorHandle {
     }
 
     /// Replace the document. History is reset and the caret moves to the start.
+    /// Installed features and schema rules are kept.
     pub fn set_value(&self, children: Vec<Node>) {
-        let schema = self.state.with_untracked(|editor| editor.schema.clone());
+        let (schema, features) = self
+            .state
+            .with_untracked(|editor| (editor.schema.clone(), editor.features.clone()));
         let mut editor = Editor::new(children);
         editor.set_schema(schema);
+        editor.set_features(features);
         self.state.set(editor);
     }
 
@@ -270,20 +274,6 @@ impl EditorHandle {
     /// Place the caret at the start of the text following a node.
     pub fn select_after_node(&self, path: &[usize]) -> Option<Point> {
         self.update(|editor| editor.select_after_node(path))
-    }
-
-    pub fn toggle_list(&self, list_type: &str) {
-        self.update(|editor| editor.toggle_list(list_type));
-    }
-
-    /// Indent the current list item under its previous sibling.
-    pub fn indent_list(&self) -> bool {
-        self.update(Editor::indent_list)
-    }
-
-    /// Outdent the current list item.
-    pub fn outdent_list(&self) -> bool {
-        self.update(Editor::outdent_list)
     }
 
     pub fn select_all(&self) {
