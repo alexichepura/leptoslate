@@ -62,7 +62,7 @@ examples/
 - Undo restores single or multi-block selection, including after a group delete
 - DOM selection ↔ model selection mapping via `data-text-path` attributes
 - `beforeinput` handling for typing, deletion, formatting, undo/redo and IME-safe composition
-- Rich copy/cut: browser-native HTML for text selections, semantic block HTML for node selections, and plain-text fallback
+- Rich copy/cut: browser-native HTML for text selections, semantic block HTML plus a hidden model payload for node selections, and plain-text fallback
 - File paste/drop hook for image uploads (`FileHandler`)
 - Keyboard shortcuts: ⌘/Ctrl+B, I, U, Z, Shift+Z, Y, A, D; Shift+Arrow extends block selection; Tab inserts spaces
 - Accessible toolbar semantics: arrow/Home/End navigation, `aria-pressed` states, labelled floating toolbars and live block-selection announcements
@@ -300,7 +300,7 @@ editor.insert_fragment(parsed_nodes);
 
 Supported HTML includes paragraphs, headings, nested lists, blockquotes, code blocks, links, emphasis, line breaks, structured tables, block and inline images, and rules. Tables keep their `thead`/`tbody`/`tr`/`th`/`td` structure, infer a header row from leading `<th>` rows, and preserve inline marks/links in cells; malformed tables fall back to a paragraph of their text. Dropping `text/html` or `text/plain` at a point in the editor follows the same fragment path. Markdown supports headings, paragraphs, flat lists, blockquotes, fenced code, rules and common inline marks/links.
 
-Copying a text selection uses the browser's native rich HTML, including computed mark styles and links. Copying a node/block selection serializes the selected top-level elements, so tables, images and block structure survive a round trip. Cut follows the same rich-copy path and then deletes through the model.
+Copying a text selection uses the browser's native rich HTML, including computed mark styles and links. Copying a node/block selection serializes the selected top-level elements, so tables, images and block structure survive a round trip. The copied HTML also carries a hidden model payload, so custom block properties survive internal copy/paste while external applications still receive normal HTML. Cut follows the same rich-copy path and then deletes through the model.
 
 ### Links
 

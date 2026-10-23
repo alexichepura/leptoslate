@@ -222,6 +222,57 @@ test("cut writes rich HTML and removes the model text", async ({ page }) => {
   await expect.poll(async () => plainText((await getJson(page))[0])).toBe("");
 });
 
+test("custom block copy preserves model properties", async ({ page }) => {
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([
+      {
+        type: "callout",
+        tone: "warn",
+        children: [{ text: "Keep my props" }],
+      },
+    ]),
+  );
+  await page
+    .context()
+    .grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.locator('[data-node-path="0"]').hover();
+  await page.getByRole("button", { name: "Select block" }).click();
+  const modifier = process.platform === "darwin" ? "Meta" : "Control";
+  await page.keyboard.press(`${modifier}+C`);
+  const copied = await page.evaluate(async () => {
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      if (item.types.includes("text/html")) {
+        return await (await item.getType("text/html")).text();
+      }
+    }
+    return "";
+  });
+  expect(copied).toContain("data-leptoslate-model");
+
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([{ type: "p", children: [{ text: "" }] }]),
+  );
+  await setCaret(page, "0.0", 0);
+  await page.evaluate((copied) => {
+    const data = new DataTransfer();
+    data.setData("text/html", copied);
+    document.querySelector(".ls-editor")!.dispatchEvent(
+      new ClipboardEvent("paste", {
+        clipboardData: data,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  }, copied);
+  await expect.poll(async () => (await getJson(page))[0]?.type).toBe("callout");
+  const json = await getJson(page);
+  expect(json[0]?.tone).toBe("warn");
+  expect(plainText(json[0]!)).toBe("Keep my props");
+});
+
 test("copying a selected table preserves the table structure", async ({
   page,
 }) => {
