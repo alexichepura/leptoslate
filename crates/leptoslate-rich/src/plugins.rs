@@ -42,7 +42,7 @@ impl EditablePlugin for RichPastePlugin {
                         }
                     }
                 }
-                let nodes = leptoslate::core::fragment::parse_html(&html);
+                let nodes = crate::fragment::parse_html(&html);
                 if !nodes.is_empty() {
                     editor.insert_fragment(nodes);
                     return true;
@@ -53,7 +53,7 @@ impl EditablePlugin for RichPastePlugin {
         if self.markdown {
             let text = data.get_data("text/plain").unwrap_or_default();
             if !text.is_empty() {
-                let nodes = leptoslate::core::fragment::parse_markdown(&text);
+                let nodes = crate::fragment::parse_markdown(&text);
                 if !nodes.is_empty() {
                     editor.insert_fragment(nodes);
                     return true;
@@ -74,7 +74,7 @@ impl EditablePlugin for RichPastePlugin {
         if html.trim().is_empty() {
             return false;
         }
-        let nodes = leptoslate::core::fragment::parse_html(&html);
+        let nodes = crate::fragment::parse_html(&html);
         if nodes.is_empty() {
             return false;
         }

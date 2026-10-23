@@ -5,7 +5,9 @@
 //! giving up custom renderers or behavior plugins.
 
 use leptos::prelude::*;
+pub mod fragment;
 mod list;
+mod paste;
 mod plugins;
 mod renderers;
 mod table;
@@ -13,6 +15,7 @@ mod table;
 use leptoslate::core::{Feature, FeatureSet};
 use leptoslate::Editable as LeptoslateEditable;
 pub use list::{ListContext, ListHandle, ListTransforms, RichListFeature, RichListPlugin};
+pub use paste::{PasteHandle, PasteTransforms};
 pub use plugins::{RichClipboardPlugin, RichPastePlugin};
 pub use renderers::{rich_renderers, RICH_STYLES};
 pub use table::{RichTableFeature, RichTablePlugin, TableHandle, TableTransforms};
@@ -194,8 +197,8 @@ pub use leptoslate::*;
 
 pub mod prelude {
     pub use crate::{
-        ListContext, ListHandle, ListTransforms, RichConfig, RichEditor, RichListFeature,
-        RichTableFeature, TableHandle, TableTransforms,
+        ListContext, ListHandle, ListTransforms, PasteHandle, PasteTransforms, RichConfig,
+        RichEditor, RichListFeature, RichTableFeature, TableHandle, TableTransforms,
     };
     pub use leptoslate::core::*;
     pub use leptoslate::*;

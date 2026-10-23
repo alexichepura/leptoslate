@@ -10,6 +10,7 @@ rust-version.workspace = true
 leptoslate = { path = "../leptoslate" }
 leptos = { workspace = true }
 serde_json = { workspace = true }
+tl = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true

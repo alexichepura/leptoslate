@@ -25,7 +25,6 @@
 
 pub mod error;
 pub mod feature;
-pub mod fragment;
 pub mod node;
 pub mod operation;
 pub mod path;
