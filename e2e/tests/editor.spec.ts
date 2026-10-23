@@ -280,10 +280,17 @@ test("HTML paste preserves nested lists, tables and inline images", async ({
   expect(nested).toBeTruthy();
   expect(plainText(nested!)).toBe("ParentChild");
 
-  const header = json.find((node) => plainText(node) === "Name | Value");
-  expect(header?.type).toBe("p");
-  expect(header?.children?.[0]?.bold).toBe(true);
-  expect(json.some((node) => plainText(node) === "A | 1")).toBe(true);
+  const table = json.find((node) => node.type === "table");
+  expect(table?.children?.map((node) => node.type)).toEqual([
+    "thead",
+    "tbody",
+  ]);
+  const headerRow = table?.children?.[0]?.children?.[0];
+  expect(headerRow?.children?.map((cell) => cell.type)).toEqual(["th", "th"]);
+  expect(headerRow?.children?.[0]?.children?.[0]?.text).toBe("Name");
+  const bodyRow = table?.children?.[1]?.children?.[0];
+  expect(bodyRow?.children?.map((cell) => cell.type)).toEqual(["td", "td"]);
+  expect(bodyRow?.children?.[0]?.children?.[0]?.text).toBe("A");
 
   const inlineImage = json.find((node) =>
     node.children?.some((child) => child.type === "inline-image"),
