@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 leptoslate = { path = "../../crates/leptoslate" }
+leptoslate-rich = { path = "../../crates/leptoslate-rich" }
 leptos = { workspace = true, features = ["csr"] }
 console_error_panic_hook = { workspace = true }
 serde_json = { workspace = true }

@@ -1,8 +1,9 @@
 use leptos::prelude::*;
 use leptoslate::{
-    Editable, EditablePlugin, EditablePlugins, EditorHandle, Element, FileHandler, MentionTrigger,
-    Node, Props, Renderers, Text,
+    EditablePlugin, EditorHandle, Element, FileHandler, MentionTrigger, Node, Props, Renderers,
+    Text,
 };
+use leptoslate_rich::{RichConfig, RichEditor};
 use serde_json::{json, Value};
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent};
@@ -679,6 +680,12 @@ fn App() -> impl IntoView {
         focus_element(&items[next]);
     };
 
+    let rich_config = RichConfig::new()
+        .with_renderers(renderers)
+        .with_plugin(StarPlugin)
+        .with_file_handler(files_handler.clone())
+        .with_mention_handler(on_mention);
+
     let undo_disabled = {
         let editor = editor.clone();
         move || !editor.state.with(|state| state.can_undo())
@@ -1212,14 +1219,9 @@ fn App() -> impl IntoView {
                     <span class="media-hint">"Select text, then apply a URL"</span>
                 </div>
 
-                <Editable
+                <RichEditor
                     editor=editor.clone()
-                    renderers=renderers
-                    plugins=EditablePlugins::new().with(StarPlugin)
-                    on_files=files_handler
-                    on_mention=on_mention
-                    hover_bar=true
-                    selection_bubble=true
+                    config=rich_config
                     placeholder="Start writing…"
                 />
 

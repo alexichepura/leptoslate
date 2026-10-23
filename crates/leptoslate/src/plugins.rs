@@ -10,7 +10,7 @@
 use std::sync::Arc;
 
 use crate::handle::EditorHandle;
-use web_sys::{ClipboardEvent, DragEvent, InputEvent, KeyboardEvent};
+use web_sys::{ClipboardEvent, DragEvent, Element, InputEvent, KeyboardEvent};
 
 /// Optional event handlers for the editable surface.
 ///
@@ -24,19 +24,19 @@ pub trait EditablePlugin: Send + Sync {
         false
     }
 
-    fn on_paste(&self, _editor: &EditorHandle, _event: &ClipboardEvent) -> bool {
+    fn on_paste(&self, _editor: &EditorHandle, _root: &Element, _event: &ClipboardEvent) -> bool {
         false
     }
 
-    fn on_copy(&self, _editor: &EditorHandle, _event: &ClipboardEvent) -> bool {
+    fn on_copy(&self, _editor: &EditorHandle, _root: &Element, _event: &ClipboardEvent) -> bool {
         false
     }
 
-    fn on_cut(&self, _editor: &EditorHandle, _event: &ClipboardEvent) -> bool {
+    fn on_cut(&self, _editor: &EditorHandle, _root: &Element, _event: &ClipboardEvent) -> bool {
         false
     }
 
-    fn on_drop(&self, _editor: &EditorHandle, _event: &DragEvent) -> bool {
+    fn on_drop(&self, _editor: &EditorHandle, _root: &Element, _event: &DragEvent) -> bool {
         false
     }
 }

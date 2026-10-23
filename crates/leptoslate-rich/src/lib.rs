@@ -5,7 +5,10 @@
 //! giving up custom renderers or behavior plugins.
 
 use leptos::prelude::*;
+mod plugins;
+
 use leptoslate::Editable as LeptoslateEditable;
+pub use plugins::{RichClipboardPlugin, RichPastePlugin};
 
 /// Configuration for [`RichEditor`].
 #[derive(Clone)]
@@ -100,15 +103,23 @@ pub fn RichEditor(
     #[prop(optional, into)] class: String,
     #[prop(optional, into)] placeholder: String,
 ) -> impl IntoView {
+    let mut plugins = config.plugins.clone();
+    plugins.push(RichClipboardPlugin);
+    if config.paste_html || config.paste_markdown {
+        plugins.push(RichPastePlugin::new(
+            config.paste_html,
+            config.paste_markdown,
+        ));
+    }
+    let renderers = config.renderers.clone();
+
     view! {
         <LeptoslateEditable
             editor=editor
-            renderers=config.renderers
-            plugins=config.plugins
+            renderers=renderers
+            plugins=plugins
             hover_bar=config.hover_bar
             selection_bubble=config.selection_bubble
-            paste_html=config.paste_html
-            paste_markdown=config.paste_markdown
             class=class
             placeholder=placeholder
             on_files=config
