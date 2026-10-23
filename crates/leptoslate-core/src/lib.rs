@@ -24,6 +24,7 @@
 //! ```
 
 pub mod error;
+pub mod feature;
 pub mod fragment;
 pub mod node;
 pub mod operation;
@@ -42,6 +43,7 @@ mod transforms;
 
 pub use editor::Editor;
 pub use error::SlateError;
+pub use feature::{Feature, FeatureSet};
 pub use history::{History, HistoryBatch};
 pub use node::{Element, Node, Text};
 pub use operation::Operation;

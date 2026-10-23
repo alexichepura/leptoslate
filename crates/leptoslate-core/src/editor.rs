@@ -12,7 +12,7 @@ use crate::{
     range::Range,
     schema::Schema,
     text::{char_len, char_slice, splice},
-    SlateError,
+    FeatureSet, SlateError,
 };
 
 /// A pending transaction, grouping operations for undo/redo.
@@ -41,6 +41,8 @@ impl PendingBatch {
 pub struct Editor {
     pub children: Vec<Node>,
     pub selection: Option<Range>,
+    /// Optional document features installed on this editor.
+    pub features: FeatureSet,
     /// An explicit block/node selection, used for void blocks such as images.
     /// Mutually exclusive with a text [`Range`] selection.
     pub node_selection: Option<path::Path>,
@@ -66,6 +68,7 @@ impl Editor {
         let mut editor = Self {
             children,
             selection: None,
+            features: FeatureSet::default(),
             node_selection: None,
             node_selection_end: None,
             marks: None,
@@ -97,6 +100,32 @@ impl Editor {
     pub fn set_schema(&mut self, schema: Schema) {
         self.schema = schema;
         self.normalize();
+    }
+
+    /// Attach a document feature, install its schema rules, and normalize.
+    pub fn add_feature<F>(&mut self, feature: F)
+    where
+        F: crate::Feature + 'static,
+    {
+        feature.install_schema(&mut self.schema);
+        self.features.push(feature);
+        self.normalize();
+    }
+
+    /// Replace features, reinstalling their schema rules and normalizing.
+    pub fn set_features(&mut self, features: FeatureSet) {
+        features.install_schema(&mut self.schema);
+        self.features = features;
+        self.normalize();
+    }
+
+    /// Attach a feature and return the editor for builder-style setup.
+    pub fn with_feature<F>(mut self, feature: F) -> Self
+    where
+        F: crate::Feature + 'static,
+    {
+        self.add_feature(feature);
+        self
     }
 
     pub fn from_value(children: Vec<Node>) -> Self {
@@ -792,7 +821,7 @@ impl Editor {
         result
     }
 
-    fn apply_inner(&mut self, op: Operation) -> Result<(), SlateError> {
+    pub(crate) fn apply_inner(&mut self, op: Operation) -> Result<(), SlateError> {
         let inverse = self.inverse_of(&op)?;
         self.apply_value(&op)?;
 
