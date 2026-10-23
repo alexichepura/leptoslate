@@ -104,7 +104,9 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
                 let name = tag.name().as_utf8_str().to_ascii_lowercase();
                 if name == "img" {
                     self.flush(blocks, inline);
-                    blocks.push(self.image(tag));
+                    if let Some(image) = self.image(tag) {
+                        blocks.push(image);
+                    }
                 } else if is_block(&name) {
                     self.flush(blocks, inline);
                     blocks.extend(self.block(tag, &name));
@@ -144,16 +146,20 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
             "sup" => self.inline_children(tag, &marks_with(marks, "superscript")),
             "sub" => self.inline_children(tag, &marks_with(marks, "subscript")),
             "br" => vec![Node::text("\n")],
-            "img" => vec![self.inline_image(tag)],
+            "img" => self.inline_image(tag).into_iter().collect(),
             "a" => {
                 let children = self.inline_children(tag, marks);
                 if children.is_empty() {
                     return Vec::new();
                 }
                 if let Some(href) = attr(tag, self.parser, "href") {
-                    vec![Node::Element(
-                        Element::new("a", children).with_property("href", json!(href)),
-                    )]
+                    if crate::is_safe_href(&href) {
+                        vec![Node::Element(
+                            Element::new("a", children).with_property("href", json!(href)),
+                        )]
+                    } else {
+                        children
+                    }
                 } else {
                     children
                 }
@@ -180,7 +186,9 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
                         if name == "br" {
                             out.push(Node::text("\n"));
                         } else if name == "img" {
-                            out.push(self.inline_image(child));
+                            if let Some(image) = self.inline_image(child) {
+                                out.push(image);
+                            }
                         } else {
                             out.extend(self.inline(child, &name, marks));
                         }
@@ -289,7 +297,7 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
             "ul" | "ol" => vec![self.list(tag, name == "ol")],
             "li" => vec![self.list_item(tag)],
             "hr" => vec![Node::Element(Element::empty("hr"))],
-            "img" => vec![self.image(tag)],
+            "img" => self.image(tag).into_iter().collect(),
             "figure" => {
                 if let Some(image) = tag.children().top().as_slice().iter().find_map(|handle| {
                     handle
@@ -297,7 +305,7 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
                         .and_then(tl::Node::as_tag)
                         .filter(|child| child.name().as_utf8_str() == "img")
                 }) {
-                    vec![self.image(image)]
+                    self.image(image).into_iter().collect()
                 } else {
                     self.container(tag)
                 }
@@ -383,7 +391,11 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
                         match name.as_str() {
                             "ul" | "ol" => {}
                             "br" => out.push(Node::text("\n")),
-                            "img" => out.push(self.inline_image(child)),
+                            "img" => {
+                                if let Some(image) = self.inline_image(child) {
+                                    out.push(image);
+                                }
+                            }
                             _ => out.extend(self.inline(child, &name, marks)),
                         }
                     }
@@ -500,24 +512,30 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
         Node::Element(Element::new(name, children))
     }
 
-    fn inline_image(&self, tag: &tl::HTMLTag<'a>) -> Node {
+    fn inline_image(&self, tag: &tl::HTMLTag<'a>) -> Option<Node> {
         let src = attr(tag, self.parser, "src").unwrap_or_default();
+        if !crate::is_safe_image_src(&src) {
+            return None;
+        }
         let alt = attr(tag, self.parser, "alt").unwrap_or_default();
-        Node::Element(
+        Some(Node::Element(
             Element::new("inline-image", vec![Node::empty_text()])
                 .with_property("src", json!(src))
                 .with_property("alt", json!(alt)),
-        )
+        ))
     }
 
-    fn image(&self, tag: &tl::HTMLTag<'a>) -> Node {
+    fn image(&self, tag: &tl::HTMLTag<'a>) -> Option<Node> {
         let src = attr(tag, self.parser, "src").unwrap_or_default();
+        if !crate::is_safe_image_src(&src) {
+            return None;
+        }
         let alt = attr(tag, self.parser, "alt").unwrap_or_default();
-        Node::Element(
+        Some(Node::Element(
             Element::new("img", vec![Node::empty_text()])
                 .with_property("src", json!(src))
                 .with_property("alt", json!(alt)),
-        )
+        ))
     }
 }
 

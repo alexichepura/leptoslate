@@ -33,6 +33,7 @@ pub mod props;
 pub mod range;
 pub mod schema;
 pub mod text;
+pub mod url;
 
 mod editor;
 mod history;
@@ -49,6 +50,7 @@ pub use point::Point;
 pub use props::Props;
 pub use range::Range;
 pub use schema::{ElementRule, Schema};
+pub use url::{is_safe_href, is_safe_image_src};
 
 /// A path is a list of child indexes, exactly like Slate's `Path`.
 pub type Path = Vec<usize>;

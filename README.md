@@ -55,6 +55,7 @@ examples/
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
 - Inline void mentions: `@`-triggered picker, atoms, atom deletion, and custom renderers
 - Rich fragment paste and drop: HTML by default, optional Markdown parsing, with marks, links, nested lists, structured tables and inline images
+- URL safety policy for links and pasted images; unsafe schemes are rejected
 - Block hover bar with select, add-below, duplicate, delete and drag-reorder actions
 - Nested lists with Tab/Shift+Tab indentation and list-aware editing
 - Selection bubble toolbar for marks near a text selection
@@ -315,7 +316,7 @@ editor.update_link_at_selection("/docs", "docs"); // href + text in one undo ste
 editor.remove_link();            // unwraps links intersecting the selection
 ```
 
-`update_link_at_selection` preserves the existing children and marks when the text is unchanged. When the text changes, it replaces the link text with one text node carrying the first child text node’s marks. Empty link text is rejected. The built-in renderer prevents link navigation during editing. The demo adds a Link toolbar button with an href bar for Apply/Remove.
+`update_link_at_selection` preserves the existing children and marks when the text is unchanged. When the text changes, it replaces the link text with one text node carrying the first child text node’s marks. Empty link text is rejected. Link targets use a safety policy: relative links, fragments, `http(s)`, `mailto:` and `tel:` are accepted; `javascript:`, `data:` and other opaque schemes are rejected. Pasted unsafe links are flattened to their text and unsafe image sources are skipped. The built-in renderer prevents link navigation during editing. The demo adds a Link toolbar button with an href bar for Apply/Remove.
 
 ### Mentions and inline voids
 
@@ -514,6 +515,7 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 - Node selection is a contiguous range of top-level blocks; discontiguous or cross-container block selection is not implemented.
 - List indentation operates on the item under the caret; multi-item indentation is not implemented.
 - IME composition is reconciled per text node, not with Slate's composition-aware range model.
+- URL/paste sanitization applies at the editor boundary; existing stored documents are not rewritten automatically.
 - Automated ARIA and keyboard tests are in place, but there has not been a manual screen-reader certification.
 - No collaborative editing, OT/CRDT, or remote operation rebasing.
 
