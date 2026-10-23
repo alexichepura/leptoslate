@@ -54,7 +54,7 @@ examples/
 - Pluggable element, text and mark renderers for application-specific blocks and styling
 - Composable `EditablePlugin` hooks for keydown, beforeinput, paste, copy, cut and drop behavior
 - Core `Feature`/`FeatureSet` hooks for schema rules and normalizer operations
-- Configurable `RichEditor` preset in the `leptoslate-rich` facade crate
+- Configurable `RichEditor` preset with rich paste, clipboard, list and table behavior plugins
 - Block/node selection for one or more top-level blocks: select, extend, delete, duplicate, copy, or type to replace a range
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
 - Inline void mentions: `@`-triggered picker, atoms, atom deletion, and custom renderers
@@ -269,7 +269,7 @@ let table = Node::Element(Element::new("table", vec![
 ]));
 ```
 
-Cells keep inline content, including marks and links. `Enter` is inert inside a cell, `Tab` / `Shift+Tab` move between cells, and `Backspace`/`Delete` at a cell boundary do not merge or destroy the table. Block and list transforms are ignored while the caret is inside a cell.
+Cells keep inline content, including marks and links. With the rich preset, `Enter` is inert inside a cell, `Tab` / `Shift+Tab` move between cells, and `Backspace`/`Delete` at a cell boundary do not merge or destroy the table. Block and list transforms are ignored while the caret is inside a cell. Applications using base `Editable` can install `RichTablePlugin` themselves.
 
 Create a table and edit it through the handle:
 
@@ -397,7 +397,7 @@ let config = RichConfig::new()
 view! { <RichEditor editor=editor config=config placeholder="Write…" /> }
 ```
 
-`RichConfig` can also accept custom renderers, behavior plugins and file/mention handlers. Applications that need full control can keep using `Editable` directly. The preset is intentionally compositional: it is not a separate editor implementation.
+`RichConfig` can also accept custom renderers, behavior plugins and file/mention handlers, and can disable list/table keyboard plugins with `with_list_behaviour` / `with_table_behaviour`. Applications that need full control can keep using `Editable` directly. The preset is intentionally compositional: it is not a separate editor implementation.
 
 ### Core features
 

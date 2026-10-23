@@ -5,10 +5,14 @@
 //! giving up custom renderers or behavior plugins.
 
 use leptos::prelude::*;
+mod list;
 mod plugins;
+mod table;
 
 use leptoslate::Editable as LeptoslateEditable;
+pub use list::RichListPlugin;
 pub use plugins::{RichClipboardPlugin, RichPastePlugin};
+pub use table::RichTablePlugin;
 
 /// Configuration for [`RichEditor`].
 #[derive(Clone)]
@@ -21,6 +25,8 @@ pub struct RichConfig {
     pub plugins: leptoslate::EditablePlugins,
     pub file_handler: Option<leptoslate::FileHandler>,
     pub mention_handler: Option<leptoslate::MentionHandler>,
+    pub list_behaviour: bool,
+    pub table_behaviour: bool,
 }
 
 impl Default for RichConfig {
@@ -34,6 +40,8 @@ impl Default for RichConfig {
             plugins: leptoslate::EditablePlugins::default(),
             file_handler: None,
             mention_handler: None,
+            list_behaviour: true,
+            table_behaviour: true,
         }
     }
 }
@@ -83,6 +91,16 @@ impl RichConfig {
         self
     }
 
+    pub fn with_list_behaviour(mut self, enabled: bool) -> Self {
+        self.list_behaviour = enabled;
+        self
+    }
+
+    pub fn with_table_behaviour(mut self, enabled: bool) -> Self {
+        self.table_behaviour = enabled;
+        self
+    }
+
     pub fn with_plugin<P>(mut self, plugin: P) -> Self
     where
         P: leptoslate::EditablePlugin + 'static,
@@ -110,6 +128,12 @@ pub fn RichEditor(
             config.paste_html,
             config.paste_markdown,
         ));
+    }
+    if config.list_behaviour {
+        plugins.push(RichListPlugin);
+    }
+    if config.table_behaviour {
+        plugins.push(RichTablePlugin);
     }
     let renderers = config.renderers.clone();
 
@@ -157,11 +181,15 @@ mod tests {
             .with_hover_bar(false)
             .with_selection_bubble(false)
             .with_markdown_paste(true)
+            .with_list_behaviour(false)
+            .with_table_behaviour(false)
             .with_plugin(NoopPlugin);
 
         assert!(!config.hover_bar);
         assert!(!config.selection_bubble);
         assert!(config.paste_markdown);
+        assert!(!config.list_behaviour);
+        assert!(!config.table_behaviour);
         assert!(!config.plugins.is_empty());
     }
 }
