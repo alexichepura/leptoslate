@@ -95,6 +95,7 @@ body {
 }
 
 .surface {
+    position: relative;
     overflow: hidden;
     border: 1px solid var(--line);
     border-radius: 18px;
@@ -601,4 +602,14 @@ body {
         flex-direction: column;
         gap: 4px;
     }
+}
+
+.table-bar {
+    position: absolute;
+    z-index: 25;
+    width: max-content;
+    max-width: calc(100% - 32px);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: var(--shadow-2);
 }

@@ -317,17 +317,60 @@ fn initial_document() -> Vec<Node> {
                     marked("⌘U", &[("code", code.clone())]),
                     text(" for marks"),
                 ]),
-                list_item(vec![text("Paste multi-line text to split blocks")]),
+                Node::Element(Element::new(
+                    "li",
+                    vec![
+                        text("Paste multi-line text to split blocks"),
+                        Node::Element(Element::new(
+                            "ul",
+                            vec![
+                                list_item(vec![text("Nested lists are supported")]),
+                                list_item(vec![text("Tab / Shift+Tab change depth")]),
+                            ],
+                        )),
+                    ],
+                )),
                 list_item(vec![text("Undo with ⌘Z and redo with ⇧⌘Z")]),
             ],
         )),
         todo("Try inserting a custom block from the toolbar", false),
         todo("Swap the renderer without touching the document model", true),
         Node::Element(Element::new(
-            "blockquote",
-            vec![text(
-                "The editor value is a tree of elements and text nodes — exactly the shape Slate uses.",
-            )],
+            "table",
+            vec![
+                Node::Element(Element::new(
+                    "thead",
+                    vec![Node::Element(Element::new(
+                        "tr",
+                        vec![
+                            Node::Element(Element::new("th", vec![text("Plan")])),
+                            Node::Element(Element::new("th", vec![text("Seats")])),
+                            Node::Element(Element::new("th", vec![text("Price")])),
+                        ],
+                    ))],
+                )),
+                Node::Element(Element::new(
+                    "tbody",
+                    vec![
+                        Node::Element(Element::new(
+                            "tr",
+                            vec![
+                                Node::Element(Element::new("td", vec![text("Starter")])),
+                                Node::Element(Element::new("td", vec![text("1")])),
+                                Node::Element(Element::new("td", vec![text("$9")])),
+                            ],
+                        )),
+                        Node::Element(Element::new(
+                            "tr",
+                            vec![
+                                Node::Element(Element::new("td", vec![text("Team")])),
+                                Node::Element(Element::new("td", vec![text("10")])),
+                                Node::Element(Element::new("td", vec![text("$29")])),
+                            ],
+                        )),
+                    ],
+                )),
+            ],
         )),
         Node::Element(Element::new(
             "code",
@@ -621,6 +664,7 @@ fn App() -> impl IntoView {
     let show_link = RwSignal::new(false);
     let link_url = RwSignal::new(String::new());
     let show_mention = RwSignal::new(false);
+    let table_style = RwSignal::new(String::new());
     let mention_query = RwSignal::new(String::new());
     let active_mention = RwSignal::new(None::<MentionTrigger>);
     let people = [("leptos", "Leptos"), ("slate", "Slate"), ("rust", "Rust")];
@@ -687,6 +731,38 @@ fn App() -> impl IntoView {
         .with_plugin(StarPlugin)
         .with_file_handler(files_handler.clone())
         .with_mention_handler(on_mention);
+
+    let position_editor = editor.clone();
+    Effect::new(move |_| {
+        let path = position_editor
+            .state
+            .with(|state| state.table_at_selection());
+        let Some(path) = path else {
+            table_style.set(String::new());
+            return;
+        };
+        let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+            return;
+        };
+        let selector = format!(
+            "[data-node-path=\"{}\"]",
+            path.iter()
+                .map(usize::to_string)
+                .collect::<Vec<_>>()
+                .join(".")
+        );
+        let (Some(table), Some(surface)) = (
+            document.query_selector(&selector).ok().flatten(),
+            document.query_selector(".surface").ok().flatten(),
+        ) else {
+            return;
+        };
+        let table_rect = table.get_bounding_client_rect();
+        let surface_rect = surface.get_bounding_client_rect();
+        let top = (table_rect.top() - surface_rect.top() - 42.0).max(4.0);
+        let left = (table_rect.left() - surface_rect.left()).max(4.0);
+        table_style.set(format!("left:{left}px; top:{top}px;"));
+    });
 
     let undo_disabled = {
         let editor = editor.clone();
@@ -1029,6 +1105,7 @@ fn App() -> impl IntoView {
                 <div
                     class="media-bar table-bar"
                     class:hidden=move || !table_active()
+                    style=move || table_style.get()
                 >
                     <span class="media-hint">"Table:"</span>
                     <button
