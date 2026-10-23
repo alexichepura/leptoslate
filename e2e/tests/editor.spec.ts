@@ -32,6 +32,53 @@ test("renders the seeded document and custom blocks", async ({ page }) => {
   expect(json[5].type).toBe("todo");
 });
 
+test("structured tables render with semantic markup", async ({ page }) => {
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([
+      {
+        type: "table",
+        children: [
+          {
+            type: "thead",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  { type: "th", children: [{ text: "Name" }] },
+                  { type: "th", children: [{ text: "Value" }] },
+                ],
+              },
+            ],
+          },
+          {
+            type: "tbody",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  { type: "td", children: [{ text: "Range" }] },
+                  { type: "td", children: [{ text: "500 km" }] },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]),
+  );
+
+  await expect(page.locator(".ls-table-wrap table")).toHaveCount(1);
+  await expect(page.locator(".ls-table-wrap thead th")).toHaveText([
+    "Name",
+    "Value",
+  ]);
+  await expect(page.locator(".ls-table-wrap tbody td")).toHaveText([
+    "Range",
+    "500 km",
+  ]);
+});
+
 test("typing inserts text and keeps the model selection in sync", async ({
   page,
 }) => {

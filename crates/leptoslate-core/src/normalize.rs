@@ -79,6 +79,17 @@ impl Editor {
             }
         }
 
+        if children.is_empty() && !is_root {
+            if let Some(element) = self.element(at) {
+                if self.schema.is_table(&element.element_type)
+                    || self.schema.is_table_section(&element.element_type)
+                    || self.schema.is_table_row(&element.element_type)
+                {
+                    return Some(Fix::RemoveNode { path: at.to_vec() });
+                }
+            }
+        }
+
         if children.is_empty() {
             if is_root {
                 return Some(Fix::InsertNode {
@@ -108,6 +119,7 @@ impl Editor {
                 .and_then(Node::element_type)
                 .unwrap_or(self.schema.default_block.as_str());
             self.schema.is_inline(element_type)
+                || self.schema.is_table_cell(element_type)
                 || children.first().map(Node::is_text).unwrap_or(false)
                 || children
                     .first()

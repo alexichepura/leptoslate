@@ -76,11 +76,19 @@ impl Default for Schema {
             .with_rule("h1", ElementRule::block("h1"))
             .with_rule("h2", ElementRule::block("h2"))
             .with_rule("h3", ElementRule::block("h3"))
+            .with_rule("h4", ElementRule::block("h4"))
             .with_rule("blockquote", ElementRule::block("blockquote"))
             .with_rule("code", ElementRule::block("pre"))
             .with_rule("ul", ElementRule::block("ul"))
             .with_rule("ol", ElementRule::block("ol"))
             .with_rule("li", ElementRule::block("li"))
+            .with_rule("table", ElementRule::block("table"))
+            .with_rule("thead", ElementRule::block("thead"))
+            .with_rule("tbody", ElementRule::block("tbody"))
+            .with_rule("tfoot", ElementRule::block("tfoot"))
+            .with_rule("tr", ElementRule::block("tr"))
+            .with_rule("th", ElementRule::block("th"))
+            .with_rule("td", ElementRule::block("td"))
             .with_rule("hr", ElementRule::void("hr"))
             .with_rule("img", ElementRule::void("img"))
             .with_rule("inline-image", ElementRule::inline_void("img"))
@@ -124,6 +132,29 @@ impl Schema {
 
     pub fn is_list(&self, element_type: &str) -> bool {
         matches!(element_type, "ul" | "ol")
+    }
+
+    pub fn is_table(&self, element_type: &str) -> bool {
+        element_type == "table"
+    }
+
+    pub fn is_table_section(&self, element_type: &str) -> bool {
+        matches!(element_type, "thead" | "tbody" | "tfoot")
+    }
+
+    pub fn is_table_row(&self, element_type: &str) -> bool {
+        element_type == "tr"
+    }
+
+    pub fn is_table_cell(&self, element_type: &str) -> bool {
+        matches!(element_type, "th" | "td")
+    }
+
+    pub fn is_table_element(&self, element_type: &str) -> bool {
+        self.is_table(element_type)
+            || self.is_table_section(element_type)
+            || self.is_table_row(element_type)
+            || self.is_table_cell(element_type)
     }
 
     pub fn default_block_rule(&self) -> ElementRule {

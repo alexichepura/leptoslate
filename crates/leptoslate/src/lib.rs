@@ -249,6 +249,29 @@ pub const EDITOR_STYLES: &str = r#"
     min-height: 1.4em;
 }
 
+.ls-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    margin: 0.75em 0;
+}
+
+.ls-table-wrap table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.ls-table-wrap th,
+.ls-table-wrap td {
+    padding: 0.4em 0.6em;
+    border: 1px solid rgba(17, 24, 39, 0.15);
+    text-align: left;
+    vertical-align: top;
+}
+
+.ls-table-wrap th {
+    background: rgba(127, 127, 127, 0.08);
+}
+
 .ls-block ul,
 .ls-block ol {
     padding-left: 1.5em;

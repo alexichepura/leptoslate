@@ -33,6 +33,44 @@ fn starts_with_a_caret_at_the_document_start() {
 }
 
 #[test]
+fn table_documents_are_preserved_and_normalized() {
+    let json = r#"[
+        {"type":"h4","children":[{"text":"Specs"}]},
+        {"type":"table","children":[
+            {"type":"thead","children":[
+                {"type":"tr","children":[
+                    {"type":"th","children":[{"text":"Name"}]},
+                    {"type":"th","children":[{"text":"Value"}]}
+                ]}
+            ]},
+            {"type":"tbody","children":[
+                {"type":"tr","children":[
+                    {"type":"td","children":[{"text":"Range"}]},
+                    {"type":"td","children":[{"text":"500 km"}]}
+                ]}
+            ]}
+        ]}
+    ]"#;
+    let nodes: Vec<Node> = serde_json::from_str(json).unwrap();
+    let editor = Editor::new(nodes.clone());
+
+    assert_eq!(editor.children, nodes);
+    assert!(editor.schema.is_table("table"));
+    assert!(editor.schema.is_table_section("tbody"));
+    assert!(editor.schema.is_table_row("tr"));
+    assert!(editor.schema.is_table_cell("th"));
+    assert!(editor.schema.is_table_cell("td"));
+    assert_eq!(
+        editor.children[1].children()[1].element_type(),
+        Some("tbody")
+    );
+    assert_eq!(
+        editor.children[1].children()[1].children()[0].string(),
+        "Range500 km"
+    );
+}
+
+#[test]
 fn typing_moves_the_caret() {
     let mut editor = Editor::new(vec![p("hello")]);
     editor.select_point(Point::new(vec![0, 0], 5));
