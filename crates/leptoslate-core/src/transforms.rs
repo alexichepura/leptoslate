@@ -7,7 +7,7 @@
 use serde_json::Value;
 
 use crate::{
-    node::{Element, Node},
+    node::{Element, Node, Text},
     operation::Operation,
     path::{self, Path},
     point::Point,
@@ -993,6 +993,83 @@ impl Editor {
 
             for link in links {
                 editor.unwrap_inline_inner(&link);
+            }
+            true
+        })
+    }
+
+    /// Update the link at the selection.
+    ///
+    /// When `text` is unchanged the existing children and marks are preserved.
+    /// Otherwise the link text is replaced with a single text node carrying the
+    /// first child text node's marks. Empty link text is rejected.
+    pub fn update_link_at_selection(&mut self, href: &str, text: &str) -> bool {
+        let href = href.trim();
+        if href.is_empty() || text.is_empty() {
+            return false;
+        }
+        let Some(range) = self.selection.clone() else {
+            return false;
+        };
+        let start = self
+            .text_point(range.start())
+            .unwrap_or(range.start().clone());
+        let Some(link) = self.inline_ancestor(&start.path, "a") else {
+            return false;
+        };
+        let Some(link_element) = self.element(&link).cloned() else {
+            return false;
+        };
+        let current_text = link_element
+            .children
+            .iter()
+            .map(Node::string)
+            .collect::<String>();
+        let marks = link_element
+            .children
+            .iter()
+            .find_map(|child| child.as_text().map(|text| text.properties.clone()))
+            .unwrap_or_default();
+        let link_path = link.clone();
+        let replace_text = current_text != text;
+
+        self.transaction(|editor| {
+            let mut properties = Props::new();
+            properties.insert("href".into(), Value::String(href.to_string()));
+            if editor
+                .apply(Operation::SetNode {
+                    path: link_path.clone(),
+                    properties: Props::new(),
+                    new_properties: properties,
+                })
+                .is_err()
+            {
+                return false;
+            }
+
+            if replace_text {
+                let count = editor
+                    .element(&link_path)
+                    .map(|element| element.children.len())
+                    .unwrap_or(0);
+                for index in (0..count).rev() {
+                    let _ = editor.apply(Operation::RemoveNode {
+                        path: child_path(&link_path, index),
+                    });
+                }
+                let node = Node::Text(Text {
+                    text: text.to_string(),
+                    properties: marks.clone(),
+                });
+                if editor
+                    .apply(Operation::InsertNode {
+                        path: child_path(&link_path, 0),
+                        node,
+                    })
+                    .is_err()
+                {
+                    return false;
+                }
             }
             true
         })

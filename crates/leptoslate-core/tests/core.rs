@@ -977,6 +977,78 @@ fn links_wrap_the_selection_and_update_the_href() {
 }
 
 #[test]
+fn update_link_changes_href_and_text_and_keeps_first_text_marks() {
+    let mut first = Text::new("he");
+    first
+        .properties
+        .insert("bold".into(), serde_json::json!(true));
+    let mut second = Text::new("re");
+    second
+        .properties
+        .insert("italic".into(), serde_json::json!(true));
+    let link = Element::new("a", vec![Node::Text(first), Node::Text(second)])
+        .with_property("href", serde_json::json!("/old"));
+    let mut editor = Editor::new(vec![Node::Element(Element::paragraph(vec![
+        Node::Text(Text::new("go ")),
+        Node::Element(link),
+        Node::Text(Text::new(" now")),
+    ]))]);
+
+    editor.select_point(Point::new(vec![0, 1, 0], 1));
+    assert!(editor.update_link_at_selection("/new", "there"));
+
+    let link = editor.element(&[0, 1]).unwrap();
+    assert_eq!(
+        link.properties.get("href"),
+        Some(&serde_json::json!("/new"))
+    );
+    assert_eq!(link.children.len(), 1);
+    assert_eq!(link.children[0].string(), "there");
+    assert_eq!(
+        link.children[0].as_text().unwrap().properties.get("bold"),
+        Some(&serde_json::json!(true))
+    );
+}
+
+#[test]
+fn updating_only_the_link_href_preserves_existing_children() {
+    let mut first = Text::new("he");
+    first
+        .properties
+        .insert("bold".into(), serde_json::json!(true));
+    let mut second = Text::new("re");
+    second
+        .properties
+        .insert("italic".into(), serde_json::json!(true));
+    let link = Element::new("a", vec![Node::Text(first), Node::Text(second)])
+        .with_property("href", serde_json::json!("/old"));
+    let mut editor = Editor::new(vec![Node::Element(Element::paragraph(vec![
+        Node::Text(Text::new("go ")),
+        Node::Element(link),
+        Node::Text(Text::new(" now")),
+    ]))]);
+
+    editor.select_point(Point::new(vec![0, 1, 0], 1));
+    assert_eq!(
+        editor.link_at_selection(),
+        Some((vec![0, 1], "/old".into()))
+    );
+    assert!(editor.update_link_at_selection("/new", "here"));
+
+    let link = editor.element(&[0, 1]).unwrap();
+    assert_eq!(link.children.len(), 2);
+    assert_eq!(
+        link.children[0].as_text().unwrap().properties.get("bold"),
+        Some(&serde_json::json!(true))
+    );
+    assert_eq!(
+        link.children[1].as_text().unwrap().properties.get("italic"),
+        Some(&serde_json::json!(true))
+    );
+    assert!(!editor.update_link_at_selection("/new", ""));
+}
+
+#[test]
 fn set_link_requires_a_selection_or_existing_link() {
     let mut editor = Editor::new(vec![p("hello")]);
     editor.select_point(Point::new(vec![0, 0], 1));
