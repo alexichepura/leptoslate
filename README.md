@@ -248,6 +248,32 @@ Custom renderers can style every selected block with `editor.is_node_selected(pa
 let selected = editor.is_node_selected(&path);
 ```
 
+### Tables
+
+Tables are ordinary element nodes, so they serialize, normalize and undo like the rest of the document:
+
+```rust
+// table -> tbody -> tr -> td -> text
+let table = Node::Element(Element::new("table", vec![
+    Node::Element(Element::new("tbody", vec![
+        Node::Element(Element::new("tr", vec![
+            Node::Element(Element::new("td", vec![Node::empty_text()])),
+        ])),
+    ])),
+]));
+```
+
+Cells keep inline content, including marks and links. `Enter` is inert inside a cell, `Tab` / `Shift+Tab` move between cells, and `Backspace`/`Delete` at a cell boundary do not merge or destroy the table. Block and list transforms are ignored while the caret is inside a cell.
+
+Table edits are available through the handle:
+
+```rust
+editor.insert_table_row_after();
+editor.delete_table_row();
+editor.insert_table_column_after();
+editor.delete_table_column();
+```
+
 ### Rich paste
 
 `Editable` parses `text/html` clipboard data by default. Pasting a single paragraph merges its inline content and marks into the current block; multi-block fragments split the current top-level block and insert between the halves.

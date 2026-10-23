@@ -170,6 +170,54 @@ impl EditorHandle {
             .with_untracked(|editor| editor.link_at_selection().map(|(_, href)| href))
     }
 
+    /// Whether the caret is inside a table cell.
+    pub fn in_table_cell(&self) -> bool {
+        self.state
+            .with_untracked(Editor::table_cell_at_selection)
+            .is_some()
+    }
+
+    /// Move to the previous/next table cell.
+    pub fn move_table_cell(&self, direction: isize) -> bool {
+        self.update(|editor| editor.move_table_cell(direction))
+    }
+
+    /// Whether a collapsed caret is at the start of its table cell.
+    pub fn at_table_cell_start(&self) -> bool {
+        self.state.with_untracked(|editor| {
+            let Some(range) = editor.selection.as_ref() else {
+                return false;
+            };
+            range.is_collapsed() && editor.at_table_cell_start(range.start())
+        })
+    }
+
+    /// Whether a collapsed caret is at the end of its table cell.
+    pub fn at_table_cell_end(&self) -> bool {
+        self.state.with_untracked(|editor| {
+            let Some(range) = editor.selection.as_ref() else {
+                return false;
+            };
+            range.is_collapsed() && editor.at_table_cell_end(range.start())
+        })
+    }
+
+    pub fn insert_table_row_after(&self) -> bool {
+        self.update(Editor::insert_table_row_after)
+    }
+
+    pub fn delete_table_row(&self) -> bool {
+        self.update(Editor::delete_table_row)
+    }
+
+    pub fn insert_table_column_after(&self) -> bool {
+        self.update(Editor::insert_table_column_after)
+    }
+
+    pub fn delete_table_column(&self) -> bool {
+        self.update(Editor::delete_table_column)
+    }
+
     /// Insert an inline node (mention, embed, …) at the caret.
     pub fn insert_inline_node(&self, node: Node) -> Option<Path> {
         self.update(|editor| editor.insert_inline_node(node))

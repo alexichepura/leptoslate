@@ -32,6 +32,98 @@ fn starts_with_a_caret_at_the_document_start() {
     );
 }
 
+fn table_doc() -> Editor {
+    Editor::from_json(
+        r#"[{"type":"table","children":[{"type":"tbody","children":[
+            {"type":"tr","children":[
+                {"type":"td","children":[{"text":"A"}]},
+                {"type":"td","children":[{"text":"B"}]}
+            ]},
+            {"type":"tr","children":[
+                {"type":"td","children":[{"text":"C"}]},
+                {"type":"td","children":[{"text":"D"}]}
+            ]}
+        ]}]}]"#,
+    )
+    .unwrap()
+}
+
+#[test]
+fn table_cell_navigation_and_boundaries() {
+    let mut editor = table_doc();
+    editor.select_point(Point::new(vec![0, 0, 0, 0, 0], 0));
+
+    assert_eq!(editor.table_cell_at_selection(), Some(vec![0, 0, 0, 0]));
+    assert_eq!(editor.table_at_selection(), Some(vec![0]));
+    assert!(editor.at_table_cell_start(editor.selection.as_ref().unwrap().start()));
+    assert!(!editor.at_table_cell_end(editor.selection.as_ref().unwrap().start()));
+
+    assert!(editor.move_table_cell(1));
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 0, 0, 1, 0], 0)))
+    );
+    assert!(editor.move_table_cell(1));
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 0, 1, 0, 0], 0)))
+    );
+    assert!(editor.move_table_cell(-1));
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 0, 0, 1, 0], 0)))
+    );
+
+    editor.select_point(Point::new(vec![0, 0, 0, 0, 0], 1));
+    assert!(editor.at_table_cell_end(editor.selection.as_ref().unwrap().start()));
+}
+
+#[test]
+fn table_row_and_column_commands_are_undoable() {
+    let mut editor = table_doc();
+    editor.select_point(Point::new(vec![0, 0, 0, 0, 0], 0));
+
+    assert!(editor.insert_table_row_after());
+    assert_eq!(editor.children[0].children()[0].children().len(), 3);
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 0, 1, 0, 0], 0)))
+    );
+    assert!(editor.undo());
+    assert_eq!(editor.children[0].children()[0].children().len(), 2);
+
+    editor.select_point(Point::new(vec![0, 0, 0, 0, 0], 0));
+    assert!(editor.insert_table_column_after());
+    for row in editor.children[0].children()[0].children() {
+        assert_eq!(row.children().len(), 3);
+    }
+    assert!(editor.undo());
+
+    editor.select_point(Point::new(vec![0, 0, 1, 0, 0], 0));
+    assert!(editor.delete_table_row());
+    assert_eq!(editor.children[0].children()[0].children().len(), 1);
+    assert!(editor.undo());
+
+    editor.select_point(Point::new(vec![0, 0, 0, 0, 0], 0));
+    assert!(editor.delete_table_column());
+    for row in editor.children[0].children()[0].children() {
+        assert_eq!(row.children().len(), 1);
+    }
+    assert!(!editor.delete_table_column());
+    assert!(editor.undo());
+}
+
+#[test]
+fn block_transforms_do_not_escape_table_cells() {
+    let mut editor = table_doc();
+    editor.select_point(Point::new(vec![0, 0, 0, 0, 0], 0));
+    editor.set_block("h2");
+    editor.toggle_list("ul");
+
+    assert_eq!(editor.element(&[0, 0, 0, 0]).unwrap().element_type, "td");
+    assert_eq!(editor.children[0].element_type(), Some("table"));
+}
+
 #[test]
 fn table_documents_are_preserved_and_normalized() {
     let json = r#"[
