@@ -170,12 +170,30 @@ fn render_block(
         "ul" => block!(ul),
         "ol" => block!(ol),
         "li" => block!(li),
+        "thead" => block!(thead),
+        "tbody" => block!(tbody),
+        "tfoot" => block!(tfoot),
+        "tr" => block!(tr),
+        "th" => block!(th),
+        "td" => block!(td),
         "section" => block!(section),
         "article" => block!(article),
         "figure" => block!(figure),
         "figcaption" => block!(figcaption),
         "header" => block!(header),
         "footer" => block!(footer),
+        "table" => view! {
+            <div class="ls-table-wrap">
+                <table
+                    class=class
+                    data-node-path=node_path
+                    data-type=element_type
+                >
+                    {children}
+                </table>
+            </div>
+        }
+        .into_any(),
         _ => block!(div),
     }
 }

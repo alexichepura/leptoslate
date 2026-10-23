@@ -47,7 +47,8 @@ examples/
 **Leptos integration**
 
 - `EditorHandle` wrapping `RwSignal<Editor>`
-- Schema-driven rendering (`p`, headings, blockquotes, code, lists, links, images, dividers, …)
+- Schema-driven rendering (`p`, headings, blockquotes, code, lists, tables, links, images, dividers, …)
+- Structured table blocks (`table`, `thead`, `tbody`, `tfoot`, `tr`, `th`, `td`) with semantic rendering
 - Pluggable element, text and mark renderers for application-specific blocks and styling
 - Block/node selection for one or more top-level blocks: select, extend, delete, duplicate, copy, or type to replace a range
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
@@ -476,7 +477,7 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 
 - Client-side rendering only; no SSR/hydration adapter yet.
 - A pragmatic core schema instead of Slate's plugin model. Inline links and void mentions are supported.
-- Tables are not a native document block; HTML tables paste as one paragraph per row with cells separated by ` | `. Markdown tables and nested Markdown lists are not parsed.
+- Structured table nodes render and round-trip, but table-aware navigation and structured HTML paste are still limited. Markdown tables and nested Markdown lists are not parsed.
 - Markdown paste is opt-in and intentionally small; it is not a full CommonMark implementation.
 - Node selection is a contiguous range of top-level blocks; discontiguous or cross-container block selection is not implemented.
 - Copying a node selection produces plain text; there is no rich block clipboard format yet.
