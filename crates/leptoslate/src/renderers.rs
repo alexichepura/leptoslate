@@ -143,6 +143,26 @@ impl Renderers {
         self
     }
 
+    /// Whether a custom renderer is registered for an element type.
+    pub fn has_element(&self, element_type: &str) -> bool {
+        self.elements.contains_key(element_type)
+    }
+
+    /// Combine two registries. Entries from `other` win.
+    pub fn merge(self, other: Renderers) -> Self {
+        let mut merged = self;
+        for (element_type, render) in other.elements.iter() {
+            Arc::make_mut(&mut merged.elements).insert(element_type.clone(), render.clone());
+        }
+        if other.text.is_some() {
+            merged.text = other.text;
+        }
+        for (mark, style) in other.mark_styles.iter() {
+            Arc::make_mut(&mut merged.mark_styles).insert(mark.clone(), style.clone());
+        }
+        merged
+    }
+
     pub(crate) fn get(&self, element_type: &str) -> Option<ElementRenderFn> {
         self.elements.get(element_type).cloned()
     }

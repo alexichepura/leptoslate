@@ -418,6 +418,12 @@ view! { <RichEditor editor=editor config=config placeholder="Write…" /> }
 
 `RichConfig` can also accept custom renderers, behavior plugins and file/mention handlers, and can disable list/table keyboard plugins with `with_list_behaviour` / `with_table_behaviour`. Applications that need full control can keep using `Editable` directly. The preset is intentionally compositional: it is not a separate editor implementation.
 
+`RichEditor` composes rich table/list renderers with the renderers you pass in (`Renderers::merge`, your entries win) and injects `RICH_STYLES` for the matching markup. The base renderer stays minimal: list and table tags are rich-owned, so a custom `RichConfig::with_renderers` renderer can replace any of them.
+
+```rust
+use leptoslate_rich::{rich_renderers, RICH_STYLES};
+```
+
 ### Core features
 
 At the model level, a `Feature` can install schema rules and contribute a normalizer operation:
