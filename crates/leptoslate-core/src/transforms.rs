@@ -1236,16 +1236,6 @@ impl Editor {
         });
     }
 
-    pub fn insert_html(&mut self, html: &str) {
-        let nodes = crate::fragment::parse_html(html);
-        self.insert_fragment(nodes);
-    }
-
-    pub fn insert_markdown(&mut self, markdown: &str) {
-        let nodes = crate::fragment::parse_markdown(markdown);
-        self.insert_fragment(nodes);
-    }
-
     fn insert_inline_children_inner(&mut self, children: Vec<Node>) {
         if children.is_empty() {
             return;

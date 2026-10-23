@@ -3,7 +3,9 @@ use leptoslate::{
     EditablePlugin, EditorHandle, Element, FileHandler, MentionTrigger, Node, Props, Renderers,
     Text,
 };
-use leptoslate_rich::{ListHandle, RichConfig, RichEditor, TableHandle, TableTransforms};
+use leptoslate_rich::{
+    ListHandle, PasteHandle, RichConfig, RichEditor, TableHandle, TableTransforms,
+};
 use serde_json::{json, Value};
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent};

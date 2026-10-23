@@ -3,10 +3,8 @@
 use serde_json::json;
 use tl::{NodeHandle, Parser};
 
-use crate::{
-    node::{Element, Node, Text},
-    props::Props,
-};
+use leptoslate::core::{is_safe_href, is_safe_image_src};
+use leptoslate::{Element, Node, Props, Text};
 
 fn marks_with(marks: &Props, key: &str) -> Props {
     let mut next = marks.clone();
@@ -153,7 +151,7 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
                     return Vec::new();
                 }
                 if let Some(href) = attr(tag, self.parser, "href") {
-                    if crate::is_safe_href(&href) {
+                    if is_safe_href(&href) {
                         vec![Node::Element(
                             Element::new("a", children).with_property("href", json!(href)),
                         )]
@@ -514,7 +512,7 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
 
     fn inline_image(&self, tag: &tl::HTMLTag<'a>) -> Option<Node> {
         let src = attr(tag, self.parser, "src").unwrap_or_default();
-        if !crate::is_safe_image_src(&src) {
+        if !is_safe_image_src(&src) {
             return None;
         }
         let alt = attr(tag, self.parser, "alt").unwrap_or_default();
@@ -527,7 +525,7 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
 
     fn image(&self, tag: &tl::HTMLTag<'a>) -> Option<Node> {
         let src = attr(tag, self.parser, "src").unwrap_or_default();
-        if !crate::is_safe_image_src(&src) {
+        if !is_safe_image_src(&src) {
             return None;
         }
         let alt = attr(tag, self.parser, "alt").unwrap_or_default();

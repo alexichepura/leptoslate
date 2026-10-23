@@ -53,8 +53,9 @@ examples/
 - Table creation plus row/column authoring controls in the demo
 - Pluggable element, text and mark renderers for application-specific blocks and styling
 - Composable `EditablePlugin` hooks for keydown, beforeinput, paste, copy, cut and drop behavior
-- Core `Feature`/`FeatureSet` hooks for schema rules and normalizer operations
-- Configurable `RichEditor` preset with rich paste, clipboard, list and table behavior plugins
+- Core `Feature`/`FeatureSet` hooks for schema rules, normalizer operations and structural behavior
+- Configurable `RichEditor` preset: rich paste/clipboard, list/table transforms, schema, renderers and styles
+- List/table model behavior and the HTML/Markdown parser are extension traits and features in `leptoslate-rich`
 - Block/node selection for one or more top-level blocks: select, extend, delete, duplicate, copy, or type to replace a range
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
 - Inline void mentions: `@`-triggered picker, atoms, atom deletion, and custom renderers
@@ -302,7 +303,7 @@ editor.state.with(|state| state.table_cell_at_selection());
 
 ### Rich paste
 
-The base `Editable` handles plain-text paste and file callbacks. The `leptoslate-rich` preset adds structured HTML/Markdown paste through `RichPastePlugin`; applications using `Editable` directly can add the same plugin themselves.
+The base `Editable` handles plain-text paste and file callbacks. The `leptoslate-rich` preset adds structured HTML/Markdown paste through `RichPastePlugin`; applications using `Editable` directly can add the same plugin themselves. HTML/Markdown parsing lives in `leptoslate_rich::fragment`.
 
 ```rust
 use leptoslate_rich::prelude::*;
@@ -314,7 +315,7 @@ let config = RichConfig::new()
 view! { <RichEditor editor=editor config=config /> }
 ```
 
-Pasting a single paragraph merges its inline content and marks into the current block; multi-block fragments split the current top-level block and insert between the halves. The core API remains available directly:
+Pasting a single paragraph merges its inline content and marks into the current block; multi-block fragments split the current top-level block and insert between the halves. The rich API remains available directly:
 
 ```rust
 editor.insert_html("<h2>Title</h2><p>Hello <strong>world</strong></p>");
@@ -611,8 +612,8 @@ On the development machine used for this repository (Chromium, release WASM), th
 This is an early implementation, not a drop-in replacement for the entire Slate ecosystem:
 
 - Client-side rendering only; no SSR/hydration adapter yet.
-- A pragmatic core schema, feature normalizer and behavior-plugin layer instead of Slate's full plugin model. Operation middleware is not yet pluggable; list/table logic and the shared HTML/Markdown parser still live in core/leptoslate.
-- `leptoslate-rich` owns rich paste/clipboard orchestration, but lists, tables and the HTML/Markdown parser are not yet extracted into separate feature crates.
+- A pragmatic core schema, feature normalizer and behavior-plugin layer instead of Slate's full plugin model. Operation middleware is not yet pluggable.
+- List/table transforms, schema, normalization, renderers and the HTML/Markdown parser live in `leptoslate-rich`. Base `Editable` users must install the rich features/renderers and paste plugin for that behavior.
 - Table editing covers creation, cell navigation and row/column insertion/deletion; `colspan`/`rowspan` and Markdown tables are not implemented yet.
 - Markdown paste is opt-in and intentionally small; it is not a full CommonMark implementation.
 - Node selection is a contiguous range of top-level blocks; discontiguous or cross-container block selection is not implemented.
