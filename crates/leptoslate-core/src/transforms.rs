@@ -714,6 +714,42 @@ impl Editor {
             .unwrap_or(false)
     }
 
+    /// Insert a table after the current selection.
+    ///
+    /// `rows` includes the header row when `header` is true. Rows and columns
+    /// are clamped to at least one.
+    pub fn insert_table(&mut self, rows: usize, cols: usize, header: bool) -> Option<Path> {
+        let rows = rows.max(1);
+        let cols = cols.max(1);
+        let row = |cell_type: &str| {
+            Node::Element(Element::new(
+                "tr",
+                (0..cols)
+                    .map(|_| Node::Element(Element::new(cell_type, vec![Node::empty_text()])))
+                    .collect(),
+            ))
+        };
+
+        let mut children = Vec::new();
+        if header {
+            children.push(Node::Element(Element::new("thead", vec![row("th")])));
+            if rows > 1 {
+                children.push(Node::Element(Element::new(
+                    "tbody",
+                    (1..rows).map(|_| row("td")).collect(),
+                )));
+            }
+        } else {
+            children.push(Node::Element(Element::new(
+                "tbody",
+                (0..rows).map(|_| row("td")).collect(),
+            )));
+        }
+
+        let table = Node::Element(Element::new("table", children));
+        self.insert_block_after_selection(table)
+    }
+
     /// Insert an empty row after the current row.
     pub fn insert_table_row_after(&mut self) -> bool {
         let Some(cell) = self.table_cell_at_selection() else {

@@ -676,6 +676,52 @@ fn App() -> impl IntoView {
         }
     };
 
+    let insert_table = {
+        let editor = editor.clone();
+        move |_| {
+            focus_editor();
+            editor.insert_table(3, 3, true);
+        }
+    };
+
+    let table_active = {
+        let editor = editor.clone();
+        move || {
+            editor
+                .state
+                .with(|state| state.table_cell_at_selection().is_some())
+        }
+    };
+
+    let table_row_add = {
+        let editor = editor.clone();
+        move |_| {
+            focus_editor();
+            editor.insert_table_row_after();
+        }
+    };
+    let table_row_delete = {
+        let editor = editor.clone();
+        move |_| {
+            focus_editor();
+            editor.delete_table_row();
+        }
+    };
+    let table_col_add = {
+        let editor = editor.clone();
+        move |_| {
+            focus_editor();
+            editor.insert_table_column_after();
+        }
+    };
+    let table_col_delete = {
+        let editor = editor.clone();
+        move |_| {
+            focus_editor();
+            editor.delete_table_column();
+        }
+    };
+
     let insert_callout = {
         let editor = editor.clone();
         move |_| {
@@ -889,6 +935,15 @@ fn App() -> impl IntoView {
                         <ListButton editor=editor.clone() list_type="ul" label="• List" />
                         <ListButton editor=editor.clone() list_type="ol" label="1. List" />
                         <button
+                            class="tool wide"
+                            title="Insert table"
+                            aria-label="Table"
+                            on:mousedown=move |ev| ev.prevent_default()
+                            on:click=insert_table
+                        >
+                            "Table"
+                        </button>
+                        <button
                             class="tool"
                             title="Insert divider"
                             aria-label="Insert divider"
@@ -939,6 +994,49 @@ fn App() -> impl IntoView {
                             "Mention"
                         </button>
                     </div>
+                </div>
+
+                <div
+                    class="media-bar table-bar"
+                    class:hidden=move || !table_active()
+                >
+                    <span class="media-hint">"Table:"</span>
+                    <button
+                        class="tool wide"
+                        title="Add row below"
+                        aria-label="Add row below"
+                        on:mousedown=move |ev| ev.prevent_default()
+                        on:click=table_row_add
+                    >
+                        "Row +"
+                    </button>
+                    <button
+                        class="tool wide"
+                        title="Delete row"
+                        aria-label="Delete row"
+                        on:mousedown=move |ev| ev.prevent_default()
+                        on:click=table_row_delete
+                    >
+                        "Row −"
+                    </button>
+                    <button
+                        class="tool wide"
+                        title="Add column after"
+                        aria-label="Add column after"
+                        on:mousedown=move |ev| ev.prevent_default()
+                        on:click=table_col_add
+                    >
+                        "Column +"
+                    </button>
+                    <button
+                        class="tool wide"
+                        title="Delete column"
+                        aria-label="Delete column"
+                        on:mousedown=move |ev| ev.prevent_default()
+                        on:click=table_col_delete
+                    >
+                        "Column −"
+                    </button>
                 </div>
 
                 <div class="media-bar image-bar" class:hidden=move || !show_image.get()>
