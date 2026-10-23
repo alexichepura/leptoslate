@@ -1474,6 +1474,39 @@ fn parses_markdown_fragments_into_slate_nodes() {
 }
 
 #[test]
+fn parses_nested_markdown_lists() {
+    use leptoslate_core::fragment::parse_markdown;
+
+    let nodes = parse_markdown(
+        "- parent\n  - child one\n  - child two\n- sibling\n\n1. first\n   1. nested ordered\n2. second",
+    );
+    assert_eq!(nodes.len(), 2);
+
+    let list = &nodes[0];
+    assert_eq!(list.element_type(), Some("ul"));
+    assert_eq!(list.children().len(), 2);
+    let parent = &list.children()[0];
+    assert_eq!(parent.element_type(), Some("li"));
+    assert_eq!(parent.children()[0].element_type(), Some("p"));
+    assert_eq!(parent.children()[0].string(), "parent");
+    let nested = &parent.children()[1];
+    assert_eq!(nested.element_type(), Some("ul"));
+    assert_eq!(nested.children().len(), 2);
+    assert_eq!(nested.children()[0].string(), "child one");
+    assert_eq!(nested.children()[1].string(), "child two");
+    assert_eq!(list.children()[1].string(), "sibling");
+
+    let ordered = &nodes[1];
+    assert_eq!(ordered.element_type(), Some("ol"));
+    let first = &ordered.children()[0];
+    assert_eq!(first.children()[0].string(), "first");
+    let nested = &first.children()[1];
+    assert_eq!(nested.element_type(), Some("ol"));
+    assert_eq!(nested.children()[0].string(), "nested ordered");
+    assert_eq!(ordered.children()[1].string(), "second");
+}
+
+#[test]
 fn inserting_an_inline_fragment_merges_into_the_current_block() {
     let mut editor = Editor::new(vec![p("hello")]);
     editor.select_point(Point::new(vec![0, 0], 2));

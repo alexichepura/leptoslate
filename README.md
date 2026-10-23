@@ -299,7 +299,7 @@ editor.insert_markdown("# Title\n\nHello **world**");
 editor.insert_fragment(parsed_nodes);
 ```
 
-Supported HTML includes paragraphs, headings, nested lists, blockquotes, code blocks, links, emphasis, line breaks, structured tables, block and inline images, and rules. Tables keep their `thead`/`tbody`/`tr`/`th`/`td` structure, infer a header row from leading `<th>` rows, and preserve inline marks/links in cells; malformed tables fall back to a paragraph of their text. Dropping `text/html` or `text/plain` at a point in the editor follows the same fragment path. Markdown supports headings, paragraphs, flat lists, blockquotes, fenced code, rules and common inline marks/links.
+Supported HTML includes paragraphs, headings, nested lists, blockquotes, code blocks, links, emphasis, line breaks, structured tables, block and inline images, and rules. Tables keep their `thead`/`tbody`/`tr`/`th`/`td` structure, infer a header row from leading `<th>` rows, and preserve inline marks/links in cells; malformed tables fall back to a paragraph of their text. Dropping `text/html` or `text/plain` at a point in the editor follows the same fragment path. Markdown supports headings, paragraphs, nested lists, blockquotes, fenced code, rules and common inline marks/links.
 
 Copying a text selection uses the browser's native rich HTML, including computed mark styles and links. Copying a node/block selection serializes the selected top-level elements, so tables, images and block structure survive a round trip. The copied HTML also carries a hidden model payload, so custom block properties survive internal copy/paste while external applications still receive normal HTML. Cut follows the same rich-copy path and then deletes through the model.
 

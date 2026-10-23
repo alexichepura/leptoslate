@@ -458,6 +458,26 @@ test("contiguous typing is one undo step", async ({ page }) => {
   await expectTopBlockText(page, 2, "Select some text");
 });
 
+test("nested Markdown lists are inserted", async ({ page }) => {
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([{ type: "p", children: [{ text: "" }] }]),
+  );
+  await setCaret(page, "0.0", 0);
+  await page.evaluate(() => {
+    (window as any).__leptoslate.markdown(
+      "- parent\n  - child one\n  - child two\n- sibling",
+    );
+  });
+
+  await expect.poll(async () => (await getJson(page))[0]?.type).toBe("ul");
+  const list = (await getJson(page))[0];
+  expect(list.children).toHaveLength(2);
+  expect(list.children?.[0]?.children?.[1]?.type).toBe("ul");
+  expect(plainText(list.children![0]!)).toBe("parentchild onechild two");
+  expect(plainText(list.children![1]!)).toBe("sibling");
+});
+
 test("unsafe pasted links are flattened", async ({ page }) => {
   await page.evaluate(
     (json) => (window as any).__leptoslate.load(json),

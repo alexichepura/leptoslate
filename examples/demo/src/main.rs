@@ -522,6 +522,13 @@ fn install_test_hook(editor: EditorHandle) {
     let _ = js_sys::Reflect::set(&hook, &"load".into(), load.as_ref().unchecked_ref());
     load.forget();
 
+    let markdown_editor = editor.clone();
+    let markdown = Closure::<dyn Fn(String)>::new(move |text: String| {
+        markdown_editor.insert_markdown(&text);
+    });
+    let _ = js_sys::Reflect::set(&hook, &"markdown".into(), markdown.as_ref().unchecked_ref());
+    markdown.forget();
+
     let _ = js_sys::Reflect::set(&window, &"__leptoslate".into(), &hook.into());
 }
 
