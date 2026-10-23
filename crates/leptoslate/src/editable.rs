@@ -10,6 +10,8 @@ use web_sys::{
     ClipboardEvent, CompositionEvent, DragEvent, Element, InputEvent, KeyboardEvent, MouseEvent,
 };
 
+const MODEL_CLIPBOARD_MIME: &str = "application/x-leptoslate+json";
+
 use crate::{
     dom,
     handle::EditorHandle,
@@ -360,6 +362,34 @@ pub fn Editable(
             return;
         }
 
+        if let Some(html) = data
+            .as_ref()
+            .and_then(|data| data.get_data("text/html").ok())
+            .filter(|html| !html.trim().is_empty())
+        {
+            if let Some(model) = extract_model_marker(&html) {
+                if let Ok(nodes) = serde_json::from_str::<Vec<Node>>(&model) {
+                    if !nodes.is_empty() {
+                        paste_editor.insert_fragment(nodes);
+                        return;
+                    }
+                }
+            }
+        }
+
+        if let Some(model) = data
+            .as_ref()
+            .and_then(|data| data.get_data(MODEL_CLIPBOARD_MIME).ok())
+            .filter(|model| !model.trim().is_empty())
+        {
+            if let Ok(nodes) = serde_json::from_str::<Vec<Node>>(&model) {
+                if !nodes.is_empty() {
+                    paste_editor.insert_fragment(nodes);
+                    return;
+                }
+            }
+        }
+
         let html = data
             .as_ref()
             .and_then(|data| data.get_data("text/html").ok())
@@ -529,10 +559,20 @@ pub fn Editable(
 
         let text = copy_editor.node_selection_string().unwrap_or_default();
         let html = selection_html(&copy_editor, root.unchecked_ref());
+        let model = selection_model_json(&copy_editor);
+        let html = match (&html, &model) {
+            (Some(html), Some(model)) => Some(model_marker_html(model, html)),
+            (Some(html), None) => Some(html.clone()),
+            (None, Some(model)) => Some(model_marker_html(model, "")),
+            (None, None) => None,
+        };
         if let Some(data) = ev.clipboard_data() {
             let _ = data.set_data("text/plain", &text);
             if let Some(html) = &html {
                 let _ = data.set_data("text/html", html);
+            }
+            if let Some(model) = &model {
+                let _ = data.set_data(MODEL_CLIPBOARD_MIME, model);
             }
         }
         ev.prevent_default();
@@ -561,10 +601,20 @@ pub fn Editable(
 
         let text = cut_editor.node_selection_string().unwrap_or_default();
         let html = selection_html(&cut_editor, root.unchecked_ref());
+        let model = selection_model_json(&cut_editor);
+        let html = match (&html, &model) {
+            (Some(html), Some(model)) => Some(model_marker_html(model, html)),
+            (Some(html), None) => Some(html.clone()),
+            (None, Some(model)) => Some(model_marker_html(model, "")),
+            (None, None) => None,
+        };
         if let Some(data) = ev.clipboard_data() {
             let _ = data.set_data("text/plain", &text);
             if let Some(html) = &html {
                 let _ = data.set_data("text/html", html);
+            }
+            if let Some(model) = &model {
+                let _ = data.set_data(MODEL_CLIPBOARD_MIME, model);
             }
         }
         ev.prevent_default();
@@ -1524,6 +1574,69 @@ fn selection_html(editor: &EditorHandle, root: &Element) -> Option<String> {
         .collect::<Vec<_>>()
         .join("");
     (!html.trim().is_empty()).then_some(html)
+}
+
+fn model_marker_html(model: &str, html: &str) -> String {
+    format!(
+        "<div data-leptoslate-model=\"{}\">{}</div>",
+        hex_encode(model.as_bytes()),
+        html
+    )
+}
+
+fn extract_model_marker(html: &str) -> Option<String> {
+    let marker = "data-leptoslate-model=\"";
+    let start = html.find(marker)? + marker.len();
+    let end = html[start..].find('"')? + start;
+    let bytes = hex_decode(&html[start..end])?;
+    String::from_utf8(bytes).ok()
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    const HEX: &[u8] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0xf) as usize] as char);
+    }
+    out
+}
+
+fn hex_decode(value: &str) -> Option<Vec<u8>> {
+    if value.len() % 2 != 0 {
+        return None;
+    }
+    value
+        .as_bytes()
+        .chunks(2)
+        .map(|pair| {
+            let high = hex_digit(pair[0])?;
+            let low = hex_digit(pair[1])?;
+            Some((high << 4) | low)
+        })
+        .collect()
+}
+
+fn hex_digit(value: u8) -> Option<u8> {
+    match value {
+        b'0'..=b'9' => Some(value - b'0'),
+        b'a'..=b'f' => Some(value - b'a' + 10),
+        b'A'..=b'F' => Some(value - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn selection_model_json(editor: &EditorHandle) -> Option<String> {
+    let nodes = editor.state.with_untracked(|state| {
+        state
+            .node_selections()
+            .iter()
+            .filter_map(|path| state.node(path).cloned())
+            .collect::<Vec<_>>()
+    });
+    (!nodes.is_empty())
+        .then(|| serde_json::to_string(&nodes).ok())
+        .flatten()
 }
 
 fn sync_from_dom(editor: &EditorHandle, root: &Element) {
