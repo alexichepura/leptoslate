@@ -30,6 +30,7 @@ fn render_text(renderers: &Renderers, text: &Text, path: &[usize]) -> AnyView {
     let style = mark_style(&text.properties, renderers);
     let class = "ls-text".to_string();
     let text_path = path_string(path);
+    let marks = data_marks(&text.properties);
 
     if let Some(render) = renderers.text_renderer() {
         let rendered = render(TextRenderContext {
@@ -41,15 +42,28 @@ fn render_text(renderers: &Renderers, text: &Text, path: &[usize]) -> AnyView {
             style,
         });
         return view! {
-            <span data-text-path=text_path>{rendered}</span>
+            <span data-text-path=text_path data-marks=marks>{rendered}</span>
         }
         .into_any();
     }
 
     view! {
-        <span class=class data-text-path=text_path style=style>{text.text.clone()}</span>
+        <span class=class data-text-path=text_path data-marks=marks style=style>
+            {text.text.clone()}
+        </span>
     }
     .into_any()
+}
+
+fn data_marks(properties: &Props) -> String {
+    properties
+        .iter()
+        .filter(|(key, value)| {
+            !matches!(key.as_str(), "color" | "background") && value.as_bool() != Some(false)
+        })
+        .map(|(key, _)| key.clone())
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 fn render_element(

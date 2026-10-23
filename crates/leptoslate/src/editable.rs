@@ -521,12 +521,19 @@ pub fn Editable(
             return;
         };
         sync_from_dom(&copy_editor, root.unchecked_ref());
-        let text = copy_editor
-            .node_selection_string()
-            .or_else(|| copy_editor.selection_string())
-            .unwrap_or_default();
+        if !copy_editor.has_node_selection() {
+            // Let the browser copy the selected DOM, including its inline
+            // styles and link/table markup.
+            return;
+        }
+
+        let text = copy_editor.node_selection_string().unwrap_or_default();
+        let html = selection_html(&copy_editor, root.unchecked_ref());
         if let Some(data) = ev.clipboard_data() {
             let _ = data.set_data("text/plain", &text);
+            if let Some(html) = &html {
+                let _ = data.set_data("text/html", html);
+            }
         }
         ev.prevent_default();
     };
@@ -538,19 +545,30 @@ pub fn Editable(
             return;
         };
         sync_from_dom(&cut_editor, root.unchecked_ref());
-        let text = cut_editor
-            .node_selection_string()
-            .or_else(|| cut_editor.selection_string())
-            .unwrap_or_default();
+
+        if !cut_editor.has_node_selection() {
+            // Use the browser's rich copy for the current DOM selection, then
+            // delete through the model so the document stays in sync.
+            if let Some(document) = web_sys::window().and_then(|window| window.document()) {
+                if let Ok(document) = document.dyn_into::<web_sys::HtmlDocument>() {
+                    let _ = document.exec_command("copy");
+                }
+            }
+            ev.prevent_default();
+            cut_editor.delete_selection();
+            return;
+        }
+
+        let text = cut_editor.node_selection_string().unwrap_or_default();
+        let html = selection_html(&cut_editor, root.unchecked_ref());
         if let Some(data) = ev.clipboard_data() {
             let _ = data.set_data("text/plain", &text);
+            if let Some(html) = &html {
+                let _ = data.set_data("text/html", html);
+            }
         }
         ev.prevent_default();
-        if cut_editor.has_node_selection() {
-            cut_editor.delete_node_selection();
-        } else {
-            cut_editor.delete_selection();
-        }
+        cut_editor.delete_node_selection();
     };
 
     let hover_editor = editor.clone();
@@ -1488,6 +1506,24 @@ fn collect_files(files: &web_sys::FileList) -> Vec<web_sys::File> {
     (0..files.length())
         .filter_map(|index| files.get(index))
         .collect()
+}
+
+fn selection_html(editor: &EditorHandle, root: &Element) -> Option<String> {
+    let paths = editor.state.with_untracked(|state| state.node_selections());
+    if paths.is_empty() {
+        return None;
+    }
+    let html = paths
+        .iter()
+        .filter_map(|path| {
+            root.query_selector(&format!("[data-node-path=\"{}\"]", dom::path_string(path)))
+                .ok()
+                .flatten()
+        })
+        .map(|element| element.outer_html())
+        .collect::<Vec<_>>()
+        .join("");
+    (!html.trim().is_empty()).then_some(html)
 }
 
 fn sync_from_dom(editor: &EditorHandle, root: &Element) {
