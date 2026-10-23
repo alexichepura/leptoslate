@@ -57,7 +57,7 @@ examples/
 - Rich fragment paste and drop: HTML by default, optional Markdown parsing, with marks, links, nested lists, structured tables and inline images
 - URL safety policy for links and pasted images; unsafe schemes are rejected
 - Block hover bar with select, add-below, duplicate, delete and drag-reorder actions
-- Nested lists with Tab/Shift+Tab indentation and list-aware editing
+- Nested lists with Tab/Shift+Tab indentation, including multi-item selections
 - Selection bubble toolbar for marks near a text selection
 - Model selection syncs from document `selectionchange`, including programmatic selections
 - Undo restores single or multi-block selection, including after a group delete
@@ -513,7 +513,6 @@ This is an early implementation, not a drop-in replacement for the entire Slate 
 - Table editing covers creation, cell navigation and row/column insertion/deletion; `colspan`/`rowspan` and Markdown tables are not implemented yet.
 - Markdown paste is opt-in and intentionally small; it is not a full CommonMark implementation.
 - Node selection is a contiguous range of top-level blocks; discontiguous or cross-container block selection is not implemented.
-- List indentation operates on the item under the caret; multi-item indentation is not implemented.
 - IME composition is reconciled per text node, not with Slate's composition-aware range model.
 - URL/paste sanitization applies at the editor boundary; existing stored documents are not rewritten automatically.
 - Automated ARIA and keyboard tests are in place, but there has not been a manual screen-reader certification.
