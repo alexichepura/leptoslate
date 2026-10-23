@@ -131,16 +131,6 @@ pub fn Editable(
             return;
         }
 
-        if beforeinput_editor.in_table_cell()
-            && matches!(
-                ev.input_type().as_str(),
-                "insertParagraph" | "insertLineBreak"
-            )
-        {
-            ev.prevent_default();
-            return;
-        }
-
         sync_from_dom(&beforeinput_editor, root);
 
         if beforeinput_composing.get_untracked() {
@@ -226,29 +216,6 @@ pub fn Editable(
                     handler.run(None);
                 }
                 return;
-            }
-        }
-
-        if keydown_editor.in_table_cell() {
-            match key.as_str() {
-                "Enter" => {
-                    ev.prevent_default();
-                    return;
-                }
-                "Tab" if !modifier && !ev.alt_key() => {
-                    ev.prevent_default();
-                    keydown_editor.move_table_cell(if ev.shift_key() { -1 } else { 1 });
-                    return;
-                }
-                "Backspace" if keydown_editor.at_table_cell_start() => {
-                    ev.prevent_default();
-                    return;
-                }
-                "Delete" if keydown_editor.at_table_cell_end() => {
-                    ev.prevent_default();
-                    return;
-                }
-                _ => {}
             }
         }
 
@@ -349,9 +316,7 @@ pub fn Editable(
 
         if key == "Tab" {
             ev.prevent_default();
-            if ev.shift_key() {
-                keydown_editor.outdent_list();
-            } else if !keydown_editor.indent_list() {
+            if !ev.shift_key() {
                 keydown_editor.insert_text("    ");
             }
         }
