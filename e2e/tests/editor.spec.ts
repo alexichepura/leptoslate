@@ -79,6 +79,51 @@ test("structured tables render with semantic markup", async ({ page }) => {
   ]);
 });
 
+test("table cells navigate and resist structural deletion", async ({ page }) => {
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([
+      {
+        type: "table",
+        children: [
+          {
+            type: "tbody",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  { type: "td", children: [{ text: "A" }] },
+                  { type: "td", children: [{ text: "B" }] },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]),
+  );
+
+  await setCaret(page, "0.0.0.0.0", 0);
+  await page.keyboard.press("Tab");
+  await expect
+    .poll(async () => (await getSelection(page)).selection?.anchor.path)
+    .toEqual([0, 0, 0, 1, 0]);
+
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Backspace");
+  await expect.poll(async () => (await getJson(page)).length).toBe(1);
+  const json = await getJson(page);
+  expect(json[0].type).toBe("table");
+  expect(json[0].children?.[0]?.children).toHaveLength(1);
+  expect(json[0].children?.[0]?.children?.[0]?.children).toHaveLength(2);
+  expect(plainText(json[0])).toBe("AB");
+
+  await page.keyboard.type("X");
+  await expect.poll(async () => plainText((await getJson(page))[0])).toBe(
+    "AXB",
+  );
+});
+
 test("typing inserts text and keeps the model selection in sync", async ({
   page,
 }) => {

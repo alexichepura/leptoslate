@@ -618,6 +618,303 @@ impl Editor {
     }
 
     // ---------------------------------------------------------------------
+    // Tables
+    // ---------------------------------------------------------------------
+
+    /// The nearest table cell containing `point`.
+    pub fn table_cell_at(&self, point: &Point) -> Option<Path> {
+        for depth in (1..point.path.len()).rev() {
+            let path = &point.path[..depth];
+            if self
+                .element(path)
+                .map(|element| self.schema.is_table_cell(&element.element_type))
+                .unwrap_or(false)
+            {
+                return Some(path.to_vec());
+            }
+        }
+        None
+    }
+
+    /// The nearest table containing `point`.
+    pub fn table_at(&self, point: &Point) -> Option<Path> {
+        for depth in (1..point.path.len()).rev() {
+            let path = &point.path[..depth];
+            if self
+                .element(path)
+                .map(|element| self.schema.is_table(&element.element_type))
+                .unwrap_or(false)
+            {
+                return Some(path.to_vec());
+            }
+        }
+        None
+    }
+
+    /// The cell under the current selection, if any.
+    pub fn table_cell_at_selection(&self) -> Option<Path> {
+        let range = self.selection.as_ref()?;
+        self.table_cell_at(range.start())
+    }
+
+    /// Cells belonging to a table, in document order.
+    pub fn table_cells_in(&self, table: &[usize]) -> Vec<Path> {
+        let mut cells = Vec::new();
+        if let Some(element) = self.element(table) {
+            collect_table_cells(&element.children, table, &self.schema, &mut cells);
+        }
+        cells
+    }
+
+    /// Move the caret to the previous or next cell in the current table.
+    pub fn move_table_cell(&mut self, direction: isize) -> bool {
+        let Some(range) = self.selection.clone() else {
+            return false;
+        };
+        let Some(cell) = self.table_cell_at(range.start()) else {
+            return false;
+        };
+        let Some(table) = self.table_at(range.start()) else {
+            return false;
+        };
+        let cells = self.table_cells_in(&table);
+        let Some(position) = cells.iter().position(|path| path == &cell) else {
+            return false;
+        };
+        let next = position as isize + direction;
+        if next < 0 || next as usize >= cells.len() {
+            return false;
+        }
+        let Some(point) = self.first_text_point_in(&cells[next as usize]) else {
+            return false;
+        };
+        self.selection = Some(Range::collapsed(point));
+        self.marks = None;
+        self.history.break_coalescing();
+        true
+    }
+
+    /// Whether the caret is at the first text position of its table cell.
+    pub fn at_table_cell_start(&self, point: &Point) -> bool {
+        let Some(cell) = self.table_cell_at(point) else {
+            return false;
+        };
+        self.first_text_point_in(&cell)
+            .map(|start| start == *point)
+            .unwrap_or(false)
+    }
+
+    /// Whether the caret is at the last text position of its table cell.
+    pub fn at_table_cell_end(&self, point: &Point) -> bool {
+        let Some(cell) = self.table_cell_at(point) else {
+            return false;
+        };
+        self.last_text_point_in(&cell)
+            .map(|end| end == *point)
+            .unwrap_or(false)
+    }
+
+    /// Insert an empty row after the current row.
+    pub fn insert_table_row_after(&mut self) -> bool {
+        let Some(cell) = self.table_cell_at_selection() else {
+            return false;
+        };
+        if cell.len() < 2 {
+            return false;
+        }
+        let row = cell[..cell.len() - 1].to_vec();
+        let Some(row_element) = self.element(&row).cloned() else {
+            return false;
+        };
+        let mut children = Vec::new();
+        for child in &row_element.children {
+            let Some(element) = child.as_element() else {
+                continue;
+            };
+            if self.schema.is_table_cell(&element.element_type) {
+                children.push(Node::Element(Element::new(
+                    element.element_type.clone(),
+                    vec![Node::empty_text()],
+                )));
+            }
+        }
+        if children.is_empty() {
+            return false;
+        }
+        let new_row = Node::Element(Element::new(row_element.element_type, children));
+        let insert_at = child_path(&row[..row.len() - 1], *row.last().unwrap() + 1);
+        let mut inserted = false;
+        self.transaction(|editor| {
+            if editor
+                .apply(Operation::InsertNode {
+                    path: insert_at.clone(),
+                    node: new_row,
+                })
+                .is_ok()
+            {
+                inserted = true;
+                if let Some(point) = editor.first_text_point_in(&insert_at) {
+                    editor.selection = Some(Range::collapsed(point));
+                }
+            }
+        });
+        inserted
+    }
+
+    /// Delete the current table row when the table has more than one row.
+    pub fn delete_table_row(&mut self) -> bool {
+        let Some(cell) = self.table_cell_at_selection() else {
+            return false;
+        };
+        if cell.len() < 2 {
+            return false;
+        }
+        let row = cell[..cell.len() - 1].to_vec();
+        let Some(table) = self.table_at_selection() else {
+            return false;
+        };
+        let rows = self.table_rows_in(&table);
+        if rows.len() < 2 {
+            return false;
+        }
+        let Some(position) = rows.iter().position(|path| path == &row) else {
+            return false;
+        };
+        let adjacent = if position > 0 {
+            rows.get(position - 1)
+        } else {
+            rows.get(position + 1)
+        };
+        if let Some(target) = adjacent.and_then(|path| self.first_text_point_in(path)) {
+            self.selection = Some(Range::collapsed(target));
+        }
+        let mut removed = false;
+        self.transaction(|editor| {
+            if editor
+                .apply(Operation::RemoveNode { path: row.clone() })
+                .is_ok()
+            {
+                removed = true;
+            }
+        });
+        removed
+    }
+
+    /// Insert an empty cell after the current column in every row.
+    pub fn insert_table_column_after(&mut self) -> bool {
+        let Some(cell) = self.table_cell_at_selection() else {
+            return false;
+        };
+        let Some(table) = self.table_at_selection() else {
+            return false;
+        };
+        let Some(column) = cell.last().copied() else {
+            return false;
+        };
+        let rows = self.table_rows_in(&table);
+        let mut inserts = Vec::new();
+        for row in &rows {
+            let Some(row_element) = self.element(row) else {
+                continue;
+            };
+            let cell_type = row_element
+                .children
+                .iter()
+                .filter_map(Node::as_element)
+                .find(|element| self.schema.is_table_cell(&element.element_type))
+                .map(|element| element.element_type.clone())
+                .unwrap_or_else(|| "td".to_string());
+            inserts.push((
+                child_path(row, column + 1),
+                Node::Element(Element::new(cell_type, vec![Node::empty_text()])),
+            ));
+        }
+        if inserts.is_empty() {
+            return false;
+        }
+        let current_row = cell[..cell.len() - 1].to_vec();
+        let new_cell = child_path(&current_row, column + 1);
+        let mut inserted = false;
+        self.transaction(|editor| {
+            for (path, node) in inserts {
+                if editor.apply(Operation::InsertNode { path, node }).is_err() {
+                    return;
+                }
+            }
+            inserted = true;
+            if let Some(point) = editor.first_text_point_in(&new_cell) {
+                editor.selection = Some(Range::collapsed(point));
+            }
+        });
+        inserted
+    }
+
+    /// Delete the current column when every row has more than one cell.
+    pub fn delete_table_column(&mut self) -> bool {
+        let Some(cell) = self.table_cell_at_selection() else {
+            return false;
+        };
+        let Some(table) = self.table_at_selection() else {
+            return false;
+        };
+        let Some(column) = cell.last().copied() else {
+            return false;
+        };
+        let rows = self.table_rows_in(&table);
+        let mut removals = Vec::new();
+        for row in &rows {
+            let Some(row_element) = self.element(row) else {
+                return false;
+            };
+            let cell_count = row_element
+                .children
+                .iter()
+                .filter(|child| {
+                    child
+                        .element_type()
+                        .map(|kind| self.schema.is_table_cell(kind))
+                        .unwrap_or(false)
+                })
+                .count();
+            if cell_count <= 1 || column >= cell_count {
+                return false;
+            }
+            removals.push(child_path(row, column));
+        }
+        removals.sort_by(|a, b| path::compare(b, a));
+        let current_row = cell[..cell.len() - 1].to_vec();
+        let target_column = column.saturating_sub(1);
+        let target_cell = child_path(&current_row, target_column);
+        let mut removed = false;
+        self.transaction(|editor| {
+            for path in removals {
+                if editor.apply(Operation::RemoveNode { path }).is_err() {
+                    return;
+                }
+            }
+            removed = true;
+            if let Some(point) = editor.first_text_point_in(&target_cell) {
+                editor.selection = Some(Range::collapsed(point));
+            }
+        });
+        removed
+    }
+
+    /// The table containing the current selection.
+    pub fn table_at_selection(&self) -> Option<Path> {
+        let range = self.selection.as_ref()?;
+        self.table_at(range.start())
+    }
+
+    fn table_rows_in(&self, table: &[usize]) -> Vec<Path> {
+        let mut rows = Vec::new();
+        if let Some(element) = self.element(table) {
+            collect_table_rows(&element.children, table, &self.schema, &mut rows);
+        }
+        rows
+    }
+
+    // ---------------------------------------------------------------------
     // Inline elements and links
     // ---------------------------------------------------------------------
 
@@ -936,6 +1233,14 @@ impl Editor {
         if self.schema.is_list(element_type) {
             return self.toggle_list(element_type);
         }
+        if self
+            .selection
+            .as_ref()
+            .and_then(|range| self.table_cell_at(range.start()))
+            .is_some()
+        {
+            return;
+        }
         self.transaction(|editor| {
             // Turning a list item into a paragraph/heading should unwrap the
             // list first, rather than leaving `<ul><h1>` behind.
@@ -981,6 +1286,14 @@ impl Editor {
     /// Wrap the selected block(s) in a list, or unwrap a list at the cursor.
     pub fn toggle_list(&mut self, list_type: &str) {
         if !self.schema.is_list(list_type) {
+            return;
+        }
+        if self
+            .selection
+            .as_ref()
+            .and_then(|range| self.table_cell_at(range.start()))
+            .is_some()
+        {
             return;
         }
 
@@ -2034,4 +2347,49 @@ fn child_path(parent: &[usize], index: usize) -> Path {
     let mut path = parent.to_vec();
     path.push(index);
     path
+}
+
+fn collect_table_cells(
+    nodes: &[Node],
+    parent: &[usize],
+    schema: &crate::Schema,
+    cells: &mut Vec<Path>,
+) {
+    for (index, node) in nodes.iter().enumerate() {
+        let mut path = parent.to_vec();
+        path.push(index);
+        let Some(element) = node.as_element() else {
+            continue;
+        };
+        if schema.is_table_cell(&element.element_type) {
+            cells.push(path);
+            continue;
+        }
+        if schema.is_table_element(&element.element_type) {
+            collect_table_cells(&element.children, &path, schema, cells);
+        }
+    }
+}
+
+fn collect_table_rows(
+    nodes: &[Node],
+    parent: &[usize],
+    schema: &crate::Schema,
+    rows: &mut Vec<Path>,
+) {
+    for (index, node) in nodes.iter().enumerate() {
+        let mut path = parent.to_vec();
+        path.push(index);
+        let Some(element) = node.as_element() else {
+            continue;
+        };
+        if schema.is_table_row(&element.element_type) {
+            rows.push(path);
+            continue;
+        }
+        if schema.is_table(&element.element_type) || schema.is_table_section(&element.element_type)
+        {
+            collect_table_rows(&element.children, &path, schema, rows);
+        }
+    }
 }
