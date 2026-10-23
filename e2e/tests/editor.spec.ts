@@ -458,6 +458,35 @@ test("contiguous typing is one undo step", async ({ page }) => {
   await expectTopBlockText(page, 2, "Select some text");
 });
 
+test("unsafe pasted links are flattened", async ({ page }) => {
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([{ type: "p", children: [{ text: "" }] }]),
+  );
+  await setCaret(page, "0.0", 0);
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData(
+      "text/html",
+      '<p><a href="javascript:alert(1)">bad</a> <a href="/safe">good</a></p>',
+    );
+    document.querySelector(".ls-editor")!.dispatchEvent(
+      new ClipboardEvent("paste", {
+        clipboardData: data,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  });
+  await expect.poll(async () => plainText((await getJson(page))[0])).toBe(
+    "bad good",
+  );
+  const children = (await getJson(page))[0].children ?? [];
+  const links = children.filter((child) => child.type === "a");
+  expect(links).toHaveLength(1);
+  expect(links[0].href).toBe("/safe");
+});
+
 test("HTML paste preserves nested lists, tables and inline images", async ({
   page,
 }) => {

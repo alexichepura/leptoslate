@@ -961,7 +961,7 @@ impl Editor {
     /// multiple blocks (inline elements must stay within one block).
     pub fn set_link(&mut self, href: &str) -> bool {
         let href = href.trim();
-        if href.is_empty() {
+        if href.is_empty() || !crate::is_safe_href(href) {
             return false;
         }
 
@@ -1041,7 +1041,7 @@ impl Editor {
     /// first child text node's marks. Empty link text is rejected.
     pub fn update_link_at_selection(&mut self, href: &str, text: &str) -> bool {
         let href = href.trim();
-        if href.is_empty() || text.is_empty() {
+        if href.is_empty() || text.is_empty() || !crate::is_safe_href(href) {
             return false;
         }
         let Some(range) = self.selection.clone() else {

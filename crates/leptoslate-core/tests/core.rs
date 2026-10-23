@@ -961,6 +961,60 @@ fn link_node(label: &str, href: &str) -> Node {
 }
 
 #[test]
+fn unsafe_link_and_image_urls_are_rejected() {
+    use leptoslate_core::fragment::parse_html;
+
+    assert!(!leptoslate_core::is_safe_href("javascript:alert(1)"));
+    assert!(!leptoslate_core::is_safe_href(
+        "data:text/html,<script>x</script>"
+    ));
+    assert!(leptoslate_core::is_safe_href("/docs"));
+    assert!(leptoslate_core::is_safe_href("https://leptos.dev"));
+    assert!(leptoslate_core::is_safe_href("mailto:hello@example.com"));
+    assert!(leptoslate_core::is_safe_href("#section"));
+
+    let mut editor = Editor::new(vec![p("hello")]);
+    editor.selection = Some(Range::new(
+        Point::new(vec![0, 0], 0),
+        Point::new(vec![0, 0], 5),
+    ));
+    assert!(!editor.set_link("javascript:alert(1)"));
+    assert!(editor.link_at_selection().is_none());
+
+    let nodes = parse_html(
+        r#"<p><a href="javascript:alert(1)">bad</a> <a href="/safe">good</a><img src="javascript:alert(1)"><img src="data:image/png;base64,abc"></p>"#,
+    );
+    let paragraph = &nodes[0];
+    assert!(!paragraph.children().iter().any(|child| {
+        child
+            .as_element()
+            .map(|element| element.element_type == "a")
+            .unwrap_or(false)
+            && child.string() == "bad"
+    }));
+    assert!(paragraph.children().iter().any(|child| {
+        child
+            .as_element()
+            .map(|element| {
+                element.element_type == "a"
+                    && element.properties.get("href") == Some(&serde_json::json!("/safe"))
+            })
+            .unwrap_or(false)
+    }));
+    let images: Vec<_> = paragraph
+        .children()
+        .iter()
+        .filter_map(Node::as_element)
+        .filter(|element| element.element_type == "inline-image")
+        .collect();
+    assert_eq!(images.len(), 1);
+    assert_eq!(
+        images[0].properties.get("src"),
+        Some(&serde_json::json!("data:image/png;base64,abc"))
+    );
+}
+
+#[test]
 fn links_wrap_the_selection_and_update_the_href() {
     let mut editor = Editor::new(vec![p("hello world")]);
     editor.selection = Some(Range::new(
