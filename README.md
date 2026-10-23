@@ -283,19 +283,19 @@ editor.delete_table_column();
 
 ### Rich paste
 
-`Editable` parses `text/html` clipboard data by default. Pasting a single paragraph merges its inline content and marks into the current block; multi-block fragments split the current top-level block and insert between the halves.
+The base `Editable` handles plain-text paste and file callbacks. The `leptoslate-rich` preset adds structured HTML/Markdown paste through `RichPastePlugin`; applications using `Editable` directly can add the same plugin themselves.
 
 ```rust
-view! {
-    <Editable
-        editor=editor
-        paste_html=true       // default
-        paste_markdown=false  // opt-in
-    />
-}
+use leptoslate_rich::prelude::*;
+
+let config = RichConfig::new()
+    .with_html_paste(true)
+    .with_markdown_paste(false);
+
+view! { <RichEditor editor=editor config=config /> }
 ```
 
-The core API is available directly too:
+Pasting a single paragraph merges its inline content and marks into the current block; multi-block fragments split the current top-level block and insert between the halves. The core API remains available directly:
 
 ```rust
 editor.insert_html("<h2>Title</h2><p>Hello <strong>world</strong></p>");
@@ -586,8 +586,8 @@ On the development machine used for this repository (Chromium, release WASM), th
 This is an early implementation, not a drop-in replacement for the entire Slate ecosystem:
 
 - Client-side rendering only; no SSR/hydration adapter yet.
-- A pragmatic core schema, feature normalizer and behavior-plugin layer instead of Slate's full plugin model. Operation middleware is not yet pluggable; lists, tables and paste are still built into core/leptoslate.
-- `leptoslate-rich` currently composes existing rich behavior; lists, tables and paste are not yet extracted into separate feature crates.
+- A pragmatic core schema, feature normalizer and behavior-plugin layer instead of Slate's full plugin model. Operation middleware is not yet pluggable; list/table logic and the shared HTML/Markdown parser still live in core/leptoslate.
+- `leptoslate-rich` owns rich paste/clipboard orchestration, but lists, tables and the HTML/Markdown parser are not yet extracted into separate feature crates.
 - Table editing covers creation, cell navigation and row/column insertion/deletion; `colspan`/`rowspan` and Markdown tables are not implemented yet.
 - Markdown paste is opt-in and intentionally small; it is not a full CommonMark implementation.
 - Node selection is a contiguous range of top-level blocks; discontiguous or cross-container block selection is not implemented.

@@ -10,8 +10,6 @@ use web_sys::{
     ClipboardEvent, CompositionEvent, DragEvent, Element, InputEvent, KeyboardEvent, MouseEvent,
 };
 
-const MODEL_CLIPBOARD_MIME: &str = "application/x-leptoslate+json";
-
 use crate::{
     dom,
     handle::EditorHandle,
@@ -54,12 +52,6 @@ pub fn Editable(
     /// Receives files pasted or dropped onto the editor.
     #[prop(optional)]
     on_files: Option<FileHandler>,
-    /// Parse `text/html` clipboard data into blocks and marks.
-    #[prop(default = true)]
-    paste_html: bool,
-    /// Parse plain text as Markdown when no HTML is available.
-    #[prop(default = false)]
-    paste_markdown: bool,
     /// Called when an `@query` mention trigger starts, changes, ends, or is dismissed.
     #[prop(optional)]
     on_mention: Option<MentionHandler>,
@@ -377,7 +369,7 @@ pub fn Editable(
 
         if paste_plugins
             .iter()
-            .any(|plugin| plugin.on_paste(&paste_editor, &ev))
+            .any(|plugin| plugin.on_paste(&paste_editor, root.unchecked_ref(), &ev))
         {
             ev.prevent_default();
             return;
@@ -396,62 +388,12 @@ pub fn Editable(
             return;
         }
 
-        if let Some(html) = data
-            .as_ref()
-            .and_then(|data| data.get_data("text/html").ok())
-            .filter(|html| !html.trim().is_empty())
-        {
-            if let Some(model) = extract_model_marker(&html) {
-                if let Ok(nodes) = serde_json::from_str::<Vec<Node>>(&model) {
-                    if !nodes.is_empty() {
-                        paste_editor.insert_fragment(nodes);
-                        return;
-                    }
-                }
-            }
-        }
-
-        if let Some(model) = data
-            .as_ref()
-            .and_then(|data| data.get_data(MODEL_CLIPBOARD_MIME).ok())
-            .filter(|model| !model.trim().is_empty())
-        {
-            if let Ok(nodes) = serde_json::from_str::<Vec<Node>>(&model) {
-                if !nodes.is_empty() {
-                    paste_editor.insert_fragment(nodes);
-                    return;
-                }
-            }
-        }
-
-        let html = data
-            .as_ref()
-            .and_then(|data| data.get_data("text/html").ok())
-            .unwrap_or_default();
-        if paste_html && !html.trim().is_empty() {
-            let nodes = leptoslate_core::fragment::parse_html(&html);
-            if !nodes.is_empty() {
-                paste_editor.insert_fragment(nodes);
-                return;
-            }
-        }
-
         let text = data
             .and_then(|data| data.get_data("text/plain").ok())
             .unwrap_or_default();
-        if text.is_empty() {
-            return;
+        if !text.is_empty() {
+            paste_editor.insert_plain_text(&text);
         }
-
-        if paste_markdown {
-            let nodes = leptoslate_core::fragment::parse_markdown(&text);
-            if !nodes.is_empty() {
-                paste_editor.insert_fragment(nodes);
-                return;
-            }
-        }
-
-        paste_editor.insert_plain_text(&text);
     };
 
     let drop_editor = editor.clone();
@@ -489,14 +431,6 @@ pub fn Editable(
     let handle_drop = move |ev: DragEvent| {
         ev.prevent_default();
         dragging.set(false);
-
-        if drop_plugins
-            .iter()
-            .any(|plugin| plugin.on_drop(&drop_editor, &ev))
-        {
-            drop_index.set(None);
-            return;
-        }
 
         if let Some(from) = drag_block.get_untracked() {
             let (Some(content), Some(shell)) = (drop_ref.get(), drop_shell_ref.get()) else {
@@ -571,13 +505,11 @@ pub fn Editable(
         }
         sync_from_dom(&drop_editor, root.unchecked_ref());
 
-        let html = data.get_data("text/html").unwrap_or_default();
-        if paste_html && !html.trim().is_empty() {
-            let nodes = leptoslate_core::fragment::parse_html(&html);
-            if !nodes.is_empty() {
-                drop_editor.insert_fragment(nodes);
-                return;
-            }
+        if drop_plugins
+            .iter()
+            .any(|plugin| plugin.on_drop(&drop_editor, root.unchecked_ref(), &ev))
+        {
+            return;
         }
 
         let text = data.get_data("text/plain").unwrap_or_default();
@@ -595,34 +527,19 @@ pub fn Editable(
         sync_from_dom(&copy_editor, root.unchecked_ref());
         if copy_plugins
             .iter()
-            .any(|plugin| plugin.on_copy(&copy_editor, &ev))
+            .any(|plugin| plugin.on_copy(&copy_editor, root.unchecked_ref(), &ev))
         {
             ev.prevent_default();
             return;
         }
         if !copy_editor.has_node_selection() {
-            // Let the browser copy the selected DOM, including its inline
-            // styles and link/table markup.
+            // Let the browser copy the selected DOM.
             return;
         }
 
         let text = copy_editor.node_selection_string().unwrap_or_default();
-        let html = selection_html(&copy_editor, root.unchecked_ref());
-        let model = selection_model_json(&copy_editor);
-        let html = match (&html, &model) {
-            (Some(html), Some(model)) => Some(model_marker_html(model, html)),
-            (Some(html), None) => Some(html.clone()),
-            (None, Some(model)) => Some(model_marker_html(model, "")),
-            (None, None) => None,
-        };
         if let Some(data) = ev.clipboard_data() {
             let _ = data.set_data("text/plain", &text);
-            if let Some(html) = &html {
-                let _ = data.set_data("text/html", html);
-            }
-            if let Some(model) = &model {
-                let _ = data.set_data(MODEL_CLIPBOARD_MIME, model);
-            }
         }
         ev.prevent_default();
     };
@@ -637,15 +554,14 @@ pub fn Editable(
 
         if cut_plugins
             .iter()
-            .any(|plugin| plugin.on_cut(&cut_editor, &ev))
+            .any(|plugin| plugin.on_cut(&cut_editor, root.unchecked_ref(), &ev))
         {
             ev.prevent_default();
             return;
         }
 
         if !cut_editor.has_node_selection() {
-            // Use the browser's rich copy for the current DOM selection, then
-            // delete through the model so the document stays in sync.
+            // Preserve the browser's copied text, then delete through the model.
             if let Some(document) = web_sys::window().and_then(|window| window.document()) {
                 if let Ok(document) = document.dyn_into::<web_sys::HtmlDocument>() {
                     let _ = document.exec_command("copy");
@@ -657,22 +573,8 @@ pub fn Editable(
         }
 
         let text = cut_editor.node_selection_string().unwrap_or_default();
-        let html = selection_html(&cut_editor, root.unchecked_ref());
-        let model = selection_model_json(&cut_editor);
-        let html = match (&html, &model) {
-            (Some(html), Some(model)) => Some(model_marker_html(model, html)),
-            (Some(html), None) => Some(html.clone()),
-            (None, Some(model)) => Some(model_marker_html(model, "")),
-            (None, None) => None,
-        };
         if let Some(data) = ev.clipboard_data() {
             let _ = data.set_data("text/plain", &text);
-            if let Some(html) = &html {
-                let _ = data.set_data("text/html", html);
-            }
-            if let Some(model) = &model {
-                let _ = data.set_data(MODEL_CLIPBOARD_MIME, model);
-            }
         }
         ev.prevent_default();
         cut_editor.delete_node_selection();
@@ -1613,87 +1515,6 @@ fn collect_files(files: &web_sys::FileList) -> Vec<web_sys::File> {
     (0..files.length())
         .filter_map(|index| files.get(index))
         .collect()
-}
-
-fn selection_html(editor: &EditorHandle, root: &Element) -> Option<String> {
-    let paths = editor.state.with_untracked(|state| state.node_selections());
-    if paths.is_empty() {
-        return None;
-    }
-    let html = paths
-        .iter()
-        .filter_map(|path| {
-            root.query_selector(&format!("[data-node-path=\"{}\"]", dom::path_string(path)))
-                .ok()
-                .flatten()
-        })
-        .map(|element| element.outer_html())
-        .collect::<Vec<_>>()
-        .join("");
-    (!html.trim().is_empty()).then_some(html)
-}
-
-fn model_marker_html(model: &str, html: &str) -> String {
-    format!(
-        "<div data-leptoslate-model=\"{}\">{}</div>",
-        hex_encode(model.as_bytes()),
-        html
-    )
-}
-
-fn extract_model_marker(html: &str) -> Option<String> {
-    let marker = "data-leptoslate-model=\"";
-    let start = html.find(marker)? + marker.len();
-    let end = html[start..].find('"')? + start;
-    let bytes = hex_decode(&html[start..end])?;
-    String::from_utf8(bytes).ok()
-}
-
-fn hex_encode(bytes: &[u8]) -> String {
-    const HEX: &[u8] = b"0123456789abcdef";
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        out.push(HEX[(byte >> 4) as usize] as char);
-        out.push(HEX[(byte & 0xf) as usize] as char);
-    }
-    out
-}
-
-fn hex_decode(value: &str) -> Option<Vec<u8>> {
-    if value.len() % 2 != 0 {
-        return None;
-    }
-    value
-        .as_bytes()
-        .chunks(2)
-        .map(|pair| {
-            let high = hex_digit(pair[0])?;
-            let low = hex_digit(pair[1])?;
-            Some((high << 4) | low)
-        })
-        .collect()
-}
-
-fn hex_digit(value: u8) -> Option<u8> {
-    match value {
-        b'0'..=b'9' => Some(value - b'0'),
-        b'a'..=b'f' => Some(value - b'a' + 10),
-        b'A'..=b'F' => Some(value - b'A' + 10),
-        _ => None,
-    }
-}
-
-fn selection_model_json(editor: &EditorHandle) -> Option<String> {
-    let nodes = editor.state.with_untracked(|state| {
-        state
-            .node_selections()
-            .iter()
-            .filter_map(|path| state.node(path).cloned())
-            .collect::<Vec<_>>()
-    });
-    (!nodes.is_empty())
-        .then(|| serde_json::to_string(&nodes).ok())
-        .flatten()
 }
 
 fn sync_from_dom(editor: &EditorHandle, root: &Element) {
