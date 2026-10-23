@@ -153,6 +153,54 @@ fn block_transforms_do_not_escape_table_cells() {
     assert_eq!(editor.children[0].element_type(), Some("table"));
 }
 
+struct HeadingFeature;
+
+impl leptoslate_core::Feature for HeadingFeature {
+    fn install_schema(&self, schema: &mut leptoslate_core::Schema) {
+        schema.set_rule("h5", leptoslate_core::ElementRule::block("h5"));
+    }
+
+    fn normalize(&self, editor: &Editor) -> Option<leptoslate_core::Operation> {
+        let is_title = editor
+            .children
+            .first()
+            .and_then(Node::as_element)
+            .map(|element| {
+                element.element_type == "p"
+                    && element
+                        .children
+                        .iter()
+                        .any(|child| child.string() == "Feature title")
+            })
+            .unwrap_or(false);
+        if !is_title {
+            return None;
+        }
+        let mut new_properties = props::Props::new();
+        new_properties.insert("type".into(), serde_json::json!("h2"));
+        Some(leptoslate_core::Operation::SetNode {
+            path: vec![0],
+            properties: props::Props::new(),
+            new_properties,
+        })
+    }
+}
+
+#[test]
+fn feature_can_install_schema_and_normalize() {
+    let mut editor = Editor::new(vec![p("Feature title")]);
+    assert_eq!(editor.children[0].element_type(), Some("p"));
+
+    editor.add_feature(HeadingFeature);
+    assert_eq!(editor.children[0].element_type(), Some("h2"));
+    assert!(editor.schema.rule("h5").is_some());
+
+    let set = leptoslate_core::FeatureSet::new().with(HeadingFeature);
+    assert!(!set.is_empty());
+    editor.set_features(set);
+    assert_eq!(editor.children[0].element_type(), Some("h2"));
+}
+
 #[test]
 fn table_documents_are_preserved_and_normalized() {
     let json = r#"[

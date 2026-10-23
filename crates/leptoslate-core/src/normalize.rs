@@ -50,11 +50,23 @@ impl Editor {
 
         let mut iterations = 0;
         while iterations < 2_000 {
-            let Some(fix) = self.find_fix() else {
+            if let Some(fix) = self.find_fix() {
+                iterations += 1;
+                if self.apply_fix(fix).is_err() {
+                    break;
+                }
+                continue;
+            }
+
+            let feature_op = self
+                .features
+                .iter()
+                .find_map(|feature| feature.normalize(self));
+            let Some(operation) = feature_op else {
                 break;
             };
             iterations += 1;
-            if self.apply_fix(fix).is_err() {
+            if self.apply_inner(operation).is_err() {
                 break;
             }
         }
