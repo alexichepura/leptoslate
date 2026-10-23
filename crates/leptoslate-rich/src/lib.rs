@@ -9,8 +9,9 @@ mod list;
 mod plugins;
 mod table;
 
+use leptoslate::core::{Feature, FeatureSet};
 use leptoslate::Editable as LeptoslateEditable;
-pub use list::RichListPlugin;
+pub use list::{ListContext, ListHandle, ListTransforms, RichListFeature, RichListPlugin};
 pub use plugins::{RichClipboardPlugin, RichPastePlugin};
 pub use table::RichTablePlugin;
 
@@ -23,6 +24,7 @@ pub struct RichConfig {
     pub paste_markdown: bool,
     pub renderers: leptoslate::Renderers,
     pub plugins: leptoslate::EditablePlugins,
+    pub features: FeatureSet,
     pub file_handler: Option<leptoslate::FileHandler>,
     pub mention_handler: Option<leptoslate::MentionHandler>,
     pub list_behaviour: bool,
@@ -38,6 +40,7 @@ impl Default for RichConfig {
             paste_markdown: false,
             renderers: leptoslate::Renderers::default(),
             plugins: leptoslate::EditablePlugins::default(),
+            features: FeatureSet::new().with(RichListFeature),
             file_handler: None,
             mention_handler: None,
             list_behaviour: true,
@@ -101,6 +104,24 @@ impl RichConfig {
         self
     }
 
+    /// Add a model-level feature (schema rules and normalization hooks).
+    pub fn with_feature<F>(mut self, feature: F) -> Self
+    where
+        F: Feature + 'static,
+    {
+        self.features.push(feature);
+        self
+    }
+
+    /// Install the configured features on an editor handle.
+    ///
+    /// This is useful when an application renders a base [`leptoslate::Editable`]
+    /// but still wants the rich schema/normalization rules.
+    pub fn install(&self, editor: &leptoslate::EditorHandle) {
+        let features = self.features.clone();
+        editor.update(|editor| editor.set_features(features));
+    }
+
     pub fn with_plugin<P>(mut self, plugin: P) -> Self
     where
         P: leptoslate::EditablePlugin + 'static,
@@ -121,6 +142,12 @@ pub fn RichEditor(
     #[prop(optional, into)] class: String,
     #[prop(optional, into)] placeholder: String,
 ) -> impl IntoView {
+    // Features own model-level schema and normalization. Install them when the
+    // editor mounts; the component body runs once per editor instance.
+    let feature_editor = editor.clone();
+    let features = config.features.clone();
+    feature_editor.update(|editor| editor.set_features(features));
+
     let mut plugins = config.plugins.clone();
     plugins.push(RichClipboardPlugin);
     if config.paste_html || config.paste_markdown {
@@ -161,7 +188,9 @@ pub use leptoslate::core;
 pub use leptoslate::*;
 
 pub mod prelude {
-    pub use crate::{RichConfig, RichEditor};
+    pub use crate::{
+        ListContext, ListHandle, ListTransforms, RichConfig, RichEditor, RichListFeature,
+    };
     pub use leptoslate::core::*;
     pub use leptoslate::*;
 }
@@ -191,5 +220,6 @@ mod tests {
         assert!(!config.list_behaviour);
         assert!(!config.table_behaviour);
         assert!(!config.plugins.is_empty());
+        assert!(!config.features.is_empty());
     }
 }

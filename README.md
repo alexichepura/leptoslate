@@ -119,11 +119,22 @@ editor.insert_break();
 editor.insert_text("world");
 
 editor.set_block("h2");
-editor.toggle_list("ul");
 editor.undo();
 editor.redo();
 
 println!("{}", editor.to_json_pretty());
+```
+
+List transforms live in the rich preset as extension traits. Import
+`leptoslate_rich::ListHandle` for the handle and `leptoslate_rich::ListTransforms`
+for the editor:
+
+```rust
+use leptoslate_rich::ListHandle;
+
+editor.toggle_list("ul");
+editor.indent_list();
+editor.outdent_list();
 ```
 
 `EditorHandle::update` runs the closure with `&mut Editor`, so the entire core API is available:
@@ -207,14 +218,17 @@ Void blocks (images, dividers) automatically get a paragraph after them so typin
 
 ### Lists
 
-`Tab` indents the current list item under its previous sibling; `Shift+Tab` outdents it. The same operations are available in core:
+`Tab` indents the current list item under its previous sibling; `Shift+Tab` outdents it. Lists are owned by `leptoslate-rich`: `RichListFeature` installs the `ul`/`ol`/`li` schema rules and the Enter/Backspace hooks, while `ListTransforms` and `ListHandle` provide the transforms:
 
 ```rust
+use leptoslate_rich::prelude::*;
+
 editor.indent_list();
 editor.outdent_list();
+editor.toggle_list("ul");
 ```
 
-Nested lists are represented as a list inside an `<li>`, with the item's inline content wrapped in a paragraph by normalization. Backspace at the start of the first item lifts it out before the list, at a later item it merges into the previous item, and Enter splits the list item while preserving its nested children.
+Nested lists are represented as a list inside an `<li>`, with the item's inline content wrapped in a paragraph by normalization. Backspace at the start of the first item lifts it out before the list, at a later item it merges into the previous item, and Enter splits the list item while preserving its nested children. Applications using the base `Editable` install `RichListFeature` (for example with `RichConfig::install`) to get the same model behavior.
 
 ### Block reordering
 
@@ -422,7 +436,7 @@ impl Feature for MyFeature {
 let editor = leptoslate::Editor::empty().with_feature(MyFeature);
 ```
 
-Features run inside the core normalization loop alongside built-in constraints. `FeatureSet` composes multiple features; returning `None` means the feature has no pending fix. Event and DOM behavior belongs to the `EditablePlugin` layer.
+Features run inside the core normalization loop alongside built-in constraints. `FeatureSet` composes multiple features; returning `None` means the feature has no pending fix. Features can also take over structural behavior: `handle_backspace` handles Backspace at a block start, `split_stop_depth` controls how far Enter splits, `adjust_insert_block` repositions toolbar inserts, and `before_set_block` runs before a block type change. This is how the list and table features in `leptoslate-rich` keep their model-level behavior out of core. Event and DOM behavior belongs to the `EditablePlugin` layer.
 
 ### Behavior plugins
 

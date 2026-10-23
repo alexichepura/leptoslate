@@ -148,15 +148,22 @@ impl Editor {
         let mut caret = Point::new(path::next(&leaf), 0);
         self.selection = Some(Range::collapsed(caret.clone()));
 
-        // Split up to and including the leaf block. A list item is the leaf
-        // block of its text, so pressing Enter creates a sibling `<li>` rather
-        // than splitting the whole list; paragraphs inside a blockquote stay
-        // inside that blockquote.
-        let stop_depth = self
-            .list_context(&point)
-            .map(|(li, _, _, _)| li.len())
-            .or_else(|| self.leaf_block_path(&point).map(|block| block.len()))
+        // Split up to and including the leaf block. A feature may stop the
+        // split earlier: a list item is the leaf block of its text, so pressing
+        // Enter creates a sibling `<li>` rather than splitting the whole list;
+        // paragraphs inside a blockquote stay inside that blockquote.
+        let leaf_depth = self
+            .leaf_block_path(&point)
+            .map(|block| block.len())
             .unwrap_or(1);
+        let stop_depth = self
+            .features
+            .snapshot()
+            .iter()
+            .filter_map(|feature| feature.split_stop_depth(self, &point))
+            .min()
+            .map(|depth| depth.min(leaf_depth))
+            .unwrap_or(leaf_depth);
 
         for depth in (stop_depth..leaf.len()).rev() {
             let ancestor = leaf[..depth].to_vec();
@@ -340,19 +347,12 @@ impl Editor {
         }
 
         if point.offset == 0 {
-            if let Some((li, list, index, _)) = self.list_context(&point) {
-                if self.at_start_of_node(&point, &li) {
-                    if index == 0 {
-                        if self.lift_first_list_item_inner().is_some() {
-                            return;
-                        }
-                    } else if self
-                        .merge_list_item_with_previous_inner(&li, &list, index)
-                        .is_some()
-                    {
-                        return;
-                    }
-                }
+            let features = self.features.snapshot();
+            if features
+                .iter()
+                .any(|feature| feature.handle_backspace(self, &point))
+            {
+                return;
             }
         }
 
@@ -1336,15 +1336,16 @@ impl Editor {
     }
 
     // ---------------------------------------------------------------------
-    // Blocks and lists
+    // Blocks
     // ---------------------------------------------------------------------
 
     /// Set the block type of the block(s) intersecting the selection.
     ///
-    /// Use [`Editor::toggle_list`] for `ul` / `ol`.
+    /// List types are owned by the list feature/trait, so this ignores `ul` and
+    /// `ol` and leaves list toggling to feature hooks.
     pub fn set_block(&mut self, element_type: &str) {
         if self.schema.is_list(element_type) {
-            return self.toggle_list(element_type);
+            return;
         }
         if self
             .selection
@@ -1356,10 +1357,11 @@ impl Editor {
         }
         self.transaction(|editor| {
             // Turning a list item into a paragraph/heading should unwrap the
-            // list first, rather than leaving `<ul><h1>` behind.
-            if let Some(range) = editor.selection.clone() {
-                if let Some(list_type) = editor.list_ancestor_type(range.start()) {
-                    editor.toggle_list(&list_type);
+            // list first, rather than leaving `<ul><h1>` behind. The list
+            // feature owns that transform and runs it here.
+            if editor.selection.is_some() {
+                for feature in editor.features.snapshot() {
+                    feature.before_set_block(editor, element_type);
                 }
             }
 
@@ -1382,386 +1384,6 @@ impl Editor {
                 });
             }
         });
-    }
-
-    fn list_ancestor_type(&self, point: &Point) -> Option<String> {
-        for depth in (1..point.path.len()).rev() {
-            let path = &point.path[..depth];
-            if let Some(element) = self.element(path) {
-                if self.schema.is_list(&element.element_type) {
-                    return Some(element.element_type.clone());
-                }
-            }
-        }
-        None
-    }
-
-    /// Wrap the selected block(s) in a list, or unwrap a list at the cursor.
-    pub fn toggle_list(&mut self, list_type: &str) {
-        if !self.schema.is_list(list_type) {
-            return;
-        }
-        if self
-            .selection
-            .as_ref()
-            .and_then(|range| self.table_cell_at(range.start()))
-            .is_some()
-        {
-            return;
-        }
-
-        self.transaction(|editor| {
-            let Some(range) = editor.selection.clone() else {
-                return;
-            };
-            let top_index = range.start().path.first().copied().unwrap_or(0);
-
-            // Unwrap an existing list under the cursor.
-            if let Some(Node::Element(list)) = editor.children.get(top_index) {
-                if editor.schema.is_list(&list.element_type) {
-                    let list_children = list.children.clone();
-                    let list_path = vec![top_index];
-                    let mut paragraphs = Vec::new();
-                    for child in &list_children {
-                        let children = child.children().to_vec();
-                        paragraphs.push(Node::Element(Element::new("p", children)));
-                    }
-
-                    let _ = editor.apply(Operation::RemoveNode { path: list_path });
-                    for (offset, paragraph) in paragraphs.into_iter().enumerate() {
-                        let _ = editor.apply(Operation::InsertNode {
-                            path: vec![top_index + offset],
-                            node: paragraph,
-                        });
-                    }
-
-                    let map = |point: &Point| {
-                        if point.path.len() >= 2 {
-                            let mut path = vec![top_index + point.path[1]];
-                            path.extend_from_slice(&point.path[2..]);
-                            Point::new(path, point.offset)
-                        } else {
-                            point.clone()
-                        }
-                    };
-                    editor.selection = Some(Range::new(map(&range.anchor), map(&range.focus)));
-                    return;
-                }
-            }
-
-            // Wrap all selected top-level blocks in a new list.
-            let start = range
-                .start()
-                .path
-                .first()
-                .copied()
-                .unwrap_or(0)
-                .min(editor.children.len().saturating_sub(1));
-            let end = range
-                .end()
-                .path
-                .first()
-                .copied()
-                .unwrap_or(start)
-                .min(editor.children.len().saturating_sub(1));
-            let (first, last) = if start <= end {
-                (start, end)
-            } else {
-                (end, start)
-            };
-            if editor.children.is_empty() {
-                return;
-            }
-
-            let mut list_children = Vec::new();
-            for index in first..=last {
-                if let Some(block) = editor.children.get(index) {
-                    let children = if block.is_text() {
-                        vec![block.clone()]
-                    } else {
-                        block.children().to_vec()
-                    };
-                    list_children.push(Node::Element(Element::new("li", children)));
-                }
-            }
-
-            let list = Node::Element(Element::new(list_type, list_children));
-            let _ = editor.apply(Operation::InsertNode {
-                path: vec![first],
-                node: list,
-            });
-            for _ in first..=last {
-                let _ = editor.apply(Operation::RemoveNode {
-                    path: vec![first + 1],
-                });
-            }
-
-            let map = |point: &Point| {
-                let block_index = point.path.first().copied().unwrap_or(0);
-                let mut path = vec![first, block_index.saturating_sub(first)];
-                path.extend_from_slice(&point.path[1..]);
-                Point::new(path, point.offset)
-            };
-            editor.selection = Some(Range::new(map(&range.anchor), map(&range.focus)));
-        });
-    }
-
-    // ---------------------------------------------------------------------
-    // Lists
-    // ---------------------------------------------------------------------
-
-    /// Indent the current list item, or every selected item, under its
-    /// previous sibling.
-    pub fn indent_list(&mut self) -> bool {
-        self.transaction(|editor| {
-            let items = editor.list_items_in_selection();
-            if items.len() <= 1 {
-                return editor.indent_list_inner();
-            }
-            let mut changed = false;
-            for li in items.into_iter().rev() {
-                if let Some(point) = editor.first_text_point_in(&li) {
-                    editor.selection = Some(Range::collapsed(point));
-                    if editor.indent_list_inner().is_some() {
-                        changed = true;
-                    }
-                }
-            }
-            changed.then_some(())
-        })
-        .is_some()
-    }
-
-    /// Outdent the current list item, or every selected item, lifting it out of
-    /// the list at the top level or into the parent list when nested.
-    pub fn outdent_list(&mut self) -> bool {
-        self.transaction(|editor| {
-            let items = editor.list_items_in_selection();
-            if items.len() <= 1 {
-                return editor.outdent_list_inner();
-            }
-            let mut changed = false;
-            for li in items.into_iter().rev() {
-                if let Some(point) = editor.first_text_point_in(&li) {
-                    editor.selection = Some(Range::collapsed(point));
-                    if editor.outdent_list_inner().is_some() {
-                        changed = true;
-                    }
-                }
-            }
-            changed.then_some(())
-        })
-        .is_some()
-    }
-
-    fn list_items_in_selection(&self) -> Vec<Path> {
-        let Some(range) = self.selection.as_ref() else {
-            return Vec::new();
-        };
-        let mut points = Vec::new();
-        if range.is_collapsed() {
-            points.push(range.start().path.clone());
-        } else {
-            points.extend(self.text_paths_in_range(range));
-            points.push(range.start().path.clone());
-            points.push(range.end().path.clone());
-        }
-        let mut items: Vec<Path> = points
-            .into_iter()
-            .filter_map(|path| {
-                self.list_context(&Point::new(path, 0))
-                    .map(|(li, _, _, _)| li)
-            })
-            .collect();
-        items.sort_by(|a, b| path::compare(a, b));
-        items.dedup();
-        items
-    }
-
-    fn indent_list_inner(&mut self) -> Option<()> {
-        let range = self.selection.clone()?;
-        let point = self.text_point(range.start())?;
-        let (li, list, index, list_type) = self.list_context(&point)?;
-        if index == 0 {
-            return None;
-        }
-
-        let li_node = self.node(&li)?.clone();
-        let previous = child_path(&list, index - 1);
-        self.apply(Operation::RemoveNode { path: li.clone() })
-            .ok()?;
-
-        let previous_children = self.element(&previous)?.children.clone();
-        let nested = previous_children
-            .last()
-            .filter(|node| node.element_type() == Some(list_type.as_str()))
-            .map(|_| child_path(&previous, previous_children.len() - 1));
-
-        let new_li_path = if let Some(nested) = nested {
-            let nested_len = self.element(&nested)?.children.len();
-            let at = child_path(&nested, nested_len);
-            self.apply(Operation::InsertNode {
-                path: at.clone(),
-                node: li_node,
-            })
-            .ok()?;
-            at
-        } else {
-            let new_list = Node::Element(Element::new(list_type, vec![li_node]));
-            let at = child_path(&previous, previous_children.len());
-            self.apply(Operation::InsertNode {
-                path: at.clone(),
-                node: new_list,
-            })
-            .ok()?;
-            child_path(&at, 0)
-        };
-
-        if let Some(point) = self.first_text_point_in(&new_li_path) {
-            self.selection = Some(Range::collapsed(point));
-        }
-        Some(())
-    }
-
-    fn outdent_list_inner(&mut self) -> Option<()> {
-        let range = self.selection.clone()?;
-        let point = self.text_point(range.start())?;
-        let (li, list, _, _) = self.list_context(&point)?;
-        let li_node = self.node(&li)?.clone();
-        let list_len = self.element(&list)?.children.len();
-        let list_top = *list.first()?;
-
-        if list.len() == 1 {
-            let children = li_node.children().to_vec();
-            self.apply(Operation::RemoveNode { path: li }).ok()?;
-            let block = Node::Element(Element::new(self.schema.default_block.clone(), children));
-            let insert_at = if list_len == 1 {
-                self.apply(Operation::RemoveNode { path: list }).ok()?;
-                vec![list_top]
-            } else {
-                vec![list_top + 1]
-            };
-            self.apply(Operation::InsertNode {
-                path: insert_at.clone(),
-                node: block,
-            })
-            .ok()?;
-            if let Some(point) = self.first_text_point_in(&insert_at) {
-                self.selection = Some(Range::collapsed(point));
-            }
-            return Some(());
-        }
-
-        let outer_li = path::parent(&list)?;
-        let outer_list = path::parent(&outer_li)?;
-        let outer_index = *outer_li.last()?;
-
-        self.apply(Operation::RemoveNode { path: li }).ok()?;
-        if list_len == 1 {
-            self.apply(Operation::RemoveNode { path: list }).ok()?;
-        }
-        let insert_at = child_path(&outer_list, outer_index + 1);
-        self.apply(Operation::InsertNode {
-            path: insert_at.clone(),
-            node: li_node,
-        })
-        .ok()?;
-        if let Some(point) = self.first_text_point_in(&insert_at) {
-            self.selection = Some(Range::collapsed(point));
-        }
-        Some(())
-    }
-
-    fn lift_first_list_item_inner(&mut self) -> Option<()> {
-        let range = self.selection.clone()?;
-        let point = self.text_point(range.start())?;
-        let (li, list, index, _) = self.list_context(&point)?;
-        if index != 0 {
-            return None;
-        }
-        if list.len() > 1 {
-            return self.outdent_list_inner();
-        }
-
-        let li_node = self.node(&li)?.clone();
-        let list_top = *list.first()?;
-        let children = li_node.children().to_vec();
-
-        self.apply(Operation::RemoveNode { path: li }).ok()?;
-        if self.element(&list)?.children.is_empty() {
-            self.apply(Operation::RemoveNode { path: list }).ok()?;
-        }
-
-        let block = Node::Element(Element::new(self.schema.default_block.clone(), children));
-        let insert_at = vec![list_top];
-        self.apply(Operation::InsertNode {
-            path: insert_at.clone(),
-            node: block,
-        })
-        .ok()?;
-        if let Some(point) = self.first_text_point_in(&insert_at) {
-            self.selection = Some(Range::collapsed(point));
-        }
-        Some(())
-    }
-
-    fn merge_list_item_with_previous_inner(
-        &mut self,
-        li: &[usize],
-        list: &[usize],
-        index: usize,
-    ) -> Option<()> {
-        if index == 0 {
-            return None;
-        }
-        let previous = child_path(list, index - 1);
-        let junction = self.last_text_point_in(&previous)?;
-        let children = self.element(li)?.children.clone();
-
-        self.apply(Operation::RemoveNode { path: li.to_vec() })
-            .ok()?;
-        let previous_len = self.element(&previous)?.children.len();
-        for (offset, child) in children.into_iter().enumerate() {
-            self.apply(Operation::InsertNode {
-                path: child_path(&previous, previous_len + offset),
-                node: child,
-            })
-            .ok()?;
-        }
-
-        self.selection = Some(Range::collapsed(junction));
-        Some(())
-    }
-
-    fn list_context(&self, point: &Point) -> Option<(Path, Path, usize, String)> {
-        for depth in (1..=point.path.len()).rev() {
-            let candidate = &point.path[..depth];
-            let Some(element) = self.element(candidate) else {
-                continue;
-            };
-            if element.element_type != "li" {
-                continue;
-            }
-            let list = path::parent(candidate)?;
-            let list_element = self.element(&list)?;
-            if !self.schema.is_list(&list_element.element_type) {
-                return None;
-            }
-            let index = *candidate.last()?;
-            return Some((
-                candidate.to_vec(),
-                list,
-                index,
-                list_element.element_type.clone(),
-            ));
-        }
-        None
-    }
-
-    fn at_start_of_node(&self, point: &Point, node: &[usize]) -> bool {
-        self.first_text_point_in(node)
-            .map(|first| first.path == point.path && first.offset == 0)
-            .unwrap_or(false)
     }
 
     /// The leaf block paths intersecting the current selection.
@@ -2327,16 +1949,12 @@ impl Editor {
                     .or_else(|| editor.end_point())?;
                 editor.leaf_block_path(&point)?
             };
-            // A block inserted from the toolbar should not land inside a list.
-            // Climb out of list ancestors and insert after the list instead.
-            while block.len() > 1 {
-                let parent = block[..block.len() - 1].to_vec();
-                match editor.element(&parent) {
-                    Some(element) if editor.schema.is_list(&element.element_type) => {
-                        block = parent;
-                    }
-                    _ => break,
-                }
+            // A block inserted from the toolbar should not land inside a feature
+            // container such as a list. Features adjust the insertion point
+            // (for example, climbing out to insert after the whole list).
+            let features = editor.features.snapshot();
+            for feature in &features {
+                feature.adjust_insert_block(editor, &mut block);
             }
             let parent = block[..block.len() - 1].to_vec();
             let index = *block.last()?;
