@@ -646,24 +646,9 @@ pub fn parse_markdown(markdown: &str) -> Vec<Node> {
             continue;
         }
 
-        if let Some(ordered) = list_marker(trimmed) {
-            let element_type = if ordered { "ol" } else { "ul" };
-            let mut items = Vec::new();
-            while index < lines.len() {
-                let line = lines[index].trim();
-                match list_marker(line) {
-                    Some(item_ordered) if item_ordered == ordered => {
-                        let content = list_content(line).unwrap_or(line);
-                        items.push(Node::Element(Element::new(
-                            "li",
-                            inline_markdown(content, &Props::new()),
-                        )));
-                        index += 1;
-                    }
-                    _ => break,
-                }
-            }
-            blocks.push(Node::Element(Element::new(element_type, items)));
+        if list_marker(trimmed).is_some() {
+            let indent = indentation(line);
+            blocks.push(parse_markdown_list(&lines, &mut index, indent));
             continue;
         }
 
@@ -695,6 +680,72 @@ pub fn parse_markdown(markdown: &str) -> Vec<Node> {
     }
 
     blocks
+}
+
+fn indentation(line: &str) -> usize {
+    line.len() - line.trim_start_matches(' ').len()
+}
+
+fn parse_markdown_list(lines: &[&str], index: &mut usize, indent: usize) -> Node {
+    let first = lines[*index];
+    let Some(ordered) = first.get(indent..).and_then(list_marker) else {
+        return Node::Element(Element::new("ul", vec![]));
+    };
+    let element_type = if ordered { "ol" } else { "ul" };
+    let mut items = Vec::new();
+
+    while *index < lines.len() {
+        let line = lines[*index];
+        if line.trim().is_empty() || indentation(line) != indent {
+            break;
+        }
+        let content = &line[indent..];
+        let Some(item_ordered) = list_marker(content) else {
+            break;
+        };
+        if item_ordered != ordered {
+            break;
+        }
+
+        let mut inline = inline_markdown(list_content(content).unwrap_or(content), &Props::new());
+        *index += 1;
+        let mut nested = Vec::new();
+
+        while *index < lines.len() {
+            let next = lines[*index];
+            if next.trim().is_empty() {
+                break;
+            }
+            let next_indent = indentation(next);
+            if next_indent <= indent {
+                break;
+            }
+            let next_content = &next[next_indent..];
+            if list_marker(next_content).is_some() {
+                nested.push(parse_markdown_list(lines, index, next_indent));
+            } else {
+                // Treat an indented continuation as another run of inline content.
+                if !inline.is_empty() {
+                    inline.push(Node::text(" "));
+                }
+                inline.extend(inline_markdown(next.trim(), &Props::new()));
+                *index += 1;
+            }
+        }
+
+        if nested.is_empty() {
+            items.push(Node::Element(Element::new("li", inline)));
+        } else {
+            let mut children = Vec::new();
+            if !inline.is_empty() {
+                children.push(Node::Element(Element::new("p", inline)));
+            }
+            children.extend(nested);
+            items.push(Node::Element(Element::new("li", children)));
+        }
+    }
+
+    Node::Element(Element::new(element_type, items))
 }
 
 fn fenced_code_start(line: &str) -> bool {
