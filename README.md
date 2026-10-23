@@ -51,6 +51,7 @@ examples/
 - Structured table blocks (`table`, `thead`, `tbody`, `tfoot`, `tr`, `th`, `td`) with semantic rendering
 - Table creation plus row/column authoring controls in the demo
 - Pluggable element, text and mark renderers for application-specific blocks and styling
+- Composable `EditablePlugin` hooks for keydown, beforeinput, paste, copy, cut and drop behavior
 - Block/node selection for one or more top-level blocks: select, extend, delete, duplicate, copy, or type to replace a range
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
 - Inline void mentions: `@`-triggered picker, atoms, atom deletion, and custom renderers
@@ -378,6 +379,37 @@ editor.move_selection_off_node(false);       // ArrowRight
 
 The built-in void renderer selects on click. Custom renderers can call `editor.select_node(&ctx.path)` and use `is_node_selected` in a reactive class. Backspace/Delete removes the selected blocks, Left/Right collapses into adjacent text, and typing replaces the selection.
 
+### Behavior plugins
+
+`EditablePlugin` hooks run before the built-in handlers. Returning `true` means the event is handled and normal processing is skipped:
+
+```rust
+use leptoslate::{Editable, EditablePlugin, EditablePlugins, EditorHandle};
+use web_sys::KeyboardEvent;
+
+struct ShortcutPlugin;
+
+impl EditablePlugin for ShortcutPlugin {
+    fn on_keydown(&self, editor: &EditorHandle, event: &KeyboardEvent) -> bool {
+        if event.key() == "F2" {
+            editor.insert_text("★");
+            true
+        } else {
+            false
+        }
+    }
+}
+
+view! {
+    <Editable
+        editor=editor
+        plugins=EditablePlugins::new().with(ShortcutPlugin)
+    />
+}
+```
+
+Plugins are registered in order; earlier plugins run first. The trait covers keydown, beforeinput, paste, copy, cut and drop. It does not expose Slate's JavaScript plugin objects or core normalization/operation middleware; those would be a separate Rust extension layer.
+
 ### Images and dropped files
 
 Images are ordinary block elements. The demo inserts them from a URL bar, a file picker, pasted files, or drag/drop:
@@ -509,7 +541,7 @@ On the development machine used for this repository (Chromium, release WASM), th
 This is an early implementation, not a drop-in replacement for the entire Slate ecosystem:
 
 - Client-side rendering only; no SSR/hydration adapter yet.
-- A pragmatic core schema instead of Slate's plugin model. Inline links and void mentions are supported.
+- A pragmatic core schema and behavior-plugin layer instead of Slate's full plugin model. Inline links and void mentions are supported; core normalization/operation middleware is not yet pluggable.
 - Table editing covers creation, cell navigation and row/column insertion/deletion; `colspan`/`rowspan` and Markdown tables are not implemented yet.
 - Markdown paste is opt-in and intentionally small; it is not a full CommonMark implementation.
 - Node selection is a contiguous range of top-level blocks; discontiguous or cross-container block selection is not implemented.

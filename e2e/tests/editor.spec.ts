@@ -334,6 +334,19 @@ test("copying a selected table preserves the table structure", async ({
   await expect.poll(async () => (await getJson(page))[0]?.type).toBe("table");
 });
 
+test("editable plugins can intercept keyboard input", async ({ page }) => {
+  await setCaret(page, "2.0", 0);
+  await page.keyboard.press("F2");
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      return json[2]?.children?.[0]?.text;
+    })
+    .toBe("★Select some text and try the toolbar. The value is plain ");
+  const selection = await getSelection(page);
+  expect(selection.selection?.anchor.offset).toBe(1);
+});
+
 test("typing inserts text and keeps the model selection in sync", async ({
   page,
 }) => {

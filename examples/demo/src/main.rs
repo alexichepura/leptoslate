@@ -1,10 +1,24 @@
 use leptos::prelude::*;
 use leptoslate::{
-    Editable, EditorHandle, Element, FileHandler, MentionTrigger, Node, Props, Renderers, Text,
+    Editable, EditablePlugin, EditablePlugins, EditorHandle, Element, FileHandler, MentionTrigger,
+    Node, Props, Renderers, Text,
 };
 use serde_json::{json, Value};
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent};
+
+struct StarPlugin;
+
+impl EditablePlugin for StarPlugin {
+    fn on_keydown(&self, editor: &EditorHandle, event: &KeyboardEvent) -> bool {
+        if event.key() == "F2" {
+            editor.insert_text("★");
+            true
+        } else {
+            false
+        }
+    }
+}
 
 fn text(value: &str) -> Node {
     Node::Text(Text::new(value))
@@ -1201,6 +1215,7 @@ fn App() -> impl IntoView {
                 <Editable
                     editor=editor.clone()
                     renderers=renderers
+                    plugins=EditablePlugins::new().with(StarPlugin)
                     on_files=files_handler
                     on_mention=on_mention
                     hover_bar=true

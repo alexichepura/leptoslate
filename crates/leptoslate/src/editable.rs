@@ -17,6 +17,7 @@ use crate::{
     handle::EditorHandle,
     media::FileHandler,
     mention::{MentionHandler, MentionTrigger},
+    plugins::EditablePlugins,
     render::render_node,
     renderers::Renderers,
     EDITOR_STYLES,
@@ -47,6 +48,9 @@ pub fn Editable(
     /// Custom element renderers for application-specific blocks.
     #[prop(optional)]
     renderers: Renderers,
+    /// Behavior plugins that run before the built-in event handlers.
+    #[prop(optional)]
+    plugins: EditablePlugins,
     /// Receives files pasted or dropped onto the editor.
     #[prop(optional)]
     on_files: Option<FileHandler>,
@@ -81,6 +85,13 @@ pub fn Editable(
     let drop_style = RwSignal::new(String::new());
     let selection_listener = StoredValue::new(None::<SendWrapper<Closure<dyn FnMut()>>>);
 
+    let key_plugins = plugins.clone();
+    let beforeinput_plugins = plugins.clone();
+    let paste_plugins = plugins.clone();
+    let copy_plugins = plugins.clone();
+    let cut_plugins = plugins.clone();
+    let drop_plugins = plugins;
+
     let render_editor = editor.clone();
     let schema_editor = editor.clone();
     let schema = Memo::new(move |_| schema_editor.state.with(|state| state.schema.clone()));
@@ -93,6 +104,14 @@ pub fn Editable(
             return;
         };
         let root: &Element = root.unchecked_ref();
+
+        if beforeinput_plugins
+            .iter()
+            .any(|plugin| plugin.on_beforeinput(&beforeinput_editor, &ev))
+        {
+            ev.prevent_default();
+            return;
+        }
 
         if beforeinput_editor.has_node_selection() {
             ev.prevent_default();
@@ -191,6 +210,13 @@ pub fn Editable(
     let keydown_mention_dismissed = mention_dismissed;
     let handle_keydown = move |ev: KeyboardEvent| {
         if ev.is_composing() || ev.key_code() == 229 {
+            return;
+        }
+        if key_plugins
+            .iter()
+            .any(|plugin| plugin.on_keydown(&keydown_editor, &ev))
+        {
+            ev.prevent_default();
             return;
         }
         let modifier = ev.meta_key() || ev.ctrl_key();
@@ -349,6 +375,14 @@ pub fn Editable(
         };
         sync_from_dom(&paste_editor, root.unchecked_ref());
 
+        if paste_plugins
+            .iter()
+            .any(|plugin| plugin.on_paste(&paste_editor, &ev))
+        {
+            ev.prevent_default();
+            return;
+        }
+
         let data = ev.clipboard_data();
         let files = data
             .as_ref()
@@ -456,6 +490,14 @@ pub fn Editable(
         ev.prevent_default();
         dragging.set(false);
 
+        if drop_plugins
+            .iter()
+            .any(|plugin| plugin.on_drop(&drop_editor, &ev))
+        {
+            drop_index.set(None);
+            return;
+        }
+
         if let Some(from) = drag_block.get_untracked() {
             let (Some(content), Some(shell)) = (drop_ref.get(), drop_shell_ref.get()) else {
                 drag_block.set(None);
@@ -551,6 +593,13 @@ pub fn Editable(
             return;
         };
         sync_from_dom(&copy_editor, root.unchecked_ref());
+        if copy_plugins
+            .iter()
+            .any(|plugin| plugin.on_copy(&copy_editor, &ev))
+        {
+            ev.prevent_default();
+            return;
+        }
         if !copy_editor.has_node_selection() {
             // Let the browser copy the selected DOM, including its inline
             // styles and link/table markup.
@@ -585,6 +634,14 @@ pub fn Editable(
             return;
         };
         sync_from_dom(&cut_editor, root.unchecked_ref());
+
+        if cut_plugins
+            .iter()
+            .any(|plugin| plugin.on_cut(&cut_editor, &ev))
+        {
+            ev.prevent_default();
+            return;
+        }
 
         if !cut_editor.has_node_selection() {
             // Use the browser's rich copy for the current DOM selection, then
