@@ -3,7 +3,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use leptos::prelude::*;
-use leptoslate_core::{Editor, Node, Path, Point, Props};
+use leptoslate_core::{Editor, Node, Path, Point, PropertyPath, Props};
 use serde_json::Value;
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
@@ -56,14 +56,34 @@ impl EditorHandle {
     /// Replace the document. History is reset and the caret moves to the start.
     /// Installed features and schema rules are kept.
     pub fn set_value(&self, children: Vec<Node>) {
-        let (schema, features) = self
-            .state
-            .with_untracked(|editor| (editor.schema.clone(), editor.features.clone()));
+        let (schema, features, link_property) = self.state.with_untracked(|editor| {
+            (
+                editor.schema.clone(),
+                editor.features.clone(),
+                editor.link_property.clone(),
+            )
+        });
         // Install features before the first normalization so feature-owned
         // containers (tables, lists, …) are normalized correctly on load.
         let mut editor = Editor::new_with_features(children, features);
         editor.set_schema(schema);
+        editor.set_link_property(link_property);
         self.state.set(editor);
+    }
+
+    /// The dotted property path used to store link targets (`href` by
+    /// default).
+    pub fn link_property(&self) -> PropertyPath {
+        self.state
+            .with_untracked(|editor| editor.link_property.clone())
+    }
+
+    /// Configure where link targets are stored.
+    ///
+    /// Use a dotted path such as `attributes.href` to work with documents that
+    /// keep links in a nested object. Existing documents are not rewritten.
+    pub fn set_link_property(&self, property: PropertyPath) {
+        self.update(|editor| editor.set_link_property(property));
     }
 
     pub fn set_json(&self, json: &str) -> Result<(), serde_json::Error> {
@@ -183,6 +203,35 @@ impl EditorHandle {
     /// Update the href and text of the link at the current selection.
     pub fn update_link_at_selection(&self, href: &str, text: &str) -> bool {
         self.update(|editor| editor.update_link_at_selection(href, text))
+    }
+
+    /// Wrap the selected text in a custom inline element.
+    ///
+    /// The returned path points at the wrapper. The whole change is one
+    /// undoable transaction. Use this for application-specific inline elements
+    /// that share the editor's selection and undo behavior.
+    pub fn wrap_inline(&self, element_type: &str, properties: Props) -> Option<Path> {
+        self.update(|editor| editor.wrap_inline(element_type, properties))
+    }
+
+    /// Replace a custom inline element with its children.
+    pub fn unwrap_inline(&self, at: &[usize]) -> Option<()> {
+        self.update(|editor| editor.unwrap_inline(at))
+    }
+
+    /// The nearest inline ancestor of a path with the given element type.
+    pub fn inline_ancestor(&self, path: &[usize], element_type: &str) -> Option<Path> {
+        self.state
+            .with_untracked(|editor| editor.inline_ancestor(path, element_type))
+    }
+
+    /// The nearest inline ancestor of the current selection's start with the
+    /// given element type.
+    pub fn inline_at_selection(&self, element_type: &str) -> Option<Path> {
+        self.state.with_untracked(|editor| {
+            let range = editor.selection.as_ref()?;
+            editor.inline_ancestor(&range.start().path, element_type)
+        })
     }
 
     /// Insert an inline node (mention, embed, …) at the caret.

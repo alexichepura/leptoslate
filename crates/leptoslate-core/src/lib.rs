@@ -30,6 +30,7 @@ pub mod node;
 pub mod operation;
 pub mod path;
 pub mod point;
+pub mod property;
 pub mod props;
 pub mod range;
 pub mod schema;
@@ -50,6 +51,7 @@ pub use node::{Element, Node, Text};
 pub use operation::Operation;
 pub use path::Affinity;
 pub use point::Point;
+pub use property::PropertyPath;
 pub use props::Props;
 pub use range::Range;
 pub use schema::{ElementRule, Schema};
@@ -61,6 +63,6 @@ pub type Path = Vec<usize>;
 pub mod prelude {
     pub use crate::{
         Affinity, Editor, Element, ElementRule, MarkKind, MarkSet, Node, Operation, Path, Point,
-        Props, Range, Schema, SlateError, Text,
+        PropertyPath, Props, Range, Schema, SlateError, Text,
     };
 }

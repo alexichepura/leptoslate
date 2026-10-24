@@ -352,3 +352,47 @@ fn additional_mark_aliases_are_accepted_on_import() {
         Some(&serde_json::json!(true))
     );
 }
+
+#[test]
+fn nested_link_property_is_used_by_html_and_markdown_paste() {
+    use leptoslate::core::PropertyPath;
+    use leptoslate_rich::fragment::{
+        parse_html_with_config, parse_markdown_with_config, FragmentConfig,
+    };
+
+    let config = FragmentConfig {
+        link_property: PropertyPath::new("attributes.href"),
+        ..FragmentConfig::default()
+    };
+
+    let html = parse_html_with_config(r#"<p><a href="/docs">docs</a></p>"#, &config);
+    let link = html[0].children()[0].as_element().unwrap();
+    assert_eq!(link.element_type, "a");
+    assert_eq!(link.properties.get("href"), None);
+    assert_eq!(
+        link.properties
+            .get("attributes")
+            .and_then(|value| value.get("href")),
+        Some(&serde_json::json!("/docs"))
+    );
+
+    let markdown = parse_markdown_with_config("[docs](/guide)", &config);
+    let link = markdown[0].children()[0].as_element().unwrap();
+    assert_eq!(link.properties.get("href"), None);
+    assert_eq!(
+        link.properties
+            .get("attributes")
+            .and_then(|value| value.get("href")),
+        Some(&serde_json::json!("/guide"))
+    );
+
+    let round_trip = serde_json::to_string(&html).unwrap();
+    let parsed = serde_json::from_str::<Vec<Node>>(&round_trip).unwrap();
+    assert_eq!(
+        parsed[0].children()[0]
+            .properties()
+            .get("attributes")
+            .and_then(|value| value.get("href")),
+        Some(&serde_json::json!("/docs"))
+    );
+}

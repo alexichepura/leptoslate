@@ -642,13 +642,20 @@ impl Editor {
             let end = editor
                 .text_point(range.end())
                 .unwrap_or(range.end().clone());
+            let property = editor.link_property.clone();
 
             if let Some(link) = editor.inline_ancestor(&start.path, "a") {
                 if range.is_collapsed()
                     || editor.inline_ancestor(&end.path, "a").as_ref() == Some(&link)
                 {
-                    let mut properties = Props::new();
-                    properties.insert("href".into(), Value::String(href.to_string()));
+                    let Some(link_properties) = editor
+                        .element(&link)
+                        .map(|element| element.properties.clone())
+                    else {
+                        return false;
+                    };
+                    let properties =
+                        property.with_value(&link_properties, Value::String(href.to_string()));
                     let _ = editor.apply(Operation::SetNode {
                         path: link,
                         properties: Props::new(),
@@ -663,7 +670,7 @@ impl Editor {
             }
 
             let mut properties = Props::new();
-            properties.insert("href".into(), Value::String(href.to_string()));
+            property.set(&mut properties, Value::String(href.to_string()));
             editor.wrap_inline_inner("a", properties).is_some()
         })
     }
@@ -735,10 +742,11 @@ impl Editor {
             .unwrap_or_default();
         let link_path = link.clone();
         let replace_text = current_text != text;
+        let properties = self
+            .link_property
+            .with_value(&link_element.properties, Value::String(href.to_string()));
 
         self.transaction(|editor| {
-            let mut properties = Props::new();
-            properties.insert("href".into(), Value::String(href.to_string()));
             if editor
                 .apply(Operation::SetNode {
                     path: link_path.clone(),
@@ -783,12 +791,38 @@ impl Editor {
         let range = self.selection.as_ref()?;
         let link = self.inline_ancestor(&range.start().path, "a")?;
         let href = self
-            .element(&link)?
-            .properties
-            .get("href")?
-            .as_str()?
+            .link_property
+            .get_str(&self.element(&link)?.properties)?
             .to_string();
         Some((link, href))
+    }
+
+    /// Wrap the selected text in an inline element.
+    ///
+    /// `properties` become the new element's properties and the returned path
+    /// points at the wrapper. Returns `None` when the selection is collapsed,
+    /// spans more than one inline parent, or cannot be split at its boundaries.
+    /// The whole change is one undoable transaction.
+    pub fn wrap_inline(&mut self, element_type: &str, properties: Props) -> Option<Path> {
+        let path = self.transaction(|editor| editor.wrap_inline_inner(element_type, properties))?;
+        // Normalization can insert surrounding text nodes, which shifts the
+        // wrapper. Resolve the final location through the selection that
+        // `wrap_inline_inner` placed inside the wrapper.
+        let start = self
+            .selection
+            .as_ref()
+            .map(|range| range.start().path.clone());
+        start
+            .and_then(|start| self.inline_ancestor(&start, element_type))
+            .or(Some(path))
+    }
+
+    /// Replace an inline element with its children.
+    ///
+    /// This is the inverse of [`Editor::wrap_inline`] and is useful for custom
+    /// inline elements. The whole change is one undoable transaction.
+    pub fn unwrap_inline(&mut self, at: &[usize]) -> Option<()> {
+        self.transaction(|editor| editor.unwrap_inline_inner(at))
     }
 
     fn wrap_inline_inner(&mut self, element_type: &str, properties: Props) -> Option<Path> {
@@ -913,13 +947,27 @@ impl Editor {
         Some(())
     }
 
-    fn inline_ancestor(&self, path: &[usize], element_type: &str) -> Option<Path> {
+    /// The nearest inline ancestor of `path` with the given element type.
+    ///
+    /// Useful for application-specific inline elements such as links, mentions
+    /// or custom chips. The path itself is not considered.
+    pub fn inline_ancestor(&self, path: &[usize], element_type: &str) -> Option<Path> {
+        self.inline_ancestor_matching(path, |element| element.element_type == element_type)
+    }
+
+    /// The nearest inline ancestor of `path` accepted by `predicate`.
+    ///
+    /// This is the generic form of [`Editor::inline_ancestor`] for inline
+    /// families that share a type prefix or a marker property.
+    pub fn inline_ancestor_matching(
+        &self,
+        path: &[usize],
+        predicate: impl Fn(&Element) -> bool,
+    ) -> Option<Path> {
         for depth in (1..path.len()).rev() {
             let candidate = &path[..depth];
             if let Some(element) = self.element(candidate) {
-                if element.element_type == element_type
-                    && self.schema.is_inline(&element.element_type)
-                {
+                if self.schema.is_inline(&element.element_type) && predicate(element) {
                     return Some(candidate.to_vec());
                 }
             }

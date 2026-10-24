@@ -59,6 +59,7 @@ examples/
 - List/table model behavior and the HTML/Markdown parser are extension traits and features in `leptoslate-rich`
 - Block/node selection for one or more top-level blocks: select, extend, delete, duplicate, copy, or type to replace a range
 - Inline links: wrap a selection, edit the href, remove links, and prevent navigation while editing
+- Configurable link property paths and public generic inline wrap/ancestor helpers for custom inline elements
 - Inline void mentions: `@`-triggered picker, atoms, atom deletion, and custom renderers
 - Rich fragment paste and drop: HTML by default, optional Markdown parsing, with marks, links, nested lists, structured tables and inline images
 - URL safety policy for links and pasted images; unsafe schemes are rejected
@@ -430,7 +431,63 @@ editor.update_link_at_selection("/docs", "docs"); // href + text in one undo ste
 editor.remove_link();            // unwraps links intersecting the selection
 ```
 
+The target property is configurable with a dotted path. The default remains the
+flat `href` property; applications whose stored documents keep links in a
+nested object can configure another path once:
+
+```rust
+use leptoslate_rich::prelude::*;
+
+let config = RichConfig::new()
+    .with_link_property(PropertyPath::new("attributes.href"));
+view! { <RichEditor editor=editor config=config /> }
+```
+
+With base `Editable`, configure the editor handle (or use
+`Editor::with_link_property` before creating the handle):
+
+```rust
+editor.set_link_property(PropertyPath::new("attributes.href"));
+```
+
+```json
+{ "type": "a", "attributes": { "href": "/docs", "target": "_blank" }, "children": [{ "text": "docs" }] }
+```
+
+The configured path is used by `set_link`, `link_at_selection`,
+`update_link_at_selection`, rich HTML/Markdown paste and the default `a`
+renderer. Sibling fields inside the parent object are preserved when the link
+target is updated, and existing documents with the configured shape round-trip
+without a conversion shim. Defaults are unchanged when no path is configured.
+
 `update_link_at_selection` preserves the existing children and marks when the text is unchanged. When the text changes, it replaces the link text with one text node carrying the first child text node’s marks. Empty link text is rejected. Link targets use a safety policy: relative links, fragments, `http(s)`, `mailto:` and `tel:` are accepted; `javascript:`, `data:` and other opaque schemes are rejected. Pasted unsafe links are flattened to their text and unsafe image sources are skipped. The built-in renderer prevents link navigation during editing. The demo adds a Link toolbar button with an href bar for Apply/Remove.
+
+#### Custom inline elements
+
+The generic inline helpers work for any inline element type, so applications can
+build their own chips, embeds or link variants:
+
+```rust
+use leptoslate::props;
+
+// One undoable transaction; returns the final wrapper path.
+let path = editor.wrap_inline("chip", props! { "kind" => "person" }).unwrap();
+
+// Find the nearest inline ancestor of a text path.
+let chip = editor.inline_ancestor(&text_path, "chip");
+let any_chip = editor.inline_ancestor_matching(&text_path, |element| {
+    element.properties.get("kind").is_some()
+});
+
+// Replace the wrapper with its children.
+editor.unwrap_inline(&path);
+```
+
+The same helpers are available on `EditorHandle` (`wrap_inline`,
+`unwrap_inline`, `inline_ancestor`, `inline_at_selection`). Register an
+`ElementRule::inline` for the element type and a renderer so it participates in
+normalization and rendering. Wrapping requires a non-collapsed selection inside
+one block; the returned path is resolved after normalization.
 
 ### Mentions and inline voids
 

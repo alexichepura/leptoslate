@@ -2,6 +2,8 @@
 
 use leptoslate::{Editor, EditorHandle, MarkSet};
 
+use crate::fragment::FragmentConfig;
+
 /// Parse and insert rich fragments through the rich preset parser.
 ///
 /// The core editor only inserts already-parsed [`leptoslate::Node`] fragments;
@@ -18,24 +20,50 @@ pub trait PasteTransforms {
 
     /// Parse and insert a Markdown fragment with configured mark keys.
     fn insert_markdown_with_marks(&mut self, markdown: &str, marks: &MarkSet);
+
+    /// Parse and insert an HTML fragment with explicit parser configuration.
+    fn insert_html_with_config(&mut self, html: &str, config: &FragmentConfig);
+
+    /// Parse and insert a Markdown fragment with explicit parser configuration.
+    fn insert_markdown_with_config(&mut self, markdown: &str, config: &FragmentConfig);
 }
 
 impl PasteTransforms for Editor {
     fn insert_html(&mut self, html: &str) {
-        self.insert_html_with_marks(html, &MarkSet::default());
+        self.insert_html_with_config(html, &FragmentConfig::default());
     }
 
     fn insert_markdown(&mut self, markdown: &str) {
-        self.insert_markdown_with_marks(markdown, &MarkSet::default());
+        self.insert_markdown_with_config(markdown, &FragmentConfig::default());
     }
 
     fn insert_html_with_marks(&mut self, html: &str, marks: &MarkSet) {
-        let nodes = crate::fragment::parse_html_with_marks(html, marks);
-        self.insert_fragment(nodes);
+        self.insert_html_with_config(
+            html,
+            &FragmentConfig {
+                marks: marks.clone(),
+                ..FragmentConfig::default()
+            },
+        );
     }
 
     fn insert_markdown_with_marks(&mut self, markdown: &str, marks: &MarkSet) {
-        let nodes = crate::fragment::parse_markdown_with_marks(markdown, marks);
+        self.insert_markdown_with_config(
+            markdown,
+            &FragmentConfig {
+                marks: marks.clone(),
+                ..FragmentConfig::default()
+            },
+        );
+    }
+
+    fn insert_html_with_config(&mut self, html: &str, config: &FragmentConfig) {
+        let nodes = crate::fragment::parse_html_with_config(html, config);
+        self.insert_fragment(nodes);
+    }
+
+    fn insert_markdown_with_config(&mut self, markdown: &str, config: &FragmentConfig) {
+        let nodes = crate::fragment::parse_markdown_with_config(markdown, config);
         self.insert_fragment(nodes);
     }
 }

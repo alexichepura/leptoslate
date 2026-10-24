@@ -1082,6 +1082,99 @@ test("links can be applied to a selection and removed", async ({ page }) => {
     .toBe(false);
 });
 
+test("nested link property paths round-trip through editing and paste", async ({
+  page,
+}) => {
+  await page.goto("/?links=nested");
+  await waitForEditor(page);
+
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([{ type: "p", children: [{ text: "Nested link" }] }]),
+  );
+  await selectText(page, "0.0", 0, 6);
+  await page.getByRole("button", { name: "Link", exact: true }).click();
+  await page.locator(".link-bar .media-input").fill("example.com/docs");
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
+
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      return json[0].children?.some(
+        (node) =>
+          node.type === "a" &&
+          (node.attributes as any)?.href === "https://example.com/docs" &&
+          node.href === undefined &&
+          plainText(node) === "Nested",
+      );
+    })
+    .toBe(true);
+
+  await expect(page.locator(".ls-editor a").first()).toHaveAttribute(
+    "href",
+    "https://example.com/docs",
+  );
+
+  // The link bar reads the configured path back.
+  await page.getByRole("button", { name: "Link", exact: true }).click();
+  await expect(page.locator(".link-bar .media-input")).toHaveValue(
+    "https://example.com/docs",
+  );
+  await page.locator(".link-bar .media-input").fill("https://example.com/guide");
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
+
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      const links = (json[0].children ?? []).filter(
+        (node) => node.type === "a",
+      );
+      return links.map(
+        (node) => (node.attributes as any)?.href ?? node.href ?? null,
+      );
+    })
+    .toEqual(["https://example.com/guide"]);
+
+  await page.getByRole("button", { name: "Link", exact: true }).click();
+  await page.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      return json[0].children?.some((node) => node.type === "a");
+    })
+    .toBe(false);
+
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([{ type: "p", children: [{ text: "" }] }]),
+  );
+  await setCaret(page, "0.0", 0);
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData("text/html", '<p><a href="/pasted">pasted</a></p>');
+    data.setData("text/plain", "pasted");
+    document.querySelector(".ls-editor")!.dispatchEvent(
+      new ClipboardEvent("paste", {
+        clipboardData: data,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  });
+
+  await expect
+    .poll(async () => {
+      const json = await getJson(page);
+      const link = (json[0].children ?? []).find(
+        (node) => node.type === "a",
+      );
+      return link
+        ? (link.attributes as any)?.href ?? link.href ?? null
+        : null;
+    })
+    .toBe("/pasted");
+});
+
 test("typing @ opens the picker and inserts the chosen mention", async ({
   page,
 }) => {
