@@ -32,6 +32,9 @@ pub struct RichConfig {
     pub renderers: leptoslate::Renderers,
     pub plugins: leptoslate::EditablePlugins,
     pub features: FeatureSet,
+    /// Property keys used for the built-in bold/italic/underline/strikethrough
+    /// and inline-code marks.
+    pub marks: leptoslate::MarkSet,
     pub file_handler: Option<leptoslate::FileHandler>,
     pub mention_handler: Option<leptoslate::MentionHandler>,
     pub list_behaviour: bool,
@@ -54,6 +57,7 @@ impl Default for RichConfig {
             features: FeatureSet::new()
                 .with(RichListFeature)
                 .with(RichTableFeature),
+            marks: leptoslate::MarkSet::default(),
             file_handler: None,
             mention_handler: None,
             list_behaviour: true,
@@ -91,6 +95,17 @@ impl RichConfig {
 
     pub fn with_renderers(mut self, renderers: leptoslate::Renderers) -> Self {
         self.renderers = renderers;
+        self
+    }
+
+    /// Configure the property keys used for bold, italic, underline,
+    /// strikethrough and inline code.
+    ///
+    /// The same set drives rich paste, keyboard shortcuts, `beforeinput`
+    /// formatting, the selection bubble and the default mark styles. The
+    /// conventional names remain accepted on input.
+    pub fn with_marks(mut self, marks: leptoslate::MarkSet) -> Self {
+        self.marks = marks;
         self
     }
 
@@ -190,10 +205,10 @@ pub fn RichEditor(
     let mut plugins = config.plugins.clone();
     plugins.push(RichClipboardPlugin);
     if config.paste_html || config.paste_markdown {
-        plugins.push(RichPastePlugin::new(
-            config.paste_html,
-            config.paste_markdown,
-        ));
+        plugins.push(
+            RichPastePlugin::new(config.paste_html, config.paste_markdown)
+                .with_marks(config.marks.clone()),
+        );
     }
     if config.list_behaviour {
         plugins.push(RichListPlugin);
@@ -210,6 +225,7 @@ pub fn RichEditor(
         <LeptoslateEditable
             editor=editor
             renderers=renderers
+            marks=config.marks.clone()
             plugins=plugins
             hover_bar=config.hover_bar
             selection_bubble=config.selection_bubble
@@ -268,6 +284,18 @@ mod tests {
         assert!(!config.features.is_empty());
         assert!(config.on_change.is_none());
         assert!(config.change_debounce.is_none());
+        assert_eq!(config.marks, leptoslate::MarkSet::default());
+    }
+
+    #[test]
+    fn mark_configuration_is_forwarded() {
+        let marks = leptoslate::MarkSet::new()
+            .bold("strong")
+            .italic("em")
+            .underline("u");
+        let config = RichConfig::new().with_marks(marks.clone());
+        assert_eq!(config.marks, marks);
+        assert_eq!(config.marks.bold_key(), "strong");
     }
 
     #[test]

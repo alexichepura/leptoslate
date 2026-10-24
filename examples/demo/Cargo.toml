@@ -24,5 +24,6 @@ features = [
     "FileList",
     "FileReader",
     "HtmlInputElement",
+    "Location",
     "Window",
 ]

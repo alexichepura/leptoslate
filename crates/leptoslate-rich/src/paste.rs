@@ -1,37 +1,51 @@
 //! HTML/Markdown parsing and insertion helpers for the rich preset.
 
-use leptoslate::{Editor, EditorHandle};
+use leptoslate::{Editor, EditorHandle, MarkSet};
 
 /// Parse and insert rich fragments through the rich preset parser.
 ///
 /// The core editor only inserts already-parsed [`leptoslate::Node`] fragments;
 /// HTML and Markdown parsing is owned by this crate.
 pub trait PasteTransforms {
-    /// Parse and insert an HTML fragment.
+    /// Parse and insert an HTML fragment using the default mark keys.
     fn insert_html(&mut self, html: &str);
 
-    /// Parse and insert a Markdown fragment.
+    /// Parse and insert a Markdown fragment using the default mark keys.
     fn insert_markdown(&mut self, markdown: &str);
+
+    /// Parse and insert an HTML fragment with configured mark keys.
+    fn insert_html_with_marks(&mut self, html: &str, marks: &MarkSet);
+
+    /// Parse and insert a Markdown fragment with configured mark keys.
+    fn insert_markdown_with_marks(&mut self, markdown: &str, marks: &MarkSet);
 }
 
 impl PasteTransforms for Editor {
     fn insert_html(&mut self, html: &str) {
-        let nodes = crate::fragment::parse_html(html);
-        self.insert_fragment(nodes);
+        self.insert_html_with_marks(html, &MarkSet::default());
     }
 
     fn insert_markdown(&mut self, markdown: &str) {
-        let nodes = crate::fragment::parse_markdown(markdown);
+        self.insert_markdown_with_marks(markdown, &MarkSet::default());
+    }
+
+    fn insert_html_with_marks(&mut self, html: &str, marks: &MarkSet) {
+        let nodes = crate::fragment::parse_html_with_marks(html, marks);
+        self.insert_fragment(nodes);
+    }
+
+    fn insert_markdown_with_marks(&mut self, markdown: &str, marks: &MarkSet) {
+        let nodes = crate::fragment::parse_markdown_with_marks(markdown, marks);
         self.insert_fragment(nodes);
     }
 }
 
 /// Parsing/insertion helpers on the reactive editor handle.
 pub trait PasteHandle {
-    /// Parse and insert an HTML fragment.
+    /// Parse and insert an HTML fragment using the default mark keys.
     fn insert_html(&self, html: &str);
 
-    /// Parse and insert a Markdown fragment.
+    /// Parse and insert a Markdown fragment using the default mark keys.
     fn insert_markdown(&self, markdown: &str);
 }
 

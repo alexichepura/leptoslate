@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use leptos::prelude::*;
 use leptoslate::{
-    EditablePlugin, EditorHandle, Element, FileHandler, MentionTrigger, Node, Props, Renderers,
-    Text,
+    EditablePlugin, EditorHandle, Element, FileHandler, MarkSet, MentionTrigger, Node, Props,
+    Renderers, Text,
 };
 use leptoslate_rich::{
     ListHandle, PasteHandle, RichConfig, RichEditor, TableHandle, TableTransforms,
@@ -77,6 +77,20 @@ fn image(src: &str) -> Node {
             .with_property("src", json!(src))
             .with_property("align", json!("center")),
     )
+}
+
+// Test hook: `?marks=custom` lets the browser suite exercise configurable
+// mark keys without changing the default demo configuration.
+fn custom_mark_set() -> Option<MarkSet> {
+    let search = web_sys::window()?.location().search().ok()?;
+    search.contains("marks=custom").then(|| {
+        MarkSet::new()
+            .bold("strong")
+            .italic("em")
+            .underline("u")
+            .strikethrough("del")
+            .code("mono")
+    })
 }
 
 fn focus_editor() {
@@ -398,25 +412,28 @@ fn initial_document() -> Vec<Node> {
 #[component]
 fn MarkButton(
     editor: EditorHandle,
-    mark: &'static str,
+    #[prop(into)] mark: String,
     label: &'static str,
     #[prop(optional)] title: &'static str,
 ) -> impl IntoView {
     let editor_click = editor.clone();
+    let click_mark = mark.clone();
     let active = {
         let editor = editor.clone();
+        let mark = mark.clone();
         move || {
             editor
                 .state
-                .with(|state| state.has_mark(mark, &Value::Bool(true)))
+                .with(|state| state.has_mark(&mark, &Value::Bool(true)))
         }
     };
     let pressed = {
         let editor = editor.clone();
+        let mark = mark.clone();
         move || {
             editor
                 .state
-                .with(|state| state.has_mark(mark, &Value::Bool(true)))
+                .with(|state| state.has_mark(&mark, &Value::Bool(true)))
         }
     };
     let title = if title.is_empty() { label } else { title };
@@ -429,7 +446,7 @@ fn MarkButton(
             aria-label=title
             title=title
             on:mousedown=move |ev| ev.prevent_default()
-            on:click=move |_| editor_click.toggle_mark(mark, Value::Bool(true))
+            on:click=move |_| editor_click.toggle_mark(&click_mark, Value::Bool(true))
         >
             {label}
         </button>
@@ -680,6 +697,7 @@ fn App() -> impl IntoView {
         last_change.set(json);
     });
     let renderers = demo_renderers();
+    let marks = custom_mark_set().unwrap_or_default();
     let show_json = RwSignal::new(false);
     let show_image = RwSignal::new(false);
     let image_url = RwSignal::new(String::new());
@@ -766,6 +784,7 @@ fn App() -> impl IntoView {
 
     let rich_config = RichConfig::new()
         .with_renderers(renderers)
+        .with_marks(marks.clone())
         .with_plugin(StarPlugin)
         .with_file_handler(files_handler.clone())
         .with_mention_handler(on_mention)
@@ -1049,11 +1068,11 @@ fn App() -> impl IntoView {
                     <div class="divider"></div>
 
                     <div class="group">
-                        <MarkButton editor=editor.clone() mark="bold" label="B" title="Bold (⌘B)" />
-                        <MarkButton editor=editor.clone() mark="italic" label="I" title="Italic (⌘I)" />
-                        <MarkButton editor=editor.clone() mark="underline" label="U" title="Underline (⌘U)" />
-                        <MarkButton editor=editor.clone() mark="strikethrough" label="S" title="Strikethrough" />
-                        <MarkButton editor=editor.clone() mark="code" label="<>" title="Inline code" />
+                        <MarkButton editor=editor.clone() mark=marks.bold_key().to_string() label="B" title="Bold (⌘B)" />
+                        <MarkButton editor=editor.clone() mark=marks.italic_key().to_string() label="I" title="Italic (⌘I)" />
+                        <MarkButton editor=editor.clone() mark=marks.underline_key().to_string() label="U" title="Underline (⌘U)" />
+                        <MarkButton editor=editor.clone() mark=marks.strikethrough_key().to_string() label="S" title="Strikethrough" />
+                        <MarkButton editor=editor.clone() mark=marks.code_key().to_string() label="<>" title="Inline code" />
                         <button
                             class="tool wide"
                             title="Link"

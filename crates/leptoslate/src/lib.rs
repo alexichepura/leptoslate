@@ -36,8 +36,8 @@ pub use renderers::{ElementRenderContext, Renderers};
 
 pub use leptoslate_core as core;
 pub use leptoslate_core::{
-    Affinity, Editor, Element, ElementRule, Node, Operation, Path, Point, Props, Range, Schema,
-    SlateError, Text,
+    Affinity, Editor, Element, ElementRule, MarkKind, MarkSet, Node, Operation, Path, Point, Props,
+    Range, Schema, SlateError, Text,
 };
 
 /// Base styles for the editable surface. The component injects these

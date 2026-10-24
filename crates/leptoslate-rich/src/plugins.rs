@@ -1,7 +1,7 @@
 //! Rich paste and clipboard behavior for the `leptoslate` binding.
 
 use leptos::prelude::WithUntracked;
-use leptoslate::{EditablePlugin, EditorHandle};
+use leptoslate::{EditablePlugin, EditorHandle, MarkSet};
 use web_sys::{ClipboardEvent, DragEvent, Element};
 
 const MODEL_CLIPBOARD_MIME: &str = "application/x-leptoslate+json";
@@ -10,11 +10,23 @@ const MODEL_CLIPBOARD_MIME: &str = "application/x-leptoslate+json";
 pub struct RichPastePlugin {
     pub html: bool,
     pub markdown: bool,
+    /// Property keys written for bold, italic and the other built-in marks.
+    pub marks: MarkSet,
 }
 
 impl RichPastePlugin {
     pub fn new(html: bool, markdown: bool) -> Self {
-        Self { html, markdown }
+        Self {
+            html,
+            markdown,
+            marks: MarkSet::default(),
+        }
+    }
+
+    /// Write parsed marks using the configured property keys.
+    pub fn with_marks(mut self, marks: MarkSet) -> Self {
+        self.marks = marks;
+        self
     }
 }
 
@@ -42,7 +54,7 @@ impl EditablePlugin for RichPastePlugin {
                         }
                     }
                 }
-                let nodes = crate::fragment::parse_html(&html);
+                let nodes = crate::fragment::parse_html_with_marks(&html, &self.marks);
                 if !nodes.is_empty() {
                     editor.insert_fragment(nodes);
                     return true;
@@ -53,7 +65,7 @@ impl EditablePlugin for RichPastePlugin {
         if self.markdown {
             let text = data.get_data("text/plain").unwrap_or_default();
             if !text.is_empty() {
-                let nodes = crate::fragment::parse_markdown(&text);
+                let nodes = crate::fragment::parse_markdown_with_marks(&text, &self.marks);
                 if !nodes.is_empty() {
                     editor.insert_fragment(nodes);
                     return true;
@@ -74,7 +86,7 @@ impl EditablePlugin for RichPastePlugin {
         if html.trim().is_empty() {
             return false;
         }
-        let nodes = crate::fragment::parse_html(&html);
+        let nodes = crate::fragment::parse_html_with_marks(&html, &self.marks);
         if nodes.is_empty() {
             return false;
         }

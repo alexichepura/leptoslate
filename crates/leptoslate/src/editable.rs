@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use leptos::html::Div;
 use leptos::prelude::*;
-use leptoslate_core::{Editor, Element as SlateElement, Node, Point, Range};
+use leptoslate_core::{Editor, Element as SlateElement, MarkSet, Node, Point, Range};
 use send_wrapper::SendWrapper;
 use serde_json::Value;
 use wasm_bindgen::{closure::Closure, JsCast};
@@ -49,6 +49,15 @@ pub fn Editable(
     /// Custom element renderers for application-specific blocks.
     #[prop(optional)]
     renderers: Renderers,
+    /// Property keys used for the built-in bold/italic/underline/strikethrough
+    /// and inline-code marks.
+    ///
+    /// The same set drives keyboard shortcuts, `beforeinput` formatting,
+    /// selection-bubble state and the default mark styles. Paste behavior in
+    /// `leptoslate-rich` accepts the matching configuration through
+    /// `RichConfig::with_marks`.
+    #[prop(optional)]
+    marks: MarkSet,
     /// Behavior plugins that run before the built-in event handlers.
     #[prop(optional)]
     plugins: EditablePlugins,
@@ -127,35 +136,97 @@ pub fn Editable(
     let beforeinput_editor = editor.clone();
     let beforeinput_ref = content_ref;
     let beforeinput_composing = composing;
-    let handle_beforeinput = move |ev: InputEvent| {
-        let Some(root) = beforeinput_ref.get() else {
-            return;
-        };
-        let root: &Element = root.unchecked_ref();
+    let beforeinput_marks = marks.clone();
+    let handle_beforeinput =
+        move |ev: InputEvent| {
+            let Some(root) = beforeinput_ref.get() else {
+                return;
+            };
+            let root: &Element = root.unchecked_ref();
 
-        if beforeinput_plugins
-            .iter()
-            .any(|plugin| plugin.on_beforeinput(&beforeinput_editor, &ev))
-        {
-            ev.prevent_default();
-            return;
-        }
+            if beforeinput_plugins
+                .iter()
+                .any(|plugin| plugin.on_beforeinput(&beforeinput_editor, &ev))
+            {
+                ev.prevent_default();
+                return;
+            }
 
-        if beforeinput_editor.has_node_selection() {
+            if beforeinput_editor.has_node_selection() {
+                ev.prevent_default();
+                match ev.input_type().as_str() {
+                    "insertText" | "insertReplacementText" => {
+                        if let Some(data) = ev.data() {
+                            beforeinput_editor.insert_text(&data);
+                        }
+                    }
+                    "deleteContentBackward"
+                    | "deleteContentForward"
+                    | "deleteByCut"
+                    | "insertParagraph"
+                    | "insertLineBreak" => {
+                        beforeinput_editor.delete_node_selection();
+                    }
+                    "historyUndo" => {
+                        beforeinput_editor.undo();
+                    }
+                    "historyRedo" => {
+                        beforeinput_editor.redo();
+                    }
+                    _ => {}
+                }
+                return;
+            }
+
+            sync_from_dom(&beforeinput_editor, root);
+
+            if beforeinput_composing.get_untracked() {
+                return;
+            }
+
+            let input_type = ev.input_type();
+
+            // IME composition is handled on `compositionend`.
+            if input_type.contains("Composition") {
+                return;
+            }
+
             ev.prevent_default();
-            match ev.input_type().as_str() {
+
+            match input_type.as_str() {
                 "insertText" | "insertReplacementText" => {
                     if let Some(data) = ev.data() {
-                        beforeinput_editor.insert_text(&data);
+                        if !data.is_empty() {
+                            beforeinput_editor.insert_text(&data);
+                        }
                     }
                 }
-                "deleteContentBackward"
-                | "deleteContentForward"
-                | "deleteByCut"
-                | "insertParagraph"
-                | "insertLineBreak" => {
-                    beforeinput_editor.delete_node_selection();
+                "insertParagraph" => beforeinput_editor.insert_break(),
+                "insertLineBreak" => beforeinput_editor.insert_soft_break(),
+                "deleteContentBackward" | "deleteContentForward" | "deleteByCut" => {
+                    if input_type == "deleteContentBackward" {
+                        beforeinput_editor.delete_backward();
+                    } else if input_type == "deleteContentForward" {
+                        beforeinput_editor.delete_forward();
+                    } else {
+                        beforeinput_editor.delete_selection();
+                    }
                 }
+                "deleteWordBackward" => beforeinput_editor.delete_word_backward(),
+                "deleteWordForward" => beforeinput_editor.delete_word_forward(),
+                "deleteSoftLineBackward" | "deleteHardLineBackward" => {
+                    beforeinput_editor.delete_backward()
+                }
+                "deleteSoftLineForward" | "deleteHardLineForward" => {
+                    beforeinput_editor.delete_forward()
+                }
+                "formatBold" => {
+                    beforeinput_editor.toggle_mark(beforeinput_marks.bold_key(), Value::Bool(true))
+                }
+                "formatItalic" => beforeinput_editor
+                    .toggle_mark(beforeinput_marks.italic_key(), Value::Bool(true)),
+                "formatUnderline" => beforeinput_editor
+                    .toggle_mark(beforeinput_marks.underline_key(), Value::Bool(true)),
                 "historyUndo" => {
                     beforeinput_editor.undo();
                 }
@@ -164,65 +235,10 @@ pub fn Editable(
                 }
                 _ => {}
             }
-            return;
-        }
-
-        sync_from_dom(&beforeinput_editor, root);
-
-        if beforeinput_composing.get_untracked() {
-            return;
-        }
-
-        let input_type = ev.input_type();
-
-        // IME composition is handled on `compositionend`.
-        if input_type.contains("Composition") {
-            return;
-        }
-
-        ev.prevent_default();
-
-        match input_type.as_str() {
-            "insertText" | "insertReplacementText" => {
-                if let Some(data) = ev.data() {
-                    if !data.is_empty() {
-                        beforeinput_editor.insert_text(&data);
-                    }
-                }
-            }
-            "insertParagraph" => beforeinput_editor.insert_break(),
-            "insertLineBreak" => beforeinput_editor.insert_soft_break(),
-            "deleteContentBackward" | "deleteContentForward" | "deleteByCut" => {
-                if input_type == "deleteContentBackward" {
-                    beforeinput_editor.delete_backward();
-                } else if input_type == "deleteContentForward" {
-                    beforeinput_editor.delete_forward();
-                } else {
-                    beforeinput_editor.delete_selection();
-                }
-            }
-            "deleteWordBackward" => beforeinput_editor.delete_word_backward(),
-            "deleteWordForward" => beforeinput_editor.delete_word_forward(),
-            "deleteSoftLineBackward" | "deleteHardLineBackward" => {
-                beforeinput_editor.delete_backward()
-            }
-            "deleteSoftLineForward" | "deleteHardLineForward" => {
-                beforeinput_editor.delete_forward()
-            }
-            "formatBold" => beforeinput_editor.toggle_mark("bold", Value::Bool(true)),
-            "formatItalic" => beforeinput_editor.toggle_mark("italic", Value::Bool(true)),
-            "formatUnderline" => beforeinput_editor.toggle_mark("underline", Value::Bool(true)),
-            "historyUndo" => {
-                beforeinput_editor.undo();
-            }
-            "historyRedo" => {
-                beforeinput_editor.redo();
-            }
-            _ => {}
-        }
-    };
+        };
 
     let keydown_editor = editor.clone();
+    let keydown_marks = marks.clone();
     let keydown_mention_editor = editor.clone();
     let keydown_mention_handler = on_mention;
     let keydown_mention_dismissed = mention_dismissed;
@@ -315,15 +331,15 @@ pub fn Editable(
             match lower.as_str() {
                 "b" => {
                     ev.prevent_default();
-                    keydown_editor.toggle_mark("bold", Value::Bool(true));
+                    keydown_editor.toggle_mark(keydown_marks.bold_key(), Value::Bool(true));
                 }
                 "i" => {
                     ev.prevent_default();
-                    keydown_editor.toggle_mark("italic", Value::Bool(true));
+                    keydown_editor.toggle_mark(keydown_marks.italic_key(), Value::Bool(true));
                 }
                 "u" => {
                     ev.prevent_default();
-                    keydown_editor.toggle_mark("underline", Value::Bool(true));
+                    keydown_editor.toggle_mark(keydown_marks.underline_key(), Value::Bool(true));
                 }
                 "z" => {
                     ev.prevent_default();
@@ -1051,106 +1067,64 @@ pub fn Editable(
         bubble_visible.set(true);
     });
 
-    let bubble_bold = {
-        let editor = editor.clone();
-        move |_| editor.toggle_mark("bold", Value::Bool(true))
-    };
-    let bubble_italic = {
-        let editor = editor.clone();
-        move |_| editor.toggle_mark("italic", Value::Bool(true))
-    };
-    let bubble_underline = {
-        let editor = editor.clone();
-        move |_| editor.toggle_mark("underline", Value::Bool(true))
-    };
-    let bubble_strike = {
-        let editor = editor.clone();
-        move |_| editor.toggle_mark("strikethrough", Value::Bool(true))
-    };
-    let bubble_code = {
-        let editor = editor.clone();
-        move |_| editor.toggle_mark("code", Value::Bool(true))
-    };
-    let bubble_bold_active = {
-        let editor = editor.clone();
-        move || {
-            editor
-                .state
-                .with(|state| state.has_mark("bold", &Value::Bool(true)))
-        }
-    };
-    let bubble_italic_active = {
-        let editor = editor.clone();
-        move || {
-            editor
-                .state
-                .with(|state| state.has_mark("italic", &Value::Bool(true)))
-        }
-    };
-    let bubble_underline_active = {
-        let editor = editor.clone();
-        move || {
-            editor
-                .state
-                .with(|state| state.has_mark("underline", &Value::Bool(true)))
-        }
-    };
-    let bubble_strike_active = {
-        let editor = editor.clone();
-        move || {
-            editor
-                .state
-                .with(|state| state.has_mark("strikethrough", &Value::Bool(true)))
-        }
-    };
-    let bubble_code_active = {
-        let editor = editor.clone();
-        move || {
-            editor
-                .state
-                .with(|state| state.has_mark("code", &Value::Bool(true)))
-        }
-    };
-    let bubble_bold_pressed = {
-        let editor = editor.clone();
-        move || {
-            editor
-                .state
-                .with(|state| state.has_mark("bold", &Value::Bool(true)))
-        }
-    };
-    let bubble_italic_pressed = {
-        let editor = editor.clone();
-        move || {
-            editor
-                .state
-                .with(|state| state.has_mark("italic", &Value::Bool(true)))
-        }
-    };
-    let bubble_underline_pressed = {
-        let editor = editor.clone();
-        move || {
-            editor
-                .state
-                .with(|state| state.has_mark("underline", &Value::Bool(true)))
-        }
-    };
-    let bubble_strike_pressed = {
-        let editor = editor.clone();
-        move || {
-            editor
-                .state
-                .with(|state| state.has_mark("strikethrough", &Value::Bool(true)))
-        }
-    };
-    let bubble_code_pressed = {
-        let editor = editor.clone();
-        move || {
-            editor
-                .state
-                .with(|state| state.has_mark("code", &Value::Bool(true)))
-        }
-    };
+    macro_rules! bubble_mark {
+        ($toggle:ident, $active:ident, $pressed:ident, $key:expr) => {
+            let $toggle = {
+                let editor = editor.clone();
+                let key = $key.to_string();
+                move |_| editor.toggle_mark(&key, Value::Bool(true))
+            };
+            let $active = {
+                let editor = editor.clone();
+                let key = $key.to_string();
+                move || {
+                    editor
+                        .state
+                        .with(|state| state.has_mark(&key, &Value::Bool(true)))
+                }
+            };
+            let $pressed = {
+                let editor = editor.clone();
+                let key = $key.to_string();
+                move || {
+                    editor
+                        .state
+                        .with(|state| state.has_mark(&key, &Value::Bool(true)))
+                }
+            };
+        };
+    }
+
+    bubble_mark!(
+        bubble_bold,
+        bubble_bold_active,
+        bubble_bold_pressed,
+        marks.bold_key()
+    );
+    bubble_mark!(
+        bubble_italic,
+        bubble_italic_active,
+        bubble_italic_pressed,
+        marks.italic_key()
+    );
+    bubble_mark!(
+        bubble_underline,
+        bubble_underline_active,
+        bubble_underline_pressed,
+        marks.underline_key()
+    );
+    bubble_mark!(
+        bubble_strike,
+        bubble_strike_active,
+        bubble_strike_pressed,
+        marks.strikethrough_key()
+    );
+    bubble_mark!(
+        bubble_code,
+        bubble_code_active,
+        bubble_code_pressed,
+        marks.code_key()
+    );
 
     let empty_editor = editor.clone();
     let selection_editor = editor.clone();
@@ -1244,9 +1218,11 @@ pub fn Editable(
                     children={
                         let renderers = renderers.clone();
                         let editor = render_editor.clone();
+                        let marks = marks.clone();
                         move |key: BlockKey| {
                             let renderers = renderers.clone();
                             let editor = editor.clone();
+                            let marks = marks.clone();
                             let index = key.index;
                             let node = editor
                                 .state
@@ -1259,6 +1235,7 @@ pub fn Editable(
                                             &renderers,
                                             &editor,
                                             &schema,
+                                            &marks,
                                             node,
                                             &[index],
                                         ),
