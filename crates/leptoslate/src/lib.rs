@@ -15,6 +15,7 @@
 //! [`leptoslate_core`]. This crate renders it into a `contenteditable`
 //! surface, maps DOM selections to model selections, and handles input events.
 
+mod change;
 pub mod dom;
 pub mod handle;
 mod media;
@@ -25,6 +26,7 @@ mod renderers;
 
 mod editable;
 
+pub use change::document_fingerprint;
 pub use editable::{keep_selection, select_point, Editable};
 pub use handle::EditorHandle;
 pub use media::FileHandler;

@@ -4,6 +4,8 @@
 //! batteries-included entry point whose defaults can be changed without
 //! giving up custom renderers or behavior plugins.
 
+use std::time::Duration;
+
 use leptos::prelude::*;
 pub mod fragment;
 mod list;
@@ -34,6 +36,10 @@ pub struct RichConfig {
     pub mention_handler: Option<leptoslate::MentionHandler>,
     pub list_behaviour: bool,
     pub table_behaviour: bool,
+    /// Optional document change callback, forwarded to [`leptoslate::Editable`].
+    pub on_change: Option<Callback<String>>,
+    /// Optional debounce applied to [`RichConfig::on_change`].
+    pub change_debounce: Option<Duration>,
 }
 
 impl Default for RichConfig {
@@ -52,6 +58,8 @@ impl Default for RichConfig {
             mention_handler: None,
             list_behaviour: true,
             table_behaviour: true,
+            on_change: None,
+            change_debounce: None,
         }
     }
 }
@@ -111,6 +119,24 @@ impl RichConfig {
         self
     }
 
+    /// Receive the document as Slate-shaped JSON after every content change.
+    ///
+    /// Selection-only updates are ignored. Combine with
+    /// [`RichConfig::with_change_debounce`] to coalesce rapid edits.
+    pub fn with_on_change(mut self, callback: Callback<String>) -> Self {
+        self.on_change = Some(callback);
+        self
+    }
+
+    /// Coalesce `on_change` notifications by this delay.
+    ///
+    /// A new change resets the timer, so only the latest document is
+    /// delivered. A pending update is flushed when the editor unmounts.
+    pub fn with_change_debounce(mut self, debounce: Duration) -> Self {
+        self.change_debounce = Some(debounce);
+        self
+    }
+
     /// Add a model-level feature (schema rules and normalization hooks).
     pub fn with_feature<F>(mut self, feature: F) -> Self
     where
@@ -148,6 +174,12 @@ pub fn RichEditor(
     #[prop(optional)] config: RichConfig,
     #[prop(optional, into)] class: String,
     #[prop(optional, into)] placeholder: String,
+    /// Overrides [`RichConfig::on_change`] when set.
+    #[prop(optional)]
+    on_change: MaybeProp<Callback<String>>,
+    /// Overrides [`RichConfig::change_debounce`] when set.
+    #[prop(optional)]
+    change_debounce: MaybeProp<Duration>,
 ) -> impl IntoView {
     // Features own model-level schema and normalization. Install them when the
     // editor mounts; the component body runs once per editor instance.
@@ -170,6 +202,8 @@ pub fn RichEditor(
         plugins.push(RichTablePlugin);
     }
     let renderers = rich_renderers().merge(config.renderers.clone());
+    let on_change = on_change.get_untracked().or(config.on_change);
+    let change_debounce = change_debounce.get_untracked().or(config.change_debounce);
 
     view! {
         <style>{RICH_STYLES}</style>
@@ -187,6 +221,8 @@ pub fn RichEditor(
             on_mention=config
                 .mention_handler
                 .unwrap_or_else(|| Callback::new(|_| {}))
+            on_change=on_change.into()
+            change_debounce=change_debounce.into()
         />
     }
 }
@@ -230,5 +266,17 @@ mod tests {
         assert!(!config.table_behaviour);
         assert!(!config.plugins.is_empty());
         assert!(!config.features.is_empty());
+        assert!(config.on_change.is_none());
+        assert!(config.change_debounce.is_none());
+    }
+
+    #[test]
+    fn change_notification_configuration_is_forwarded() {
+        let config = RichConfig::new().with_change_debounce(Duration::from_millis(250));
+        assert_eq!(config.change_debounce, Some(Duration::from_millis(250)));
+
+        let callback = Callback::new(|_json: String| {});
+        let config = config.with_on_change(callback);
+        assert!(config.on_change.is_some());
     }
 }

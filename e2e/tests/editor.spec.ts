@@ -428,6 +428,42 @@ test("Enter splits a block and Backspace merges it back", async ({ page }) => {
   await expectTopBlockText(page, 2, "Select some text and try the toolbar");
 });
 
+test("on_change reports content edits and ignores selection changes", async ({
+  page,
+}) => {
+  const changes = () =>
+    page.evaluate(() =>
+      JSON.parse((window as any).__leptoslate.changes()),
+    );
+
+  expect((await changes()).count).toBe(0);
+
+  await setCaret(page, "2.0", 0);
+  await page.keyboard.type("New ");
+  await expect
+    .poll(async () => (await changes()).count)
+    .toBeGreaterThan(0);
+
+  const afterTyping = await changes();
+  expect(afterTyping.last).toContain("New Select");
+  const typingCount = afterTyping.count;
+
+  // Changing only the selection must not notify.
+  await selectText(page, "2.0", 0, 3);
+  await page.waitForTimeout(150);
+  expect((await changes()).count).toBe(typingCount);
+
+  // Formatting changes the document and must notify.
+  await page.getByTitle("Bold (⌘B)").click();
+  await expect
+    .poll(async () => (await changes()).count)
+    .toBeGreaterThan(typingCount);
+
+  const afterFormatting = await changes();
+  expect(afterFormatting.count).toBe(typingCount + 1);
+  expect(afterFormatting.last).toContain('"bold":true');
+});
+
 test("the toolbar applies marks to a text selection", async ({ page }) => {
   await selectText(page, "2.0", 0, 6);
   await page.getByTitle("Bold (⌘B)").click();

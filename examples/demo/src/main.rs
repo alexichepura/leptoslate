@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use leptos::prelude::*;
 use leptoslate::{
     EditablePlugin, EditorHandle, Element, FileHandler, MentionTrigger, Node, Props, Renderers,
@@ -542,11 +544,25 @@ fn ListButton(editor: EditorHandle, list_type: &'static str, label: &'static str
     }
 }
 
-fn install_test_hook(editor: EditorHandle) {
+fn install_test_hook(
+    editor: EditorHandle,
+    change_count: RwSignal<u32>,
+    last_change: RwSignal<String>,
+) {
     let Some(window) = web_sys::window() else {
         return;
     };
     let hook = js_sys::Object::new();
+
+    let changes = Closure::<dyn Fn() -> JsValue>::new(move || {
+        let value = serde_json::json!({
+            "count": change_count.get_untracked(),
+            "last": last_change.get_untracked(),
+        });
+        JsValue::from_str(&value.to_string())
+    });
+    let _ = js_sys::Reflect::set(&hook, &"changes".into(), changes.as_ref().unchecked_ref());
+    changes.forget();
 
     let json_editor = editor.clone();
     let json = Closure::<dyn Fn() -> JsValue>::new(move || {
@@ -656,7 +672,13 @@ fn focus_toolbar_edge(ev: &KeyboardEvent, first: bool) {
 #[component]
 fn App() -> impl IntoView {
     let editor = EditorHandle::new(initial_document());
-    install_test_hook(editor.clone());
+    let change_count = RwSignal::new(0u32);
+    let last_change = RwSignal::new(String::new());
+    install_test_hook(editor.clone(), change_count, last_change);
+    let on_change = Callback::new(move |json: String| {
+        change_count.update(|count| *count += 1);
+        last_change.set(json);
+    });
     let renderers = demo_renderers();
     let show_json = RwSignal::new(false);
     let show_image = RwSignal::new(false);
@@ -746,7 +768,9 @@ fn App() -> impl IntoView {
         .with_renderers(renderers)
         .with_plugin(StarPlugin)
         .with_file_handler(files_handler.clone())
-        .with_mention_handler(on_mention);
+        .with_mention_handler(on_mention)
+        .with_on_change(on_change)
+        .with_change_debounce(Duration::from_millis(80));
 
     let position_editor = editor.clone();
     Effect::new(move |_| {
