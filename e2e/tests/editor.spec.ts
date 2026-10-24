@@ -981,6 +981,77 @@ test("custom todo state and toolbar-inserted callouts are serialized", async ({
     .toBe(2);
 });
 
+test("custom mark keys drive shortcuts, the bubble and rich paste", async ({
+  page,
+}) => {
+  await page.goto("/?marks=custom");
+  await waitForEditor(page);
+
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([{ type: "p", children: [{ text: "Custom marks" }] }]),
+  );
+
+  await selectText(page, "0.0", 0, 6);
+  const modifier = process.platform === "darwin" ? "Meta" : "Control";
+  await page.keyboard.press(`${modifier}+B`);
+
+  await expect
+    .poll(async () => (await getJson(page))[0].children?.[0].strong)
+    .toBe(true);
+  const json = await getJson(page);
+  expect(json[0].children?.[0].bold).toBeUndefined();
+
+  const bubble = page.locator(".ls-selection-bubble");
+  await expect(bubble).toHaveClass(/visible/);
+  const bold = bubble.locator('button[title="Bold"]');
+  await expect(bold).toHaveClass(/active/);
+
+  await bold.click();
+  await expect
+    .poll(async () => (await getJson(page))[0].children?.[0].strong)
+    .toBeUndefined();
+
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([{ type: "p", children: [{ text: "" }] }]),
+  );
+  await setCaret(page, "0.0", 0);
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData(
+      "text/html",
+      '<p><strong>Bold</strong> and <em>Italic</em> and <span data-marks="bold">Alias</span></p>',
+    );
+    data.setData("text/plain", "Bold and Italic and Alias");
+    document.querySelector(".ls-editor")!.dispatchEvent(
+      new ClipboardEvent("paste", {
+        clipboardData: data,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  });
+
+  await expect
+    .poll(async () => {
+      const node = (await getJson(page))[0];
+      return (node.children ?? []).map((child) => ({
+        text: child.text ?? "",
+        strong: child.strong,
+        em: child.em,
+        bold: child.bold,
+      }));
+    })
+    .toEqual([
+      { text: "Bold", strong: true, em: undefined, bold: undefined },
+      { text: " and ", strong: undefined, em: undefined, bold: undefined },
+      { text: "Italic", strong: undefined, em: true, bold: undefined },
+      { text: " and ", strong: undefined, em: undefined, bold: undefined },
+      { text: "Alias", strong: true, em: undefined, bold: undefined },
+    ]);
+});
+
 test("links can be applied to a selection and removed", async ({ page }) => {
   await selectText(page, "2.0", 0, 6);
   await page.getByRole("button", { name: "Link", exact: true }).click();

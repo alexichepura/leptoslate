@@ -3,7 +3,7 @@
 use serde_json::json;
 use tl::{NodeHandle, Parser};
 
-use leptoslate::core::{is_safe_href, is_safe_image_src};
+use leptoslate::core::{is_safe_href, is_safe_image_src, MarkKind, MarkSet};
 use leptoslate::{Element, Node, Props, Text};
 
 fn marks_with(marks: &Props, key: &str) -> Props {
@@ -56,24 +56,33 @@ fn attr(tag: &tl::HTMLTag<'_>, parser: &Parser<'_>, key: &str) -> Option<String>
         .filter(|value| !value.is_empty())
 }
 
-/// Parse an HTML fragment into block nodes.
+/// Parse an HTML fragment into block nodes using the default mark keys.
 ///
 /// Common rich-text tags are supported: paragraphs, headings, lists,
 /// blockquotes, code blocks, links, emphasis, line breaks, images and rules.
 pub fn parse_html(html: &str) -> Vec<Node> {
+    parse_html_with_marks(html, &MarkSet::default())
+}
+
+/// Parse an HTML fragment, writing marks with the configured property keys.
+///
+/// Conventional property names in `data-marks` attributes and inline styles
+/// are still accepted and resolve to the configured keys.
+pub fn parse_html_with_marks(html: &str, marks: &MarkSet) -> Vec<Node> {
     let Ok(dom) = tl::parse(html, tl::ParserOptions::default()) else {
         return Vec::new();
     };
     let parser = dom.parser();
-    let builder = HtmlFragment { parser };
+    let builder = HtmlFragment { parser, marks };
     builder.blocks(dom.children())
 }
 
-struct HtmlFragment<'a, 'p> {
+struct HtmlFragment<'a, 'p, 'm> {
     parser: &'p Parser<'a>,
+    marks: &'m MarkSet,
 }
 
-impl<'a, 'p> HtmlFragment<'a, 'p> {
+impl<'a, 'p, 'm> HtmlFragment<'a, 'p, 'm> {
     fn blocks(&self, handles: &[NodeHandle]) -> Vec<Node> {
         let mut blocks = Vec::new();
         let mut inline = Vec::new();
@@ -134,13 +143,20 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
 
     fn inline(&self, tag: &tl::HTMLTag<'a>, name: &str, marks: &Props) -> Vec<Node> {
         match name {
-            "strong" | "b" => self.inline_children(tag, &marks_with(marks, "bold")),
-            "em" | "i" => self.inline_children(tag, &marks_with(marks, "italic")),
-            "u" => self.inline_children(tag, &marks_with(marks, "underline")),
-            "s" | "strike" | "del" => {
-                self.inline_children(tag, &marks_with(marks, "strikethrough"))
+            "strong" | "b" => {
+                self.inline_children(tag, &marks_with(marks, self.marks.key(MarkKind::Bold)))
             }
-            "code" => self.inline_children(tag, &marks_with(marks, "code")),
+            "em" | "i" => {
+                self.inline_children(tag, &marks_with(marks, self.marks.key(MarkKind::Italic)))
+            }
+            "u" => {
+                self.inline_children(tag, &marks_with(marks, self.marks.key(MarkKind::Underline)))
+            }
+            "s" | "strike" | "del" => self.inline_children(
+                tag,
+                &marks_with(marks, self.marks.key(MarkKind::Strikethrough)),
+            ),
+            "code" => self.inline_children(tag, &marks_with(marks, self.marks.key(MarkKind::Code))),
             "sup" => self.inline_children(tag, &marks_with(marks, "superscript")),
             "sub" => self.inline_children(tag, &marks_with(marks, "subscript")),
             "br" => vec![Node::text("\n")],
@@ -204,6 +220,7 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
             for key in value.split(',') {
                 let key = key.trim();
                 if !key.is_empty() {
+                    let key = self.marks.resolve(key).unwrap_or(key);
                     marks.insert(key.to_string(), json!(true));
                 }
             }
@@ -223,22 +240,22 @@ impl<'a, 'p> HtmlFragment<'a, 'p> {
                                 .map(|weight| weight >= 600)
                                 .unwrap_or(false)
                         {
-                            marks.insert("bold".into(), json!(true));
+                            marks.insert(self.marks.bold_key().into(), json!(true));
                         }
                     }
                     "font-style" if value.eq_ignore_ascii_case("italic") => {
-                        marks.insert("italic".into(), json!(true));
+                        marks.insert(self.marks.italic_key().into(), json!(true));
                     }
                     "text-decoration" | "text-decoration-line" => {
                         if value.contains("underline") {
-                            marks.insert("underline".into(), json!(true));
+                            marks.insert(self.marks.underline_key().into(), json!(true));
                         }
                         if value.contains("line-through") {
-                            marks.insert("strikethrough".into(), json!(true));
+                            marks.insert(self.marks.strikethrough_key().into(), json!(true));
                         }
                     }
                     "font-family" if value.contains("monospace") || value.contains("Menlo") => {
-                        marks.insert("code".into(), json!(true));
+                        marks.insert(self.marks.code_key().into(), json!(true));
                     }
                     "vertical-align" if value.eq_ignore_ascii_case("super") => {
                         marks.insert("superscript".into(), json!(true));
@@ -575,11 +592,16 @@ fn is_block(name: &str) -> bool {
     )
 }
 
-/// Parse a Markdown fragment into blocks.
+/// Parse a Markdown fragment into blocks using the default mark keys.
 ///
 /// Supports headings, paragraphs, flat lists, blockquotes, fenced code,
 /// horizontal rules and common inline marks/links.
 pub fn parse_markdown(markdown: &str) -> Vec<Node> {
+    parse_markdown_with_marks(markdown, &MarkSet::default())
+}
+
+/// Parse a Markdown fragment, writing marks with the configured property keys.
+pub fn parse_markdown_with_marks(markdown: &str, marks: &MarkSet) -> Vec<Node> {
     let text = markdown.replace("\r\n", "\n").replace('\r', "\n");
     let lines: Vec<&str> = text.split('\n').collect();
     let mut blocks = Vec::new();
@@ -607,7 +629,7 @@ pub fn parse_markdown(markdown: &str) -> Vec<Node> {
             let element_type = format!("h{level}");
             blocks.push(Node::Element(Element::new(
                 element_type,
-                inline_markdown(content, &Props::new()),
+                inline_markdown(content, marks, &Props::new()),
             )));
             index += 1;
             continue;
@@ -628,7 +650,7 @@ pub fn parse_markdown(markdown: &str) -> Vec<Node> {
                 inner.push('\n');
                 index += 1;
             }
-            let parsed = parse_markdown(&inner);
+            let parsed = parse_markdown_with_marks(&inner, marks);
             if parsed.len() == 1 {
                 if let Node::Element(element) = &parsed[0] {
                     if element.element_type == "p" {
@@ -646,7 +668,7 @@ pub fn parse_markdown(markdown: &str) -> Vec<Node> {
 
         if list_marker(trimmed).is_some() {
             let indent = indentation(line);
-            blocks.push(parse_markdown_list(&lines, &mut index, indent));
+            blocks.push(parse_markdown_list(&lines, &mut index, indent, marks));
             continue;
         }
 
@@ -672,7 +694,7 @@ pub fn parse_markdown(markdown: &str) -> Vec<Node> {
         if !paragraph.is_empty() {
             blocks.push(Node::Element(Element::new(
                 "p",
-                inline_markdown(&paragraph, &Props::new()),
+                inline_markdown(&paragraph, marks, &Props::new()),
             )));
         }
     }
@@ -684,7 +706,7 @@ fn indentation(line: &str) -> usize {
     line.len() - line.trim_start_matches(' ').len()
 }
 
-fn parse_markdown_list(lines: &[&str], index: &mut usize, indent: usize) -> Node {
+fn parse_markdown_list(lines: &[&str], index: &mut usize, indent: usize, marks: &MarkSet) -> Node {
     let first = lines[*index];
     let Some(ordered) = first.get(indent..).and_then(list_marker) else {
         return Node::Element(Element::new("ul", vec![]));
@@ -705,7 +727,11 @@ fn parse_markdown_list(lines: &[&str], index: &mut usize, indent: usize) -> Node
             break;
         }
 
-        let mut inline = inline_markdown(list_content(content).unwrap_or(content), &Props::new());
+        let mut inline = inline_markdown(
+            list_content(content).unwrap_or(content),
+            marks,
+            &Props::new(),
+        );
         *index += 1;
         let mut nested = Vec::new();
 
@@ -720,13 +746,13 @@ fn parse_markdown_list(lines: &[&str], index: &mut usize, indent: usize) -> Node
             }
             let next_content = &next[next_indent..];
             if list_marker(next_content).is_some() {
-                nested.push(parse_markdown_list(lines, index, next_indent));
+                nested.push(parse_markdown_list(lines, index, next_indent, marks));
             } else {
                 // Treat an indented continuation as another run of inline content.
                 if !inline.is_empty() {
                     inline.push(Node::text(" "));
                 }
-                inline.extend(inline_markdown(next.trim(), &Props::new()));
+                inline.extend(inline_markdown(next.trim(), marks, &Props::new()));
                 *index += 1;
             }
         }
@@ -815,7 +841,7 @@ fn list_content(line: &str) -> Option<&str> {
     line.get(digits..)?.strip_prefix(". ")
 }
 
-fn inline_markdown(text: &str, marks: &Props) -> Vec<Node> {
+fn inline_markdown(text: &str, mark_set: &MarkSet, properties: &Props) -> Vec<Node> {
     let mut out = Vec::new();
     let mut index = 0;
     let mut buffer = String::new();
@@ -823,28 +849,29 @@ fn inline_markdown(text: &str, marks: &Props) -> Vec<Node> {
     while index < text.len() {
         let rest = &text[index..];
 
-        if let Some((mark, delimiter)) = inline_delimiter(rest) {
+        if let Some((kind, delimiter)) = inline_delimiter(rest) {
             let content_start = index + delimiter.len();
             if let Some(end) = text[content_start..].find(delimiter) {
                 let content = &text[content_start..content_start + end];
                 if !buffer.is_empty() {
-                    push_text(&mut out, &buffer, marks, false);
+                    push_text(&mut out, &buffer, properties, false);
                     buffer.clear();
                 }
-                let next_marks = if mark == "code" {
-                    let mut properties = marks.clone();
-                    properties.insert("code".into(), json!(true));
+                let key = mark_set.key(kind);
+                let next_properties = if kind == MarkKind::Code {
+                    let mut properties = properties.clone();
+                    properties.insert(key.into(), json!(true));
                     properties
                 } else {
-                    marks_with(marks, mark)
+                    marks_with(properties, key)
                 };
-                if mark == "code" {
+                if kind == MarkKind::Code {
                     out.push(Node::Text(Text {
                         text: content.to_string(),
-                        properties: next_marks,
+                        properties: next_properties,
                     }));
                 } else {
-                    out.extend(inline_markdown(content, &next_marks));
+                    out.extend(inline_markdown(content, mark_set, &next_properties));
                 }
                 index = content_start + end + delimiter.len();
                 continue;
@@ -857,10 +884,10 @@ fn inline_markdown(text: &str, marks: &Props) -> Vec<Node> {
                     let label = &rest[1..close];
                     let href = &rest[close + 2..close + 2 + end];
                     if !buffer.is_empty() {
-                        push_text(&mut out, &buffer, marks, false);
+                        push_text(&mut out, &buffer, properties, false);
                         buffer.clear();
                     }
-                    let children = inline_markdown(label, marks);
+                    let children = inline_markdown(label, mark_set, properties);
                     out.push(Node::Element(
                         Element::new("a", children).with_property("href", json!(href)),
                     ));
@@ -876,24 +903,24 @@ fn inline_markdown(text: &str, marks: &Props) -> Vec<Node> {
     }
 
     if !buffer.is_empty() {
-        push_text(&mut out, &buffer, marks, false);
+        push_text(&mut out, &buffer, properties, false);
     }
     out
 }
 
-fn inline_delimiter(text: &str) -> Option<(&'static str, &'static str)> {
+fn inline_delimiter(text: &str) -> Option<(MarkKind, &'static str)> {
     if text.starts_with("**") {
-        Some(("bold", "**"))
+        Some((MarkKind::Bold, "**"))
     } else if text.starts_with("__") {
-        Some(("bold", "__"))
+        Some((MarkKind::Bold, "__"))
     } else if text.starts_with("~~") {
-        Some(("strikethrough", "~~"))
+        Some((MarkKind::Strikethrough, "~~"))
     } else if text.starts_with('*') {
-        Some(("italic", "*"))
+        Some((MarkKind::Italic, "*"))
     } else if text.starts_with('_') {
-        Some(("italic", "_"))
+        Some((MarkKind::Italic, "_"))
     } else if text.starts_with('`') {
-        Some(("code", "`"))
+        Some((MarkKind::Code, "`"))
     } else {
         None
     }

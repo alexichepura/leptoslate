@@ -254,3 +254,101 @@ fn insert_html_and_markdown_use_the_rich_parser() {
             .unwrap_or(false)
     }));
 }
+
+#[test]
+fn custom_mark_keys_drive_html_and_markdown_imports() {
+    use leptoslate::core::MarkSet;
+    use leptoslate_rich::fragment::{parse_html_with_marks, parse_markdown_with_marks};
+
+    let marks = MarkSet::new()
+        .bold("strong")
+        .italic("em")
+        .underline("u")
+        .strikethrough("del")
+        .code("mono");
+
+    let html = parse_html_with_marks(
+        "<p><strong>B</strong><em>I</em><u>U</u><s>S</s><code>C</code></p>",
+        &marks,
+    );
+    let children = html[0].children();
+    let property = |index: usize, key: &str| {
+        children[index]
+            .as_text()
+            .and_then(|text| text.properties.get(key))
+            .cloned()
+    };
+    assert_eq!(property(0, "strong"), Some(serde_json::json!(true)));
+    assert_eq!(property(1, "em"), Some(serde_json::json!(true)));
+    assert_eq!(property(2, "u"), Some(serde_json::json!(true)));
+    assert_eq!(property(3, "del"), Some(serde_json::json!(true)));
+    assert_eq!(property(4, "mono"), Some(serde_json::json!(true)));
+    for conventional in ["bold", "italic", "underline", "strikethrough", "code"] {
+        assert!(children
+            .iter()
+            .all(|child| child.properties().get(conventional).is_none()));
+    }
+
+    // Conventional names in copied span attributes and styles remain valid
+    // input aliases and resolve to the configured output keys.
+    let aliased = parse_html_with_marks(
+        r#"<p><span data-marks="bold,italic">A</span><span style="font-weight:700;text-decoration:underline">B</span></p>"#,
+        &marks,
+    );
+    let first = aliased[0].children()[0].as_text().unwrap();
+    assert_eq!(
+        first.properties.get("strong"),
+        Some(&serde_json::json!(true))
+    );
+    assert_eq!(first.properties.get("em"), Some(&serde_json::json!(true)));
+    let second = aliased[0].children()[1].as_text().unwrap();
+    assert_eq!(
+        second.properties.get("strong"),
+        Some(&serde_json::json!(true))
+    );
+    assert_eq!(second.properties.get("u"), Some(&serde_json::json!(true)));
+
+    let markdown = parse_markdown_with_marks("**B** *I* `C` ~~S~~", &marks);
+    let text = markdown[0].children()[0].as_text().unwrap();
+    assert_eq!(
+        text.properties.get("strong"),
+        Some(&serde_json::json!(true))
+    );
+    let text = markdown[0].children()[1].as_text().unwrap();
+    assert_eq!(text.text, " ");
+    let text = markdown[0].children()[2].as_text().unwrap();
+    assert_eq!(text.properties.get("em"), Some(&serde_json::json!(true)));
+    let text = markdown[0].children()[4].as_text().unwrap();
+    assert_eq!(text.properties.get("mono"), Some(&serde_json::json!(true)));
+    let text = markdown[0].children()[6].as_text().unwrap();
+    assert_eq!(text.properties.get("del"), Some(&serde_json::json!(true)));
+}
+
+#[test]
+fn additional_mark_aliases_are_accepted_on_import() {
+    use leptoslate::core::{MarkKind, MarkSet};
+    use leptoslate_rich::fragment::parse_html_with_marks;
+
+    let marks = MarkSet::new().bold("strong").alias("heavy", MarkKind::Bold);
+    let nodes = parse_html_with_marks(
+        r#"<p><span data-marks="heavy">A</span><span data-marks="bold">B</span></p>"#,
+        &marks,
+    );
+
+    assert_eq!(
+        nodes[0].children()[0]
+            .as_text()
+            .unwrap()
+            .properties
+            .get("strong"),
+        Some(&serde_json::json!(true))
+    );
+    assert_eq!(
+        nodes[0].children()[1]
+            .as_text()
+            .unwrap()
+            .properties
+            .get("strong"),
+        Some(&serde_json::json!(true))
+    );
+}

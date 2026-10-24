@@ -25,6 +25,7 @@
 
 pub mod error;
 pub mod feature;
+pub mod marks;
 pub mod node;
 pub mod operation;
 pub mod path;
@@ -44,6 +45,7 @@ pub use editor::Editor;
 pub use error::SlateError;
 pub use feature::{Feature, FeatureSet};
 pub use history::{History, HistoryBatch};
+pub use marks::{MarkKind, MarkSet};
 pub use node::{Element, Node, Text};
 pub use operation::Operation;
 pub use path::Affinity;
@@ -58,7 +60,7 @@ pub type Path = Vec<usize>;
 
 pub mod prelude {
     pub use crate::{
-        Affinity, Editor, Element, ElementRule, Node, Operation, Path, Point, Props, Range, Schema,
-        SlateError, Text,
+        Affinity, Editor, Element, ElementRule, MarkKind, MarkSet, Node, Operation, Path, Point,
+        Props, Range, Schema, SlateError, Text,
     };
 }

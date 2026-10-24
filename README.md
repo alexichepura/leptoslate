@@ -52,6 +52,7 @@ examples/
 - Structured table blocks (`table`, `thead`, `tbody`, `tfoot`, `tr`, `th`, `td`) with semantic rendering
 - Table creation plus row/column authoring controls in the demo
 - Pluggable element, text and mark renderers for application-specific blocks and styling
+- Configurable mark property keys (`MarkSet`) shared by paste, shortcuts, the bubble and default styles
 - Composable `EditablePlugin` hooks for keydown, beforeinput, paste, copy, cut and drop behavior
 - Core `Feature`/`FeatureSet` hooks for schema rules, normalizer operations and structural behavior
 - Configurable `RichEditor` preset: rich paste/clipboard, list/table transforms, schema, renderers and styles
@@ -243,6 +244,53 @@ let renderers = Renderers::new()
 ```
 
 `TextRenderContext` includes the text, its marks, path, `data-text-path` value, default class and default mark CSS. The library wraps custom text views in a `data-text-path` span automatically; keep the original text contiguous inside the custom view so DOM offsets continue to map to document offsets. A mark style callback may return an empty string to suppress a built-in style.
+
+### Configurable mark keys
+
+Marks are ordinary text properties, so applications that store bold as
+`strong`, italic as `em`, or underline as `u` can configure all built-in paths
+at once:
+
+```rust
+use leptoslate_rich::prelude::*;
+
+let marks = MarkSet::new()
+    .bold("strong")
+    .italic("em")
+    .underline("u");
+
+let config = RichConfig::new().with_marks(marks.clone());
+view! { <RichEditor editor=editor config=config /> }
+```
+
+With base `Editable`, pass the same set directly:
+
+```rust
+view! { <Editable editor=editor marks=marks /> }
+```
+
+`MarkSet` covers bold, italic, underline, strikethrough and inline code. The
+configured keys are used by rich HTML/Markdown paste, `⌘/Ctrl+B/I/U`,
+`beforeinput` `format*` events, the selection bubble, and the default mark
+styles. Strikethrough and code keep their conventional keys unless overridden.
+Defaults (`bold`, `italic`, `underline`, `strikethrough`, `code`) are unchanged
+when no set is provided.
+
+Imports remain tolerant: the conventional Slate names and any custom aliases
+are accepted in pasted `data-marks`, inline CSS and Markdown, while new
+documents always use the configured keys. Add extra input names with
+`MarkSet::alias`:
+
+```rust
+let marks = MarkSet::new()
+    .bold("strong")
+    .alias("heavy", MarkKind::Bold);
+```
+
+`MarkSet`, `MarkKind`, `parse_html_with_marks` and
+`parse_markdown_with_marks` are public for applications that parse fragments
+outside the preset. Custom mark styles registered with `Renderers::mark_style`
+should use the configured key.
 
 Insert custom blocks with the core API:
 

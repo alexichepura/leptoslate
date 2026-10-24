@@ -3,7 +3,7 @@
 use leptos::prelude::*;
 use leptoslate_core::{
     props::{get_bool, get_str},
-    Element, Node, Props, Schema, Text,
+    Element, MarkKind, MarkSet, Node, Props, Schema, Text,
 };
 use web_sys::MouseEvent;
 
@@ -17,17 +17,18 @@ pub(crate) fn render_node(
     renderers: &Renderers,
     editor: &EditorHandle,
     schema: &Schema,
+    marks: &MarkSet,
     node: &Node,
     path: &[usize],
 ) -> AnyView {
     match node {
-        Node::Text(text) => render_text(renderers, text, path),
-        Node::Element(element) => render_element(renderers, editor, schema, element, path),
+        Node::Text(text) => render_text(renderers, marks, text, path),
+        Node::Element(element) => render_element(renderers, editor, schema, marks, element, path),
     }
 }
 
-fn render_text(renderers: &Renderers, text: &Text, path: &[usize]) -> AnyView {
-    let style = mark_style(&text.properties, renderers);
+fn render_text(renderers: &Renderers, marks: &MarkSet, text: &Text, path: &[usize]) -> AnyView {
+    let style = mark_style(&text.properties, renderers, marks);
     let class = "ls-text".to_string();
     let text_path = path_string(path);
     let marks = data_marks(&text.properties);
@@ -70,6 +71,7 @@ fn render_element(
     renderers: &Renderers,
     editor: &EditorHandle,
     schema: &Schema,
+    marks: &MarkSet,
     element: &Element,
     path: &[usize],
 ) -> AnyView {
@@ -91,7 +93,7 @@ fn render_element(
             .map(|(index, child)| {
                 let mut child_path = path.to_vec();
                 child_path.push(index);
-                render_node(renderers, editor, schema, child, &child_path)
+                render_node(renderers, editor, schema, marks, child, &child_path)
             })
             .collect()
     };
@@ -370,21 +372,39 @@ fn render_void(
     }
 }
 
-fn mark_style(properties: &Props, renderers: &Renderers) -> String {
+fn mark_style(properties: &Props, renderers: &Renderers, marks: &MarkSet) -> String {
     let mut styles: Vec<String> = Vec::new();
 
-    let known = [
-        "bold",
-        "italic",
-        "underline",
-        "strikethrough",
-        "code",
-        "superscript",
-        "subscript",
-        "color",
-        "background",
-    ];
-    for key in known {
+    for kind in MarkKind::ALL {
+        let key = marks.key(kind);
+        let Some(value) = properties.get(key) else {
+            continue;
+        };
+        if let Some(style) = renderers.custom_mark_style(key) {
+            let style = style(value);
+            if !style.is_empty() {
+                styles.push(style);
+            }
+            continue;
+        }
+        if !get_bool(properties, key) {
+            continue;
+        }
+        match kind {
+            MarkKind::Bold => styles.push("font-weight:700".into()),
+            MarkKind::Italic => styles.push("font-style:italic".into()),
+            MarkKind::Underline => styles.push("text-decoration-line:underline".into()),
+            MarkKind::Strikethrough => styles.push("text-decoration-line:line-through".into()),
+            MarkKind::Code => {
+                styles.push("font-family:ui-monospace,SFMono-Regular,Menlo,monospace".into());
+                styles.push("background:rgba(127,127,127,.14)".into());
+                styles.push("border-radius:3px".into());
+                styles.push("padding:0 2px".into());
+            }
+        }
+    }
+
+    for key in ["superscript", "subscript", "color", "background"] {
         let Some(value) = properties.get(key) else {
             continue;
         };
@@ -396,20 +416,6 @@ fn mark_style(properties: &Props, renderers: &Renderers) -> String {
             continue;
         }
         match key {
-            "bold" if get_bool(properties, "bold") => styles.push("font-weight:700".into()),
-            "italic" if get_bool(properties, "italic") => styles.push("font-style:italic".into()),
-            "underline" if get_bool(properties, "underline") => {
-                styles.push("text-decoration-line:underline".into())
-            }
-            "strikethrough" if get_bool(properties, "strikethrough") => {
-                styles.push("text-decoration-line:line-through".into())
-            }
-            "code" if get_bool(properties, "code") => {
-                styles.push("font-family:ui-monospace,SFMono-Regular,Menlo,monospace".into());
-                styles.push("background:rgba(127,127,127,.14)".into());
-                styles.push("border-radius:3px".into());
-                styles.push("padding:0 2px".into());
-            }
             "superscript" if get_bool(properties, "superscript") => {
                 styles.push("vertical-align:super".into());
                 styles.push("font-size:.75em".into());
@@ -437,7 +443,12 @@ fn mark_style(properties: &Props, renderers: &Renderers) -> String {
     }
 
     for key in renderers.custom_mark_keys() {
-        if known.contains(&key.as_str()) {
+        if marks.keys().contains(&key.as_str())
+            || matches!(
+                key.as_str(),
+                "superscript" | "subscript" | "color" | "background"
+            )
+        {
             continue;
         }
         let Some(value) = properties.get(&key) else {
@@ -467,7 +478,7 @@ fn safe_color(value: &str) -> bool {
 mod tests {
     use super::mark_style;
     use crate::Renderers;
-    use leptoslate_core::Props;
+    use leptoslate_core::{MarkSet, Props};
     use serde_json::json;
 
     #[test]
@@ -485,8 +496,35 @@ mod tests {
             });
 
         assert_eq!(
-            mark_style(&properties, &renderers),
+            mark_style(&properties, &renderers, &MarkSet::new()),
             "font-weight:900;background:yellow"
+        );
+    }
+
+    #[test]
+    fn configured_mark_keys_drive_default_styles() {
+        let marks = MarkSet::new()
+            .bold("strong")
+            .italic("em")
+            .underline("u")
+            .strikethrough("del")
+            .code("mono");
+
+        let mut properties = Props::new();
+        properties.insert("strong".into(), json!(true));
+        properties.insert("em".into(), json!(true));
+        properties.insert("u".into(), json!(true));
+        properties.insert("del".into(), json!(true));
+        properties.insert("mono".into(), json!(true));
+        // The conventional keys are no longer styled once configured.
+        properties.insert("bold".into(), json!(true));
+
+        assert_eq!(
+            mark_style(&properties, &Renderers::new(), &marks),
+            "font-weight:700;font-style:italic;text-decoration-line:underline;\
+             text-decoration-line:line-through;\
+             font-family:ui-monospace,SFMono-Regular,Menlo,monospace;\
+             background:rgba(127,127,127,.14);border-radius:3px;padding:0 2px"
         );
     }
 }
