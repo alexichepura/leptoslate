@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use leptos::prelude::*;
 use leptoslate::{
-    EditablePlugin, EditorHandle, Element, FileHandler, MarkSet, MentionTrigger, Node, Props,
-    Renderers, Text,
+    EditablePlugin, EditorHandle, Element, FileHandler, MarkSet, MentionTrigger, Node,
+    PropertyPath, Props, Renderers, Text,
 };
 use leptoslate_rich::{
     ListHandle, PasteHandle, RichConfig, RichEditor, TableHandle, TableTransforms,
@@ -91,6 +91,14 @@ fn custom_mark_set() -> Option<MarkSet> {
             .strikethrough("del")
             .code("mono")
     })
+}
+
+// Test hook: `?links=nested` exercises a nested link property path.
+fn custom_link_property() -> Option<PropertyPath> {
+    let search = web_sys::window()?.location().search().ok()?;
+    search
+        .contains("links=nested")
+        .then(|| PropertyPath::new("attributes.href"))
 }
 
 fn focus_editor() {
@@ -782,7 +790,7 @@ fn App() -> impl IntoView {
         drop_listener.remove();
     });
 
-    let rich_config = RichConfig::new()
+    let mut rich_config = RichConfig::new()
         .with_renderers(renderers)
         .with_marks(marks.clone())
         .with_plugin(StarPlugin)
@@ -790,6 +798,9 @@ fn App() -> impl IntoView {
         .with_mention_handler(on_mention)
         .with_on_change(on_change)
         .with_change_debounce(Duration::from_millis(80));
+    if let Some(link_property) = custom_link_property() {
+        rich_config = rich_config.with_link_property(link_property);
+    }
 
     let position_editor = editor.clone();
     Effect::new(move |_| {

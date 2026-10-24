@@ -8,6 +8,7 @@ use crate::{
     operation::Operation,
     path::{self, Affinity},
     point::Point,
+    property::PropertyPath,
     props::{merge as merge_props, Props},
     range::Range,
     schema::Schema,
@@ -49,6 +50,9 @@ pub struct Editor {
     /// The focus end of a multi-block node selection.
     pub node_selection_end: Option<path::Path>,
     pub marks: Option<Props>,
+    /// Dotted property path used to store link targets, e.g. `href` (default)
+    /// or `attributes.href`.
+    pub link_property: PropertyPath,
     pub schema: Schema,
     pub history: History,
     batch: Option<PendingBatch>,
@@ -84,6 +88,7 @@ impl Editor {
             node_selection: None,
             node_selection_end: None,
             marks: None,
+            link_property: PropertyPath::default(),
             schema: Schema::default(),
             history: History::default(),
             batch: None,
@@ -114,6 +119,18 @@ impl Editor {
     pub fn set_schema(&mut self, schema: Schema) {
         self.schema = schema;
         self.normalize();
+    }
+
+    /// Configure where link targets are stored: `href` by default, or a dotted
+    /// path such as `attributes.href`.
+    pub fn with_link_property(mut self, property: PropertyPath) -> Self {
+        self.link_property = property;
+        self
+    }
+
+    /// Configure where link targets are stored.
+    pub fn set_link_property(&mut self, property: PropertyPath) {
+        self.link_property = property;
     }
 
     /// Attach a document feature, install its schema rules, and normalize.

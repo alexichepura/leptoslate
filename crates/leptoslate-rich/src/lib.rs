@@ -35,6 +35,8 @@ pub struct RichConfig {
     /// Property keys used for the built-in bold/italic/underline/strikethrough
     /// and inline-code marks.
     pub marks: leptoslate::MarkSet,
+    /// Dotted property path used to store link targets (`href` by default).
+    pub link_property: leptoslate::PropertyPath,
     pub file_handler: Option<leptoslate::FileHandler>,
     pub mention_handler: Option<leptoslate::MentionHandler>,
     pub list_behaviour: bool,
@@ -58,6 +60,7 @@ impl Default for RichConfig {
                 .with(RichListFeature)
                 .with(RichTableFeature),
             marks: leptoslate::MarkSet::default(),
+            link_property: leptoslate::PropertyPath::default(),
             file_handler: None,
             mention_handler: None,
             list_behaviour: true,
@@ -106,6 +109,17 @@ impl RichConfig {
     /// conventional names remain accepted on input.
     pub fn with_marks(mut self, marks: leptoslate::MarkSet) -> Self {
         self.marks = marks;
+        self
+    }
+
+    /// Store link targets at a dotted property path.
+    ///
+    /// The default is the flat `href` property. Use a path such as
+    /// `attributes.href` for documents that keep links in a nested object.
+    /// The setting applies to link editing and rendering on the editor and to
+    /// links created by rich paste.
+    pub fn with_link_property(mut self, property: leptoslate::PropertyPath) -> Self {
+        self.link_property = property;
         self
     }
 
@@ -201,13 +215,17 @@ pub fn RichEditor(
     let feature_editor = editor.clone();
     let features = config.features.clone();
     feature_editor.update(|editor| editor.set_features(features));
+    let link_editor = editor.clone();
+    let link_property = config.link_property.clone();
+    link_editor.update(|editor| editor.set_link_property(link_property));
 
     let mut plugins = config.plugins.clone();
     plugins.push(RichClipboardPlugin);
     if config.paste_html || config.paste_markdown {
         plugins.push(
             RichPastePlugin::new(config.paste_html, config.paste_markdown)
-                .with_marks(config.marks.clone()),
+                .with_marks(config.marks.clone())
+                .with_link_property(config.link_property.clone()),
         );
     }
     if config.list_behaviour {
@@ -285,6 +303,7 @@ mod tests {
         assert!(config.on_change.is_none());
         assert!(config.change_debounce.is_none());
         assert_eq!(config.marks, leptoslate::MarkSet::default());
+        assert_eq!(config.link_property, leptoslate::PropertyPath::default());
     }
 
     #[test]
@@ -296,6 +315,13 @@ mod tests {
         let config = RichConfig::new().with_marks(marks.clone());
         assert_eq!(config.marks, marks);
         assert_eq!(config.marks.bold_key(), "strong");
+    }
+
+    #[test]
+    fn link_property_configuration_is_forwarded() {
+        let property = leptoslate::PropertyPath::new("attributes.href");
+        let config = RichConfig::new().with_link_property(property.clone());
+        assert_eq!(config.link_property, property);
     }
 
     #[test]

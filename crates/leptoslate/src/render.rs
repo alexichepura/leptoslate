@@ -3,7 +3,7 @@
 use leptos::prelude::*;
 use leptoslate_core::{
     props::{get_bool, get_str},
-    Element, MarkKind, MarkSet, Node, Props, Schema, Text,
+    Element, MarkKind, MarkSet, Node, PropertyPath, Props, Schema, Text,
 };
 use web_sys::MouseEvent;
 
@@ -129,6 +129,9 @@ fn render_element(
 
     let tag = rule.tag.clone();
     if rule.inline {
+        let link_property = editor
+            .state
+            .with_untracked(|editor| editor.link_property.clone());
         return render_inline(
             &tag,
             &element.element_type,
@@ -136,6 +139,7 @@ fn render_element(
             node_path,
             children,
             &element.properties,
+            &link_property,
         );
     }
 
@@ -200,6 +204,7 @@ fn render_inline(
     node_path: String,
     children: Vec<AnyView>,
     properties: &Props,
+    link_property: &PropertyPath,
 ) -> AnyView {
     let data_type = element_type.to_string();
     macro_rules! inline {
@@ -219,7 +224,7 @@ fn render_inline(
 
     match tag {
         "a" => {
-            let href = get_str(properties, "href").unwrap_or("#").to_string();
+            let href = link_href(properties, link_property);
             let prevent_navigation = move |ev: MouseEvent| ev.prevent_default();
             view! {
                 <a
@@ -465,6 +470,10 @@ fn mark_style(properties: &Props, renderers: &Renderers, marks: &MarkSet) -> Str
     styles.join(";")
 }
 
+fn link_href(properties: &Props, link_property: &PropertyPath) -> String {
+    link_property.get_str(properties).unwrap_or("#").to_string()
+}
+
 fn safe_color(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 64
@@ -476,9 +485,9 @@ fn safe_color(value: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::mark_style;
+    use super::{link_href, mark_style};
     use crate::Renderers;
-    use leptoslate_core::{MarkSet, Props};
+    use leptoslate_core::{MarkSet, PropertyPath, Props};
     use serde_json::json;
 
     #[test]
@@ -526,5 +535,24 @@ mod tests {
              font-family:ui-monospace,SFMono-Regular,Menlo,monospace;\
              background:rgba(127,127,127,.14);border-radius:3px;padding:0 2px"
         );
+    }
+
+    #[test]
+    fn link_href_reads_flat_and_nested_properties() {
+        let mut properties = Props::new();
+        properties.insert("href".into(), json!("/flat"));
+
+        assert_eq!(link_href(&properties, &PropertyPath::default()), "/flat");
+        assert_eq!(
+            link_href(&properties, &PropertyPath::new("attributes.href")),
+            "#"
+        );
+
+        properties.insert("attributes".into(), json!({ "href": "/nested" }));
+        assert_eq!(
+            link_href(&properties, &PropertyPath::new("attributes.href")),
+            "/nested"
+        );
+        assert_eq!(link_href(&properties, &PropertyPath::default()), "/flat");
     }
 }

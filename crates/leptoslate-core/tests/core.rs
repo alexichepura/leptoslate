@@ -1265,3 +1265,175 @@ fn normalization_turns_mixed_list_item_content_into_blocks() {
     assert_eq!(li.children[0].string(), "parent");
     assert_eq!(li.children[1].element_type(), Some("ul"));
 }
+
+#[test]
+fn nested_link_property_round_trips_existing_documents() {
+    let mut editor = Editor::from_json(
+        r#"[{"type":"p","children":[
+            {"text":"go "},
+            {"type":"a","attributes":{"href":"/old","target":"_blank"},"children":[{"text":"here"}]},
+            {"text":" now"}
+        ]}]"#,
+    )
+    .unwrap()
+    .with_link_property(leptoslate_core::PropertyPath::new("attributes.href"));
+
+    editor.select_point(Point::new(vec![0, 1, 0], 1));
+    assert_eq!(
+        editor.link_at_selection(),
+        Some((vec![0, 1], "/old".into()))
+    );
+
+    assert!(editor.set_link("/new"));
+    let link = editor.element(&[0, 1]).unwrap();
+    assert_eq!(
+        link.properties.get("href"),
+        None,
+        "the flat href must not be introduced"
+    );
+    assert_eq!(
+        link.properties
+            .get("attributes")
+            .and_then(|value| value.get("href")),
+        Some(&serde_json::json!("/new"))
+    );
+    assert_eq!(
+        link.properties
+            .get("attributes")
+            .and_then(|value| value.get("target")),
+        Some(&serde_json::json!("_blank")),
+        "sibling attributes are preserved"
+    );
+
+    assert!(editor.update_link_at_selection("/final", "there"));
+    let link = editor.element(&[0, 1]).unwrap();
+    assert_eq!(
+        link.properties
+            .get("attributes")
+            .and_then(|value| value.get("href")),
+        Some(&serde_json::json!("/final"))
+    );
+    assert_eq!(
+        link.properties
+            .get("attributes")
+            .and_then(|value| value.get("target")),
+        Some(&serde_json::json!("_blank"))
+    );
+    assert_eq!(link.children[0].string(), "there");
+
+    editor.select_point(Point::new(vec![0, 1, 0], 0));
+    assert_eq!(
+        editor.link_at_selection(),
+        Some((vec![0, 1], "/final".into()))
+    );
+
+    editor.select_all();
+    assert!(editor.remove_link());
+    assert!(editor
+        .element(&[0])
+        .unwrap()
+        .children
+        .iter()
+        .all(|node| node.element_type() != Some("a")));
+}
+
+#[test]
+fn nested_link_property_wraps_new_links() {
+    let mut editor = Editor::new(vec![p("hello world")])
+        .with_link_property(leptoslate_core::PropertyPath::new("attributes.href"));
+    editor.selection = Some(Range::new(
+        Point::new(vec![0, 0], 0),
+        Point::new(vec![0, 0], 5),
+    ));
+
+    assert!(editor.set_link("/docs"));
+    let link_path = editor
+        .element(&[0])
+        .unwrap()
+        .children
+        .iter()
+        .position(|node| node.element_type() == Some("a"))
+        .map(|index| vec![0, index])
+        .expect("link element");
+    let link = editor.element(&link_path).unwrap();
+    assert_eq!(link.properties.get("href"), None);
+    assert_eq!(
+        link.properties
+            .get("attributes")
+            .and_then(|value| value.get("href")),
+        Some(&serde_json::json!("/docs"))
+    );
+    assert_eq!(
+        editor.link_at_selection(),
+        Some((link_path, "/docs".into()))
+    );
+}
+
+#[test]
+fn generic_inline_helpers_wrap_find_and_unwrap_custom_elements() {
+    let mut editor = Editor::new(vec![p("hello world")]);
+    editor.set_schema(
+        editor
+            .schema
+            .clone()
+            .with_rule("chip", leptoslate_core::ElementRule::inline("span")),
+    );
+    editor.selection = Some(Range::new(
+        Point::new(vec![0, 0], 0),
+        Point::new(vec![0, 0], 5),
+    ));
+
+    let properties = leptoslate_core::props! { "kind" => "chip" };
+    let path = editor.wrap_inline("chip", properties).expect("wrapped");
+
+    let element = editor.element(&path).unwrap();
+    assert_eq!(element.element_type, "chip");
+    assert_eq!(
+        element.properties.get("kind"),
+        Some(&serde_json::json!("chip"))
+    );
+    assert_eq!(
+        element
+            .children
+            .iter()
+            .map(Node::string)
+            .collect::<String>(),
+        "hello"
+    );
+
+    let mut text_path = path.clone();
+    text_path.push(0);
+    assert_eq!(
+        editor.inline_ancestor(&text_path, "chip"),
+        Some(path.clone())
+    );
+    assert_eq!(
+        editor.inline_ancestor_matching(&text_path, |element| element
+            .properties
+            .get("kind")
+            .and_then(|value| value.as_str())
+            == Some("chip")),
+        Some(path.clone())
+    );
+    assert_eq!(editor.inline_ancestor(&text_path, "a"), None);
+
+    assert_eq!(editor.unwrap_inline(&path), Some(()));
+    assert_eq!(editor.children[0].string(), "hello world");
+    assert!(editor
+        .element(&[0])
+        .unwrap()
+        .children
+        .iter()
+        .all(|node| node.element_type() != Some("chip")));
+}
+
+#[test]
+fn link_property_can_be_changed_after_construction() {
+    let mut editor = Editor::new(vec![p("hello")]);
+    assert_eq!(
+        editor.link_property,
+        leptoslate_core::PropertyPath::default()
+    );
+    editor.set_link_property(leptoslate_core::PropertyPath::new("attributes.href"));
+    assert_eq!(editor.link_property.to_string(), "attributes.href");
+}
