@@ -73,6 +73,7 @@ examples/
 - Keyboard shortcuts: ⌘/Ctrl+B, I, U, Z, Shift+Z, Y, A, D; Shift+Arrow extends block selection; Tab inserts spaces
 - Accessible toolbar semantics: arrow/Home/End navigation, `aria-pressed` states, labelled floating toolbars and live block-selection announcements
 - Placeholder support, active-mark/block state helpers, JSON snapshot
+- Optional document change callback (`on_change`) with configurable debounce
 
 ## Quick start
 
@@ -147,6 +148,47 @@ editor.update(|state| {
     state.select_all();
 });
 ```
+
+### Change notifications
+
+Applications that autosave or preview the document can observe content changes
+without wiring an `Effect` around `editor.state`. Pass `on_change` to `Editable`
+or to `RichEditor`/`RichConfig` and optionally debounce it:
+
+```rust
+use std::time::Duration;
+use leptos::prelude::*;
+use leptoslate_rich::prelude::*;
+
+let on_change = Callback::new(move |json: String| {
+    // The document changed; persist, validate or preview the JSON value.
+});
+
+let config = RichConfig::new()
+    .with_on_change(on_change)
+    .with_change_debounce(Duration::from_millis(300));
+
+view! { <RichEditor editor=editor config=config /> }
+```
+
+```rust
+view! {
+    <Editable
+        editor=editor
+        on_change=Callback::new(move |json: String| save(json))
+        change_debounce=Duration::from_millis(300)
+    />
+}
+```
+
+The callback receives the same Slate-shaped JSON array as `to_json()`. It only
+runs when document content changes: selection-only, focus-only and active-mark
+updates do not fire it, and it is not called for the initial document. Without
+a debounce every change is delivered; with one, rapid edits reset the timer so
+only the latest document is delivered. A pending debounced update is flushed
+when the editor unmounts. When no callback is provided, the component performs
+no change tracking at all. `leptoslate::document_fingerprint(&editor)` exposes
+the same content fingerprint for applications that need to compare states.
 
 ### Custom blocks
 

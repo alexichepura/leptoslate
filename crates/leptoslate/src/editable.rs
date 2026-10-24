@@ -1,5 +1,7 @@
 //! The `Editable` component: contenteditable DOM, events and selection sync.
 
+use std::time::Duration;
+
 use leptos::html::Div;
 use leptos::prelude::*;
 use leptoslate_core::{Editor, Element as SlateElement, Node, Point, Range};
@@ -11,6 +13,7 @@ use web_sys::{
 };
 
 use crate::{
+    change::{document_fingerprint, ChangeEmitter},
     dom,
     handle::EditorHandle,
     media::FileHandler,
@@ -55,6 +58,20 @@ pub fn Editable(
     /// Called when an `@query` mention trigger starts, changes, ends, or is dismissed.
     #[prop(optional)]
     on_mention: Option<MentionHandler>,
+    /// Receives the document as Slate-shaped JSON after every content change.
+    ///
+    /// Selection-only and focus-only updates are ignored, and the callback is
+    /// not invoked for the initial document. See
+    /// [`Editable::change_debounce`](Editable) for coalescing rapid edits.
+    #[prop(optional)]
+    on_change: MaybeProp<Callback<String>>,
+    /// Delay before `on_change` runs, coalescing rapid edits.
+    ///
+    /// Without a debounce the callback receives every change. With a debounce,
+    /// a new change resets the timer and only the latest document is
+    /// delivered. A pending update is flushed when the editor unmounts.
+    #[prop(optional)]
+    change_debounce: MaybeProp<Duration>,
     /// Show a floating block-action bar on hover.
     #[prop(default = false)]
     hover_bar: bool,
@@ -87,6 +104,25 @@ pub fn Editable(
     let render_editor = editor.clone();
     let schema_editor = editor.clone();
     let schema = Memo::new(move |_| schema_editor.state.with(|state| state.schema.clone()));
+
+    // Change notifications are entirely opt-in: without a callback this block
+    // adds no effect, no fingerprinting and no timers.
+    if let Some(callback) = on_change.get_untracked() {
+        let change_editor = editor.clone();
+        let emitter = ChangeEmitter::new(editor.clone(), callback, change_debounce.get_untracked());
+        let last_fingerprint =
+            StoredValue::new(change_editor.state.with_untracked(document_fingerprint));
+        let effect_emitter = emitter.clone();
+        Effect::new(move |_| {
+            let fingerprint = change_editor.state.with(document_fingerprint);
+            if last_fingerprint.get_value() == fingerprint {
+                return;
+            }
+            last_fingerprint.set_value(fingerprint);
+            effect_emitter.notify();
+        });
+        on_cleanup(move || emitter.flush());
+    }
 
     let beforeinput_editor = editor.clone();
     let beforeinput_ref = content_ref;
