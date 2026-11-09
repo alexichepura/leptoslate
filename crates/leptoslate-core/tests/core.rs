@@ -32,6 +32,25 @@ fn starts_with_a_caret_at_the_document_start() {
     );
 }
 
+#[test]
+fn recognizes_a_single_blank_block() {
+    let blank = Editor::new(vec![p("")]);
+    assert!(blank.is_single_blank_block());
+
+    let filled = Editor::new(vec![p("hello")]);
+    assert!(!filled.is_single_blank_block());
+
+    let two_blocks = Editor::new(vec![p(""), p("")]);
+    assert!(!two_blocks.is_single_blank_block());
+
+    let inline = Editor::new(vec![Node::Element(Element::paragraph(vec![
+        Node::Text(Text::new("")),
+        Node::Element(Element::new("mention", vec![Node::Text(Text::new("A"))])),
+        Node::Text(Text::new("")),
+    ]))]);
+    assert!(!inline.is_single_blank_block());
+}
+
 struct HeadingFeature;
 
 impl leptoslate_core::Feature for HeadingFeature {
@@ -1163,7 +1182,43 @@ fn inserting_an_inline_fragment_merges_into_the_current_block() {
     );
     assert_eq!(
         editor.selection,
-        Some(Range::collapsed(Point::new(vec![0, 2], 0)))
+        Some(Range::collapsed(Point::new(vec![0, 1], 1)))
+    );
+}
+
+#[test]
+fn inserting_an_inline_fragment_at_the_end_keeps_the_caret_after_it() {
+    let mut editor = Editor::new(vec![p("hello")]);
+    editor.select_point(Point::new(vec![0, 0], 5));
+    editor.insert_fragment(vec![Node::Element(Element::paragraph(vec![
+        Node::Text(Text::new("X")),
+        Node::Text(Text::new("Y")),
+    ]))]);
+
+    assert_eq!(editor.children.len(), 1);
+    assert_eq!(editor.children[0].string(), "helloXY");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 0], 7)))
+    );
+}
+
+#[test]
+fn inserting_an_inline_fragment_over_a_selection_places_the_caret_after_it() {
+    let mut editor = Editor::new(vec![p("hello")]);
+    editor.selection = Some(Range::new(
+        Point::new(vec![0, 0], 1),
+        Point::new(vec![0, 0], 4),
+    ));
+    editor.insert_fragment(vec![Node::Element(Element::paragraph(vec![
+        Node::Text(Text::new("X")),
+        Node::Text(Text::new("Y")),
+    ]))]);
+
+    assert_eq!(editor.children[0].string(), "hXYo");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![0, 0], 3)))
     );
 }
 
@@ -1183,7 +1238,26 @@ fn inserting_a_block_fragment_splits_the_current_block() {
     assert_eq!(editor.children[3].string(), "llo");
     assert_eq!(
         editor.selection,
-        Some(Range::collapsed(Point::new(vec![3, 0], 0)))
+        Some(Range::collapsed(Point::new(vec![2, 0], 4)))
+    );
+}
+
+#[test]
+fn inserting_a_block_fragment_at_the_end_keeps_the_caret_after_it() {
+    let mut editor = Editor::new(vec![p("hello")]);
+    editor.select_point(Point::new(vec![0, 0], 5));
+    editor.insert_fragment(vec![
+        Node::Element(Element::new("h2", vec![Node::Text(Text::new("Title"))])),
+        Node::Element(Element::paragraph(vec![Node::Text(Text::new("Body"))])),
+    ]);
+
+    assert_eq!(editor.children.len(), 4);
+    assert_eq!(editor.children[0].string(), "hello");
+    assert_eq!(editor.children[1].element_type(), Some("h2"));
+    assert_eq!(editor.children[2].string(), "Body");
+    assert_eq!(
+        editor.selection,
+        Some(Range::collapsed(Point::new(vec![2, 0], 4)))
     );
 }
 
@@ -1201,7 +1275,7 @@ fn inserting_a_fragment_at_the_block_start_does_not_leave_an_empty_block() {
     assert_eq!(editor.children[1].string(), "hello");
     assert_eq!(
         editor.selection,
-        Some(Range::collapsed(Point::new(vec![1, 0], 0)))
+        Some(Range::collapsed(Point::new(vec![0, 0], 5)))
     );
 }
 

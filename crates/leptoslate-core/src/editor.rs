@@ -193,6 +193,21 @@ impl Editor {
         self.children.iter().all(|child| child.string().is_empty())
     }
 
+    /// Whether the document is a single block with no content to delete.
+    ///
+    /// Unlike [`Editor::is_empty`], this treats inline elements (images,
+    /// mentions, …) as content, so a document holding only a void block is not
+    /// considered blank.
+    pub fn is_single_blank_block(&self) -> bool {
+        match self.children.as_slice() {
+            [Node::Element(element)] => element
+                .children
+                .iter()
+                .all(|child| child.is_text() && child.string().is_empty()),
+            _ => false,
+        }
+    }
+
     // ---------------------------------------------------------------------
     // Node access
     // ---------------------------------------------------------------------
