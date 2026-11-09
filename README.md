@@ -2,6 +2,10 @@
 
 A Rust rewrite of [Slate](https://docs.slatejs.org/), built for [Leptos](https://leptos.dev/).
 
+> **Leptos version.** `main` targets **Leptos 0.9**. For Leptos 0.8 there is the
+> [`leptos-0.8`](https://github.com/alexichepura/leptoslate/tree/leptos-0.8) branch —
+> 0.8 backports go there too.
+
 The workspace contains a framework-agnostic document engine with the same concepts as Slate — nodes, paths, points, ranges, operations, normalization and undo history — plus a `contenteditable` view for Leptos that maps browser selections to the document model.
 
 ![leptoslate demo](docs/screenshot.png)
