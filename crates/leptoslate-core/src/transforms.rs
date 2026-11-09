@@ -13,7 +13,10 @@ use crate::{
     point::Point,
     props::Props,
     range::Range,
-    text::{char_len, char_slice, word_end_after, word_start_before},
+    text::{
+        char_len, char_slice, grapheme_end_after, grapheme_start_before, word_end_after,
+        word_start_before,
+    },
     SlateError,
 };
 
@@ -58,6 +61,9 @@ impl Editor {
             return;
         };
         let point = self.text_point(&point).unwrap_or(point);
+        if self.point_is_read_only(&point) {
+            return;
+        }
         let length = char_len(text);
 
         if self
@@ -136,6 +142,9 @@ impl Editor {
             return;
         };
         let point = self.text_point(&point).unwrap_or(point);
+        if self.point_is_read_only(&point) {
+            return;
+        }
 
         if self
             .apply_split(&point.path, point.offset, Props::new())
@@ -324,6 +333,9 @@ impl Editor {
             return;
         };
         let point = self.text_point(&point).unwrap_or(point);
+        if self.point_is_read_only(&point) {
+            return;
+        }
         let Some(text) = self.text(&point.path).cloned() else {
             return;
         };
@@ -332,7 +344,7 @@ impl Editor {
             let start = if word {
                 word_start_before(&text.text, point.offset)
             } else {
-                point.offset - 1
+                grapheme_start_before(&text.text, point.offset)
             };
             if start < point.offset {
                 let removed = char_slice(&text.text, start, point.offset).to_string();
@@ -360,10 +372,7 @@ impl Editor {
         if let Some(previous) = path::previous(&point.path) {
             let is_inline_void = self
                 .element(&previous)
-                .map(|element| {
-                    self.schema.is_inline(&element.element_type)
-                        && self.schema.is_void(&element.element_type)
-                })
+                .map(|element| self.is_inline_element(element) && self.is_void_element(element))
                 .unwrap_or(false);
             if is_inline_void {
                 let _ = self.apply(Operation::RemoveNode {
@@ -386,7 +395,7 @@ impl Editor {
                     let start = if word {
                         word_start_before(&text.text, previous_point.offset)
                     } else {
-                        previous_point.offset - 1
+                        grapheme_start_before(&text.text, previous_point.offset)
                     };
                     let removed = char_slice(&text.text, start, previous_point.offset).to_string();
                     let _ = self.apply(Operation::RemoveText {
@@ -445,6 +454,9 @@ impl Editor {
             return;
         };
         let point = self.text_point(&point).unwrap_or(point);
+        if self.point_is_read_only(&point) {
+            return;
+        }
         let Some(text) = self.text(&point.path).cloned() else {
             return;
         };
@@ -453,7 +465,7 @@ impl Editor {
             let end = if word {
                 word_end_after(&text.text, point.offset)
             } else {
-                point.offset + 1
+                grapheme_end_after(&text.text, point.offset)
             };
             if end > point.offset {
                 let removed = char_slice(&text.text, point.offset, end).to_string();
@@ -471,10 +483,7 @@ impl Editor {
         let next_sibling = path::next(&point.path);
         let next_is_inline_void = self
             .element(&next_sibling)
-            .map(|element| {
-                self.schema.is_inline(&element.element_type)
-                    && self.schema.is_void(&element.element_type)
-            })
+            .map(|element| self.is_inline_element(element) && self.is_void_element(element))
             .unwrap_or(false);
         if next_is_inline_void {
             let _ = self.apply(Operation::RemoveNode { path: next_sibling });
@@ -494,7 +503,7 @@ impl Editor {
                         let end = if word {
                             word_end_after(&text.text, 0)
                         } else {
-                            1
+                            grapheme_end_after(&text.text, 0)
                         };
                         let removed = char_slice(&text.text, 0, end).to_string();
                         let _ = self.apply(Operation::RemoveText {
@@ -846,7 +855,7 @@ impl Editor {
         }
         if self
             .element(&parent)
-            .map(|element| self.schema.is_inline(&element.element_type))
+            .map(|element| self.is_inline_element(element))
             .unwrap_or(false)
         {
             return None;
@@ -967,7 +976,7 @@ impl Editor {
         for depth in (1..path.len()).rev() {
             let candidate = &path[..depth];
             if let Some(element) = self.element(candidate) {
-                if self.schema.is_inline(&element.element_type) && predicate(element) {
+                if self.is_inline_element(element) && predicate(element) {
                     return Some(candidate.to_vec());
                 }
             }
@@ -1017,6 +1026,9 @@ impl Editor {
         };
         let paths = self.text_paths_in_range(&range);
         for at in paths {
+            if !self.is_text_markable(&at) {
+                continue;
+            }
             let _ = self.apply(Operation::SetNode {
                 path: at,
                 properties: Props::new(),
@@ -1127,7 +1139,7 @@ impl Editor {
     pub fn leaf_block_path(&self, point: &Point) -> Option<Path> {
         let mut block = path::parent(&point.path)?;
         while let Some(element) = self.element(&block) {
-            if self.schema.is_inline(&element.element_type) {
+            if self.is_inline_element(element) {
                 block = path::parent(&block)?;
             } else {
                 break;
@@ -1228,10 +1240,17 @@ impl Editor {
 
     /// Insert text at an explicit point.
     pub fn insert_text_at(&mut self, at: &Point, text: &str) {
+        if text.is_empty() {
+            return;
+        }
         self.transaction(|editor| {
-            editor.clear_node_selection();
-            editor.selection = Some(Range::collapsed(at.clone()));
-            editor.insert_text_inner(text);
+            // Keep the existing selection and let the operation transform it,
+            // matching Slate's `Transforms.insertText(editor, text, { at })`.
+            let _ = editor.apply(Operation::InsertText {
+                path: at.path.clone(),
+                offset: at.offset,
+                text: text.to_string(),
+            });
         });
     }
 
@@ -1251,9 +1270,8 @@ impl Editor {
                     let inline = element.children.iter().all(|child| {
                         child.is_text()
                             || child
-                                .element_type()
-                                .map(|kind| self.schema.is_inline(kind))
-                                .unwrap_or(false)
+                                .as_element()
+                                .is_some_and(|element| self.is_inline_element(element))
                     });
                     inline.then(|| element.children.clone())
                 }
@@ -1424,7 +1442,7 @@ impl Editor {
 
         self.transaction(|editor| {
             let is_inline = match &node {
-                Node::Element(element) => editor.schema.is_inline(&element.element_type),
+                Node::Element(element) => editor.is_inline_element(element),
                 Node::Text(_) => false,
             };
             if !is_inline {
@@ -1456,7 +1474,7 @@ impl Editor {
             let parent = point.path[..point.path.len() - 1].to_vec();
             if editor
                 .element(&parent)
-                .map(|element| editor.schema.is_inline(&element.element_type))
+                .map(|element| editor.is_inline_element(element))
                 .unwrap_or(false)
             {
                 return None;
@@ -1603,7 +1621,7 @@ impl Editor {
             let parent = at[..at.len() - 1].to_vec();
             let index = *at.last()?;
             let is_void = match &node {
-                Node::Element(element) => editor.schema.is_void(&element.element_type),
+                Node::Element(element) => editor.is_void_element(element),
                 Node::Text(_) => false,
             };
             let node = match node {
@@ -1674,7 +1692,7 @@ impl Editor {
             let index = *block.last()?;
 
             let is_void = match &node {
-                Node::Element(element) => editor.schema.is_void(&element.element_type),
+                Node::Element(element) => editor.is_void_element(element),
                 Node::Text(_) => false,
             };
 
@@ -1703,8 +1721,7 @@ impl Editor {
                     .node(&next_at)
                     .and_then(Node::as_element)
                     .map(|element| {
-                        !editor.schema.is_void(&element.element_type)
-                            && !editor.schema.is_inline(&element.element_type)
+                        !editor.is_void_element(element) && !editor.is_inline_element(element)
                     })
                     .unwrap_or(false);
 
@@ -1756,7 +1773,7 @@ impl Editor {
         let is_void = |path: &[usize]| {
             self.node(path)
                 .and_then(Node::as_element)
-                .map(|element| self.schema.is_void(&element.element_type))
+                .map(|element| self.is_void_element(element))
                 .unwrap_or(false)
         };
 
@@ -1793,7 +1810,7 @@ impl Editor {
         let is_void = |path: &[usize]| {
             self.node(path)
                 .and_then(Node::as_element)
-                .map(|element| self.schema.is_void(&element.element_type))
+                .map(|element| self.is_void_element(element))
                 .unwrap_or(true)
         };
         let next = last + 1;

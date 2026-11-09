@@ -4,6 +4,8 @@
 //! which is the natural unit in Rust. Browsers report `Selection` offsets in
 //! UTF-16 code units, so the DOM integration converts at the boundary.
 
+use unicode_segmentation::UnicodeSegmentation;
+
 /// Number of characters (Unicode scalar values) in `text`.
 pub fn char_len(text: &str) -> usize {
     text.chars().count()
@@ -69,6 +71,26 @@ pub fn char_before(text: &str, offset: usize) -> Option<(usize, char)> {
 /// The character at `offset`, if any.
 pub fn char_at(text: &str, offset: usize) -> Option<char> {
     text.chars().nth(offset)
+}
+
+/// Character offset where the grapheme cluster before `offset` starts.
+pub fn grapheme_start_before(text: &str, offset: usize) -> usize {
+    let prefix: String = text.chars().take(offset).collect();
+    prefix
+        .grapheme_indices(true)
+        .next_back()
+        .map(|(byte, _)| prefix[..byte].chars().count())
+        .unwrap_or(0)
+}
+
+/// Character offset after the grapheme cluster following `offset`.
+pub fn grapheme_end_after(text: &str, offset: usize) -> usize {
+    let suffix: String = text.chars().skip(offset).collect();
+    suffix
+        .graphemes(true)
+        .next()
+        .map(|grapheme| offset + grapheme.chars().count())
+        .unwrap_or(offset)
 }
 
 /// Find the start of the word preceding `offset` (whitespace delimited).

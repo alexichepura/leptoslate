@@ -1,0 +1,130 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/transforms/setNodes/marks/mark-void-range.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word "
+          },
+          {
+            "inline": true,
+            "void": true,
+            "children": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          {
+            "text": "italic words ",
+            "italic": true
+          },
+          {
+            "inline": true,
+            "void": true,
+            "markable": true,
+            "children": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          {
+            "text": " underlined words",
+            "underline": true
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          4
+        ],
+        "offset": 17
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Editor",
+      "method": "addMark",
+      "args": [
+        "bold",
+        true
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word ",
+            "bold": true
+          },
+          {
+            "inline": true,
+            "void": true,
+            "children": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          {
+            "text": "italic words ",
+            "italic": true,
+            "bold": true
+          },
+          {
+            "inline": true,
+            "void": true,
+            "markable": true,
+            "children": [
+              {
+                "text": "",
+                "bold": true
+              }
+            ]
+          },
+          {
+            "text": " underlined words",
+            "underline": true,
+            "bold": true
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          4
+        ],
+        "offset": 17
+      }
+    }
+  }
+}

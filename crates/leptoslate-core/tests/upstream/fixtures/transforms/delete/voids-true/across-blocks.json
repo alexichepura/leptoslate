@@ -1,0 +1,83 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/transforms/delete/voids-true/across-blocks.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "void": true,
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "void": true,
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      },
+      "focus": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 1
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "delete",
+      "args": [
+        {
+          "voids": true
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "void": true,
+        "children": [
+          {
+            "text": "onwo"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      }
+    }
+  }
+}

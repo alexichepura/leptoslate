@@ -3,5 +3,10 @@
     "repository": "ianstormtaylor/slate",
     "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b"
   },
-  "skipped": []
+  "skipped": [
+    {
+      "source": "transforms/insertText/selection/block-hanging-across.tsx",
+      "reason": "marked skip upstream"
+    }
+  ]
 }

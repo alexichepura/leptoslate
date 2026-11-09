@@ -64,3 +64,19 @@ Environment overrides:
   "output": { "children": [], "selection": null }
 }
 ```
+
+`transforms` fixture:
+
+```json
+{
+  "upstream": { "repository": "...", "commit": "...", "source": "..." },
+  "kind": "transform",
+  "input": { "children": [], "selection": null },
+  "calls": [{ "target": "Transforms", "method": "delete", "args": [] }],
+  "output": { "children": [], "selection": null }
+}
+```
+
+Selection offsets are converted from UTF-16 code units to Unicode scalar
+values when fixtures are written. Input snapshots are captured before the
+upstream `run` mutates the editor.

@@ -1,0 +1,52 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/transforms/mergeNodes/voids-true/block.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "void": true,
+        "children": [
+          {
+            "text": "one"
+          },
+          {
+            "text": "two"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "mergeNodes",
+      "args": [
+        {
+          "at": [
+            0,
+            1
+          ],
+          "voids": true
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "void": true,
+        "children": [
+          {
+            "text": "onetwo"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

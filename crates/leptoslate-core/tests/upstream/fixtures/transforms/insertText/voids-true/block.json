@@ -1,0 +1,49 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/transforms/insertText/voids-true/block.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "void": true,
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "insertText",
+      "args": [
+        "x",
+        {
+          "at": [
+            0
+          ],
+          "voids": true
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "void": true,
+        "children": [
+          {
+            "text": "x"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

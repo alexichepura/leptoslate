@@ -15,23 +15,36 @@ use std::fs;
 use std::path::{Path as FsPath, PathBuf};
 
 use leptoslate_core::{
-    path, Editor, Location, Operation, Point, Range, RangeAffinity, RangeDirection,
+    path, Editor, Location, Node, Operation, Point, Props, Range, RangeAffinity, RangeDirection,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-/// Fixtures we knowingly cannot replay yet. `source` is relative to
-/// `packages/slate/test/`.
-const KNOWN_FAILURES: &[(&str, &str)] = &[
-    (
-        "operations/set_selection/custom-props.tsx",
-        "Slate supports arbitrary properties on a selection; leptoslate's Range is anchor/focus only.",
-    ),
-    (
-        "operations/set_selection/remove.tsx",
-        "Slate supports arbitrary properties on a selection; leptoslate's Range is anchor/focus only.",
-    ),
-];
+/// Fixtures we knowingly cannot replay yet. The file maps each upstream
+/// `source` (relative to `packages/slate/test/`) to a reason.
+fn known_failures() -> BTreeMap<String, String> {
+    #[derive(Deserialize)]
+    struct File {
+        fixtures: Vec<Entry>,
+    }
+    #[derive(Deserialize)]
+    struct Entry {
+        source: String,
+        reason: String,
+    }
+
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/upstream/known-failures.json");
+    let file: File = serde_json::from_str(
+        &fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display())),
+    )
+    .unwrap_or_else(|error| panic!("cannot parse {}: {error}", path.display()));
+
+    file.fixtures
+        .into_iter()
+        .map(|entry| (entry.source, entry.reason))
+        .collect()
+}
 
 #[derive(Deserialize)]
 struct Fixture {
@@ -84,18 +97,25 @@ fn upstream_operations() {
     run_category("operations");
 }
 
+#[test]
+fn upstream_transforms() {
+    run_category("transforms");
+}
+
 fn fixtures_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/upstream/fixtures")
 }
 
 fn run_category(category: &str) {
-    let known: BTreeMap<&str, &str> = KNOWN_FAILURES.iter().copied().collect();
+    let known = known_failures();
     let mut files = Vec::new();
     collect_json(&fixtures_root(), &mut files);
     files.sort();
 
     let mut passed = 0usize;
     let mut expected_failures = 0usize;
+    let mut expected_reasons = BTreeMap::<String, usize>::new();
+    let mut unsupported = BTreeMap::<String, usize>::new();
     let mut failures = Vec::new();
     let mut unexpected_passes = Vec::new();
 
@@ -132,15 +152,29 @@ fn run_category(category: &str) {
                 unexpected_passes.push(source);
             }
             Ok(()) => passed += 1,
-            Err(error) if known.contains_key(source.as_str()) => {
+            Err(_) if known.contains_key(source.as_str()) => {
                 expected_failures += 1;
-                let _ = error;
+                let reason = known.get(source.as_str()).unwrap().clone();
+                *expected_reasons.entry(reason).or_default() += 1;
+            }
+            Err(error) if error.starts_with("UNSUPPORTED: ") => {
+                let reason = error.trim_start_matches("UNSUPPORTED: ").to_string();
+                *unsupported.entry(reason).or_default() += 1;
             }
             Err(error) => failures.push(format!("{source}: {error}")),
         }
     }
 
-    println!("{category}: {passed} passed, {expected_failures} known failures");
+    let unsupported_count: usize = unsupported.values().sum();
+    println!(
+        "{category}: {passed} passed, {expected_failures} known failures, {unsupported_count} unsupported"
+    );
+    for (reason, count) in &expected_reasons {
+        println!("  - {count} × known failure: {reason}");
+    }
+    for (reason, count) in &unsupported {
+        println!("  - {count} × unsupported: {reason}");
+    }
 
     if !unexpected_passes.is_empty() {
         failures.push(format!(
@@ -162,6 +196,7 @@ fn run_fixture(fixture: &Fixture) -> Result<(), String> {
     match fixture.kind.as_str() {
         "interface" => run_interface(fixture),
         "operations" => run_operations(fixture),
+        "transform" => run_transform(fixture),
         other => Err(format!("unknown fixture kind {other:?}")),
     }
 }
@@ -221,6 +256,401 @@ fn run_operations(fixture: &Fixture) -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+fn run_transform(fixture: &Fixture) -> Result<(), String> {
+    let input: Snapshot = serde_json::from_value(fixture.input.clone())
+        .map_err(|error| format!("invalid input snapshot: {error}"))?;
+    let expected: Snapshot = serde_json::from_value(fixture.output.clone())
+        .map_err(|error| format!("invalid output snapshot: {error}"))?;
+
+    let mut editor = Editor::default();
+    editor.children = input.children;
+    editor.selection = input.selection;
+
+    for call in &fixture.calls {
+        apply_transform_call(&mut editor, call)?;
+    }
+
+    let actual = Snapshot {
+        children: editor.children,
+        selection: editor.selection,
+    };
+
+    if actual != expected {
+        return Err(format!(
+            "transform result mismatch\n  actual:   {}\n  expected: {}",
+            serde_json::to_string(&actual).unwrap(),
+            serde_json::to_string(&expected).unwrap()
+        ));
+    }
+    Ok(())
+}
+
+fn apply_transform_call(editor: &mut Editor, call: &Call) -> Result<(), String> {
+    match (call.target.as_str(), call.method.as_str()) {
+        ("Editor", "addMark") => {
+            let key = arg_str(&call.args, 0)?;
+            let value = call
+                .args
+                .get(1)
+                .cloned()
+                .ok_or_else(|| "addMark is missing a value".to_string())?;
+            editor.add_mark(key, value);
+            Ok(())
+        }
+        ("Transforms", "transform") => {
+            let operation = as_operation(arg(&call.args, 0)?)?;
+            editor
+                .apply_op_raw(operation)
+                .map_err(|error| format!("transform failed: {error}"))
+        }
+        ("Transforms", "insertText") => replay_insert_text(editor, &call.args),
+        ("Transforms", "delete") => replay_delete(editor, &call.args),
+        ("Transforms", "insertNodes") => replay_insert_nodes(editor, &call.args),
+        ("Transforms", "removeNodes") => replay_remove_nodes(editor, &call.args),
+        ("Transforms", "mergeNodes") => replay_merge_nodes(editor, &call.args),
+        ("Transforms", "splitNodes") => replay_split_nodes(editor, &call.args),
+        ("Transforms", "setNodes") => replay_set_nodes(editor, &call.args),
+        ("Transforms", "unsetNodes") => replay_unset_nodes(editor, &call.args),
+        ("Transforms", "moveNodes") => replay_move_nodes(editor, &call.args),
+        (target, method) => Err(unsupported(format!(
+            "{target}::{method} has no replay mapping"
+        ))),
+    }
+}
+
+fn replay_insert_text(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let text = args
+        .first()
+        .and_then(Value::as_str)
+        .ok_or_else(|| "insertText is missing text".to_string())?;
+    let options = args.get(1).and_then(Value::as_object);
+
+    if options
+        .and_then(|options| options.get("voids"))
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        return Err(unsupported("insertText voids option"));
+    }
+
+    match options.and_then(|options| options.get("at")) {
+        Some(at) if at.is_array() => Err(unsupported("insertText at a path")),
+        Some(at) => {
+            editor.insert_text_at(&as_point(at)?, text);
+            Ok(())
+        }
+        None => {
+            editor.insert_text(text);
+            Ok(())
+        }
+    }
+}
+
+fn replay_delete(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let options = args.first().and_then(Value::as_object);
+    let reverse = options
+        .and_then(|options| options.get("reverse"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let unit = options
+        .and_then(|options| options.get("unit"))
+        .and_then(Value::as_str);
+    let distance = options
+        .and_then(|options| options.get("distance"))
+        .and_then(Value::as_u64)
+        .unwrap_or(1) as usize;
+
+    if options
+        .and_then(|options| options.get("voids"))
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        return Err(unsupported("delete voids option"));
+    }
+    if !matches!(unit, None | Some("character") | Some("word")) {
+        return Err(unsupported("delete unit line/block"));
+    }
+
+    if let Some(at) = options.and_then(|options| options.get("at")) {
+        if at.is_array() {
+            editor.remove_nodes(&as_path(at)?, 1);
+            return Ok(());
+        }
+        if at.get("anchor").is_some() {
+            let range = as_range(at)?;
+            if !range.is_collapsed() {
+                editor.delete_range(range);
+                return Ok(());
+            }
+            editor.selection = Some(range);
+        } else {
+            editor.selection = Some(Range::collapsed(as_point(at)?));
+        }
+
+        for _ in 0..distance {
+            delete_by_unit(editor, unit.unwrap_or("character"), reverse);
+        }
+        return Ok(());
+    }
+
+    let Some(selection) = editor.selection.clone() else {
+        return Ok(());
+    };
+    if selection.is_expanded() {
+        editor.delete_range(selection);
+        return Ok(());
+    }
+
+    // A bare `delete` on a collapsed selection deletes one character forward,
+    // including across a block boundary.
+    for _ in 0..distance {
+        delete_by_unit(editor, unit.unwrap_or("character"), reverse);
+    }
+    Ok(())
+}
+
+fn delete_by_unit(editor: &mut Editor, unit: &str, reverse: bool) {
+    match (unit, reverse) {
+        ("word", true) => editor.delete_word_backward(),
+        ("word", false) => editor.delete_word_forward(),
+        (_, true) => editor.delete_backward(),
+        (_, false) => editor.delete_forward(),
+    }
+}
+
+fn replay_insert_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let value = args
+        .first()
+        .cloned()
+        .ok_or_else(|| "insertNodes is missing nodes".to_string())?;
+    let nodes: Vec<Node> = if value.is_array() {
+        serde_json::from_value(value)
+            .map_err(|error| format!("invalid insertNodes nodes: {error}"))?
+    } else {
+        vec![serde_json::from_value(value)
+            .map_err(|error| format!("invalid insertNodes node: {error}"))?]
+    };
+    let options = args.get(1).and_then(Value::as_object);
+
+    if options
+        .and_then(|options| options.get("voids"))
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        return Err(unsupported("insertNodes voids option"));
+    }
+    if options
+        .and_then(|options| options.get("select"))
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        return Err(unsupported("insertNodes select option"));
+    }
+
+    match options.and_then(|options| options.get("at")) {
+        Some(at) if at.is_array() => {
+            editor.insert_nodes(&as_path(at)?, nodes);
+            Ok(())
+        }
+        Some(_) => Err(unsupported("insertNodes at a point/range")),
+        None => {
+            editor.insert_fragment(nodes);
+            Ok(())
+        }
+    }
+}
+
+fn replay_remove_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let options = args.first().and_then(Value::as_object);
+    if options
+        .and_then(|options| options.get("voids"))
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        return Err(unsupported("removeNodes voids option"));
+    }
+
+    match options.and_then(|options| options.get("at")) {
+        Some(at) if at.is_array() => {
+            editor.remove_nodes(&as_path(at)?, 1);
+            Ok(())
+        }
+        Some(_) => Err(unsupported("removeNodes at a point/range")),
+        None => {
+            if editor
+                .selection
+                .as_ref()
+                .is_some_and(|selection| selection.is_expanded())
+            {
+                Err(unsupported("removeNodes selection range"))
+            } else {
+                Ok(())
+            }
+        }
+    }
+}
+
+fn replay_merge_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let options = args.first().and_then(Value::as_object);
+    if options.is_some_and(|options| options.contains_key("match")) {
+        return Err(unsupported("mergeNodes match predicate"));
+    }
+    if options
+        .and_then(|options| options.get("voids"))
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        return Err(unsupported("mergeNodes voids option"));
+    }
+
+    let at = options.and_then(|options| options.get("at"));
+    let path = match at {
+        Some(at) if at.is_array() => as_path(at)?,
+        Some(at) => editor
+            .leaf_block_path(&as_point(at)?)
+            .ok_or_else(|| unsupported("mergeNodes point outside a block"))?,
+        None => {
+            let point = editor
+                .selection
+                .as_ref()
+                .map(|selection| selection.anchor.clone())
+                .ok_or_else(|| unsupported("mergeNodes without a selection"))?;
+            editor
+                .leaf_block_path(&point)
+                .ok_or_else(|| unsupported("mergeNodes point outside a block"))?
+        }
+    };
+
+    editor.merge_nodes(&path);
+    Ok(())
+}
+
+fn replay_split_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let options = args.first().and_then(Value::as_object);
+    if options.is_some_and(|options| {
+        options.contains_key("match")
+            || options.contains_key("always")
+            || options.contains_key("mode")
+            || options.get("voids").and_then(Value::as_bool) == Some(true)
+    }) {
+        return Err(unsupported("splitNodes match/always/mode/voids option"));
+    }
+
+    let point = match options.and_then(|options| options.get("at")) {
+        Some(at) if at.is_array() => editor
+            .first_text_point_in(&as_path(at)?)
+            .ok_or_else(|| unsupported("splitNodes path has no text"))?,
+        Some(at) => as_point(at)?,
+        None => editor
+            .selection
+            .as_ref()
+            .map(|selection| selection.anchor.clone())
+            .ok_or_else(|| unsupported("splitNodes without a selection"))?,
+    };
+
+    editor.selection = Some(Range::collapsed(point));
+    editor.insert_break();
+    Ok(())
+}
+
+fn replay_set_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let properties: Props = serde_json::from_value(
+        args.first()
+            .cloned()
+            .ok_or_else(|| "setNodes is missing properties".to_string())?,
+    )
+    .map_err(|error| format!("invalid setNodes properties: {error}"))?;
+    let options = args.get(1).and_then(Value::as_object);
+
+    if options.is_some_and(|options| {
+        options.contains_key("match")
+            || options.contains_key("replace")
+            || options.contains_key("split")
+            || options.contains_key("merge")
+            || options.contains_key("voids")
+    }) {
+        return Err(unsupported(
+            "setNodes match/replace/split/merge/voids option",
+        ));
+    }
+
+    match options.and_then(|options| options.get("at")) {
+        Some(at) if at.is_array() => {
+            let path = as_path(at)?;
+            editor.set_nodes(&[&path], properties);
+            Ok(())
+        }
+        Some(_) => Err(unsupported("setNodes at a point/range")),
+        None => Err(unsupported("setNodes without an explicit path")),
+    }
+}
+
+fn replay_unset_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let key_value = args
+        .first()
+        .cloned()
+        .ok_or_else(|| "unsetNodes is missing keys".to_string())?;
+    let keys: Vec<String> = if key_value.is_array() {
+        serde_json::from_value(key_value)
+            .map_err(|error| format!("invalid unsetNodes keys: {error}"))?
+    } else {
+        vec![serde_json::from_value(key_value)
+            .map_err(|error| format!("invalid unsetNodes key: {error}"))?]
+    };
+    let options = args.get(1).and_then(Value::as_object);
+
+    if options.is_some_and(|options| options.contains_key("match")) {
+        return Err(unsupported("unsetNodes match predicate"));
+    }
+
+    match options.and_then(|options| options.get("at")) {
+        Some(at) if at.is_array() => {
+            let path = as_path(at)?;
+            let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
+            editor.unset_nodes(&[&path], &keys);
+            Ok(())
+        }
+        _ => Err(unsupported("unsetNodes without an explicit path")),
+    }
+}
+
+fn replay_move_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let options = args.first().and_then(Value::as_object);
+    if options.is_some_and(|options| {
+        options.contains_key("match") || options.get("voids").and_then(Value::as_bool) == Some(true)
+    }) {
+        return Err(unsupported("moveNodes match/voids option"));
+    }
+
+    let Some(at) = options.and_then(|options| options.get("at")) else {
+        return Err(unsupported("moveNodes without at"));
+    };
+    let Some(to) = options.and_then(|options| options.get("to")) else {
+        return Err(unsupported("moveNodes without to"));
+    };
+    if !at.is_array() || !to.is_array() {
+        return Err(unsupported("moveNodes at/to point"));
+    }
+
+    editor.move_nodes(&as_path(at)?, &as_path(to)?);
+    Ok(())
+}
+
+fn arg(args: &[Value], index: usize) -> Result<&Value, String> {
+    args.get(index)
+        .ok_or_else(|| format!("call is missing argument {index}"))
+}
+
+fn arg_str(args: &[Value], index: usize) -> Result<&str, String> {
+    arg(args, index)?
+        .as_str()
+        .ok_or_else(|| format!("argument {index} is not a string"))
+}
+
+fn unsupported(reason: impl Into<String>) -> String {
+    format!("UNSUPPORTED: {}", reason.into())
 }
 
 fn eval_call(call: &Call) -> Result<Value, String> {

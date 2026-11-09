@@ -41,6 +41,15 @@ const CATEGORIES = [
   'interfaces/Point',
   'interfaces/Range',
   'operations',
+  'transforms/insertText',
+  'transforms/splitNodes',
+  'transforms/mergeNodes',
+  'transforms/removeNodes',
+  'transforms/insertNodes',
+  'transforms/delete',
+  'transforms/setNodes',
+  'transforms/unsetNodes',
+  'transforms/moveNodes',
 ] as const
 
 type TraceCall = {
@@ -59,6 +68,7 @@ let depth = 0
  */
 function toJson(value: unknown): unknown {
   if (value === undefined) return null
+  if (typeof value === 'function') return { __fn: value.toString() }
   if (typeof value === 'number' && !Number.isFinite(value)) return null
   if (Array.isArray(value)) return value.map(toJson)
   if (value !== null && typeof value === 'object') {
@@ -142,6 +152,15 @@ function ensureDeps() {
     fs.rmSync(sourceLink, { recursive: true, force: true })
     fs.symlinkSync(packageDir, sourceLink, 'dir')
   }
+
+  // Some upstream fixtures and Slate sources import lodash directly.
+  const lodash = path.join(HERE, 'node_modules', 'lodash')
+  for (const root of [SOURCE, WORK]) {
+    const link = path.join(root, 'node_modules', 'lodash')
+    fs.mkdirSync(path.dirname(link), { recursive: true })
+    fs.rmSync(link, { recursive: true, force: true })
+    fs.symlinkSync(lodash, link, 'dir')
+  }
 }
 
 /**
@@ -156,6 +175,9 @@ function linkWorkDeps() {
     fs.rmSync(link, { recursive: true, force: true })
     fs.symlinkSync(path.join(HERE, '.deps', name), link, 'dir')
   }
+  const lodash = path.join(nodeModules, 'lodash')
+  fs.rmSync(lodash, { recursive: true, force: true })
+  fs.symlinkSync(path.join(HERE, 'node_modules', 'lodash'), lodash, 'dir')
 }
 
 function writeShim() {
@@ -222,9 +244,19 @@ function rewriteFixture(sourceFile: string, shim: string) {
 }
 
 function installInstrumentation(slate: any) {
-  for (const target of ['Path', 'Point', 'Range'] as const) {
+  for (const target of [
+    'Path',
+    'Point',
+    'Range',
+    'Transforms',
+    'Editor',
+  ] as const) {
     const object = slate[target]
     for (const method of Object.keys(object)) {
+      // `withoutNormalizing` runs a callback; wrapping it would hide the
+      // Transforms call inside. Editor helpers are not the subject of the
+      // transform fixtures except `addMark`, so leave the rest untouched.
+      if (target === 'Editor' && method !== 'addMark') continue
       const original = object[method]
       if (typeof original !== 'function') continue
       object[method] = function (...args: unknown[]) {
@@ -242,7 +274,13 @@ function installInstrumentation(slate: any) {
           ) {
             result = Array.from(result)
           }
-          trace.push({ target, method, args: args.map(toJson) })
+          // Editor-first APIs (Transforms/Editor) record only the arguments
+          // after the editor itself.
+          const recorded =
+            target === 'Transforms' || target === 'Editor'
+              ? args.slice(1)
+              : args
+          trace.push({ target, method, args: recorded.map(toJson) })
           return result
         } finally {
           depth -= 1
@@ -250,6 +288,63 @@ function installInstrumentation(slate: any) {
       }
     }
   }
+}
+
+/**
+ * Slate offsets count UTF-16 code units; leptoslate counts Unicode scalar
+ * values. Convert fixture serialization at the boundary.
+ */
+function textAtPath(children: unknown, path: unknown): string | undefined {
+  if (!Array.isArray(path)) return undefined
+  let node: any = { children }
+  for (const index of path) {
+    if (!node || !Array.isArray(node.children)) return undefined
+    node = node.children[index]
+  }
+  return typeof node?.text === 'string' ? node.text : undefined
+}
+
+function convertPoint(point: any, children: unknown): any {
+  if (!point || typeof point !== 'object') return point
+  if (typeof point.offset !== 'number') return point
+  const text = textAtPath(children, point.path)
+  if (text === undefined) return point
+  return {
+    ...point,
+    offset: Array.from(text.slice(0, point.offset)).length,
+  }
+}
+
+function convertSnapshot(snapshot: any): any {
+  const children = snapshot.children
+  const selection = snapshot.selection
+  if (!selection) return snapshot
+  return {
+    ...snapshot,
+    selection: {
+      ...selection,
+      anchor: convertPoint(selection.anchor, children),
+      focus: convertPoint(selection.focus, children),
+    },
+  }
+}
+
+function convertArguments(value: any, children: unknown): any {
+  if (Array.isArray(value)) {
+    return value.map(item => convertArguments(item, children))
+  }
+  if (value && typeof value === 'object') {
+    if (Array.isArray(value.path) && typeof value.offset === 'number') {
+      return convertPoint(value, children)
+    }
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        convertArguments(item, children),
+      ])
+    )
+  }
+  return value
 }
 
 function fixtureFiles(category: string) {
@@ -326,6 +421,11 @@ async function main() {
       }
 
       try {
+        if (module.skip === true) {
+          skipped.push({ source: relative, reason: 'marked skip upstream' })
+          continue
+        }
+
         if (category === 'operations') {
           const input = module.input
           const output = module.output
@@ -352,6 +452,62 @@ async function main() {
               children: toJson(output.children),
               selection: toJson(output.selection ?? null),
             },
+          })
+        } else if (category.startsWith('transforms/')) {
+          assert.equal(
+            typeof module.run,
+            'function',
+            `${relative}: missing run function`
+          )
+          assert.ok(module.input?.children, `${relative}: missing input editor`)
+          assert.ok(module.output?.children, `${relative}: missing output editor`)
+
+          // Capture the document before `run` mutates it.
+          const inputSnapshot = convertSnapshot({
+            children: toJson(module.input.children),
+            selection: toJson(module.input.selection ?? null),
+          })
+
+          trace.length = 0
+          module.run(module.input)
+          assert.deepEqual(
+            {
+              children: module.input.children,
+              selection: module.input.selection ?? null,
+            },
+            {
+              children: module.output.children,
+              selection: module.output.selection ?? null,
+            },
+            `${relative}: fixture's own run/input/output disagree`
+          )
+          const transformCalls = trace.filter(
+            call =>
+              call.target === 'Transforms' ||
+              (call.target === 'Editor' && call.method === 'addMark')
+          )
+          assert.ok(
+            transformCalls.length > 0,
+            `${relative}: no instrumented Transforms/Editor call`
+          )
+
+          writeFixture(sourceFile, {
+            upstream: {
+              repository: 'ianstormtaylor/slate',
+              commit: SHA,
+              source: `packages/slate/test/${relative}`,
+            },
+            kind: 'transform',
+            input: inputSnapshot,
+            calls: transformCalls.map(call => ({
+              target: call.target,
+              method: call.method,
+              args: convertArguments(call.args, inputSnapshot.children),
+            })),
+            output: convertSnapshot({
+              children: toJson(module.output.children),
+              selection: toJson(module.output.selection ?? null),
+            }),
           })
         } else {
           trace.length = 0

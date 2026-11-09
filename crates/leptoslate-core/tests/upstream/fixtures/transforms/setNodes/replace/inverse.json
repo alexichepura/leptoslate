@@ -1,0 +1,72 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/transforms/setNodes/replace/inverse.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "type": "callout",
+        "data": "blue",
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "setNodes",
+      "args": [
+        {
+          "type": "paragraph"
+        },
+        {
+          "at": [
+            0
+          ],
+          "replace": true
+        }
+      ]
+    },
+    {
+      "target": "Transforms",
+      "method": "transform",
+      "args": [
+        {
+          "type": "set_node",
+          "path": [
+            0
+          ],
+          "properties": {
+            "type": "paragraph"
+          },
+          "newProperties": {
+            "type": "callout",
+            "data": "blue"
+          }
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "type": "callout",
+        "data": "blue",
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

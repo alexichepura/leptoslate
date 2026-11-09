@@ -10,8 +10,6 @@
 //!    only block content; stray inline content is wrapped in the default block.
 //! 5. Inline nodes are surrounded by text.
 
-use serde_json::Value;
-
 use crate::{
     node::{Element, Node},
     operation::Operation,
@@ -24,13 +22,11 @@ use crate::Editor;
 /// schema normally decides by element type, but upstream fixtures use untyped
 /// elements, so honour the property too.
 fn is_inline(editor: &Editor, element: &Element) -> bool {
-    matches!(element.properties.get("inline"), Some(Value::Bool(true)))
-        || editor.schema.is_inline(&element.element_type)
+    editor.is_inline_element(element)
 }
 
 fn is_void(editor: &Editor, element: &Element) -> bool {
-    matches!(element.properties.get("void"), Some(Value::Bool(true)))
-        || editor.schema.is_void(&element.element_type)
+    editor.is_void_element(element)
 }
 
 #[derive(Debug)]

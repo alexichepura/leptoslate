@@ -1,0 +1,50 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/transforms/insertText/point/text-end.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "insertText",
+      "args": [
+        "x",
+        {
+          "at": {
+            "path": [
+              0,
+              0
+            ],
+            "offset": 4
+          }
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "wordx"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

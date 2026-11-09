@@ -26,25 +26,41 @@ Each fixture carries its exact upstream source path in `upstream.source`.
 | `fixtures/interfaces/Point` | 50 | pure `Point` functions |
 | `fixtures/interfaces/Range` | 36 | pure `Range` functions |
 | `fixtures/operations` | 31 | `Editor::apply_op_raw` + normalize |
+| `fixtures/transforms/*` | 278 | high-level method replay |
 
-`skipped.json` lists fixtures the extractor could not evaluate. It is expected
-to stay empty; a non-empty entry needs a reason.
+Current results:
+
+| Suite | Passing | Known failures | Unsupported | Upstream skip |
+| --- | ---: | ---: | ---: | ---: |
+| interfaces + operations | 232 | 2 | 0 | 0 |
+| transforms | 105 | 102 | 71 | 1 |
+
+`skipped.json` lists fixtures the extractor could not evaluate. It currently
+contains one upstream fixture marked `skip: true` in Slate.
 
 ## Known failures
 
-Known divergences are listed in `KNOWN_FAILURES` in `../upstream.rs`, together
-with a reason. They are counted separately and reported in the test output.
+Known divergences live in [`known-failures.json`](known-failures.json). Each
+entry has the upstream source path and a written reason. The runner groups the
+reasons in its output.
 
 The list is deliberately strict: if a known failure starts passing, the test
-fails until the entry is removed.
+fails until the entry is removed. Add a new entry only after deciding that the
+divergence is a deliberate gap rather than a bug to fix now.
 
-Current known failures (2):
+Fixtures whose *call shape* is not supported yet (for example `match`
+predicates, `unit: 'line'`, or `voids` options) are not listed individually.
+The runner reports them as `unsupported` with a grouped reason and does not
+count them as failures.
 
-- `operations/set_selection/custom-props`
-- `operations/set_selection/remove`
+The largest current P1 gaps are:
 
-Both rely on Slate selections being open objects with arbitrary properties.
-`leptoslate-core::Range` is strictly `anchor`/`focus`.
+- Slate's void/read-only-aware deletion and cross-block deletion edge cases.
+- `insertNodes` block/inline splitting and selection updates.
+- `splitNodes` edge/height/match semantics.
+- `match`/`replace`/`merge`/`split` options on `setNodes`, and `match` on
+  `mergeNodes`, `moveNodes`, `unsetNodes` and `splitNodes`.
+- Arbitrary selection properties (`set_selection` operations).
 
 ## Regenerating
 

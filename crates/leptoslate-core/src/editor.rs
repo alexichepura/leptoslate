@@ -223,6 +223,50 @@ impl Editor {
         Some(node)
     }
 
+    /// Whether an element is inline. Besides schema rules, Slate test editors
+    /// and common serialized documents mark inline nodes with `inline: true`.
+    pub fn is_inline_element(&self, element: &Element) -> bool {
+        matches!(element.properties.get("inline"), Some(Value::Bool(true)))
+            || self.schema.is_inline(&element.element_type)
+    }
+
+    /// Whether an element is a void. As with inline detection, `void: true`
+    /// on the node takes precedence over the schema.
+    pub fn is_void_element(&self, element: &Element) -> bool {
+        matches!(element.properties.get("void"), Some(Value::Bool(true)))
+            || self.schema.is_void(&element.element_type)
+    }
+
+    /// Whether editing at `point` is blocked by a read-only or void ancestor.
+    pub fn point_is_read_only(&self, point: &Point) -> bool {
+        for depth in (1..point.path.len()).rev() {
+            if let Some(element) = self.element(&point.path[..depth]) {
+                if matches!(element.properties.get("readOnly"), Some(Value::Bool(true)))
+                    || (self.is_void_element(element)
+                        && !matches!(element.properties.get("markable"), Some(Value::Bool(true))))
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Whether text at `at` can receive marks. Text inside a void is only
+    /// markable when the void itself opts in with `markable: true`.
+    pub fn is_text_markable(&self, at: &[usize]) -> bool {
+        for depth in (1..at.len()).rev() {
+            if let Some(element) = self.element(&at[..depth]) {
+                if self.is_void_element(element)
+                    && !matches!(element.properties.get("markable"), Some(Value::Bool(true)))
+                {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     pub fn node_mut(&mut self, at: &[usize]) -> Option<&mut Node> {
         if at.is_empty() {
             return None;
@@ -624,7 +668,7 @@ impl Editor {
             editor
                 .node(path)
                 .and_then(Node::as_element)
-                .map(|element| editor.schema.is_void(&element.element_type))
+                .map(|element| editor.is_void_element(element))
                 .unwrap_or(false)
         };
 
@@ -1210,8 +1254,13 @@ impl Editor {
                     .node(from)
                     .cloned()
                     .ok_or_else(|| SlateError::InvalidPath(from.clone()))?;
+                // `path` and `newPath` refer to the same snapshot. After the
+                // removal the destination may have shifted, so transform the
+                // source path to find the real insertion point.
+                let true_path = path::transform_with_affinity(from, op, Affinity::Forward)
+                    .unwrap_or_else(|| new_path.clone());
                 self.remove_node_value(from)?;
-                self.insert_node_value(new_path, node)
+                self.insert_node_value(&true_path, node)
             }
             Operation::SetNode {
                 path: at,

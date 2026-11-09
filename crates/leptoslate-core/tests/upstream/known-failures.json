@@ -1,0 +1,424 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b"
+  },
+  "fixtures": [
+    {
+      "source": "operations/set_selection/custom-props.tsx",
+      "reason": "Slate supports arbitrary properties on a selection; leptoslate Range is anchor/focus only."
+    },
+    {
+      "source": "operations/set_selection/remove.tsx",
+      "reason": "Slate supports arbitrary properties on a selection; leptoslate Range is anchor/focus only."
+    },
+    {
+      "source": "transforms/delete/emojis/inline-only-reverse.tsx",
+      "reason": "Slate keeps empty inline nodes; leptoslate normalization removes them."
+    },
+    {
+      "source": "transforms/delete/path/replace-all-blocks.tsx",
+      "reason": "Multi-call replace flow depends on Slate insertNodes semantics."
+    },
+    {
+      "source": "transforms/delete/point/depths-reverse.tsx",
+      "reason": "Cross-block and inline point deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/point/empty-list-item-before-reverse.tsx",
+      "reason": "Cross-block and inline point deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/point/empty-sibling-before-reverse.tsx",
+      "reason": "Cross-block and inline point deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/point/empty-table-cell-before-reverse.tsx",
+      "reason": "Cross-block and inline point deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/point/inline-before-reverse.tsx",
+      "reason": "Cross-block and inline point deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/point/inline-before.tsx",
+      "reason": "Cross-block and inline point deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/point/inline-end.tsx",
+      "reason": "Cross-block and inline point deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/point/inline-void-reverse.tsx",
+      "reason": "Cross-block and inline point deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/point/inline-void.tsx",
+      "reason": "Cross-block and inline point deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/point/inline.tsx",
+      "reason": "Cross-block and inline point deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/selection/block-across-nested.tsx",
+      "reason": "Cross-block selection deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/selection/block-depths-nested.tsx",
+      "reason": "Cross-block selection deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/selection/block-depths.tsx",
+      "reason": "Cross-block selection deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/selection/block-hanging-multiple.tsx",
+      "reason": "Cross-block selection deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/selection/block-hanging-out-of-list.tsx",
+      "reason": "Cross-block selection deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/selection/block-hanging-single.tsx",
+      "reason": "Cross-block selection deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/selection/block-inline-across.tsx",
+      "reason": "Cross-block selection deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/selection/block-join-inline.tsx",
+      "reason": "Cross-block selection deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/selection/block-nested.tsx",
+      "reason": "Cross-block selection deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/selection/inline-whole.tsx",
+      "reason": "Cross-block selection deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/unit-character/inline-before.tsx",
+      "reason": "Inline/void-aware grapheme deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/unit-character/inline-empty-inside-reverse.tsx",
+      "reason": "Inline/void-aware grapheme deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/unit-character/inline-empty-inside.tsx",
+      "reason": "Inline/void-aware grapheme deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/unit-character/inline-inside-reverse.tsx",
+      "reason": "Inline/void-aware grapheme deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/unit-character/inline-inside.tsx",
+      "reason": "Inline/void-aware grapheme deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/unit-character/non-selectable-blocks-reverse.tsx",
+      "reason": "Inline/void-aware grapheme deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/unit-character/non-selectable-blocks.tsx",
+      "reason": "Inline/void-aware grapheme deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/unit-character/read-only-non-selectable-child.tsx",
+      "reason": "Inline/void-aware grapheme deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/unit-character/thai-multiple-reverse.tsx",
+      "reason": "Inline/void-aware grapheme deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/unit-character/thai-reverse.tsx",
+      "reason": "Inline/void-aware grapheme deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-across-backward.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-before.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-both.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-cursor-between-voids-reverse.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-cursor-between-voids.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-cursor-nested-reverse.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-cursor-reverse.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-end.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-hanging-from.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-hanging-into.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-only-at.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-only-reverse.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-only.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-point-reverse.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-start-multiple.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/block-start.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/inline-cursor-reverse.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/inline-cursor.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/inline-into.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/inline-over.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/inline-start-across.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/inline-start.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/read-only-inline-after-reverse.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/delete/voids-false/read-only-inline-within.tsx",
+      "reason": "Void/read-only-aware deletion is not implemented."
+    },
+    {
+      "source": "transforms/insertNodes/block/block-empty.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/block/block-void.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/block/inline-void.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/inline/block-empty.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/inline/block-end.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/inline/block-middle.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/inline/block-start.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/inline/block-void.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/inline/inline-middle.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/path/inline.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/path/multiple-inline-not-end.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/path/multiple-inline.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/selection/none-empty.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/selection/none-end.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/void/block-nested.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/void/block.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/void/inline.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertText/selection/block-across-inline-wold.tsx",
+      "reason": "Cross-block selection insertion differs from Slate."
+    },
+    {
+      "source": "transforms/insertText/selection/block-hanging.tsx",
+      "reason": "Cross-block selection insertion differs from Slate."
+    },
+    {
+      "source": "transforms/insertText/voids-false/read-only-inline.tsx",
+      "reason": "Normalization adds a trailing text node around inline content."
+    },
+    {
+      "source": "transforms/mergeNodes/depth-block/block-nested-multi-child.tsx",
+      "reason": "Merging nested empty ancestors is not implemented."
+    },
+    {
+      "source": "transforms/mergeNodes/depth-block/block-nested-only-child.tsx",
+      "reason": "Merging nested empty ancestors is not implemented."
+    },
+    {
+      "source": "transforms/removeNodes/select/block-only-void.tsx",
+      "reason": "removeNodes on a node selection is not implemented."
+    },
+    {
+      "source": "transforms/setNodes/marks/mark-void-collapsed.tsx",
+      "reason": "Markable void and hanging-range marking differs from Slate."
+    },
+    {
+      "source": "transforms/setNodes/marks/mark-void-range-hanging.tsx",
+      "reason": "Markable void and hanging-range marking differs from Slate."
+    },
+    {
+      "source": "transforms/splitNodes/path/block-inline.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/path/block-nested-void.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/path/block-nested.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/path/block-void.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/path/block-with-attributes.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/path/inline-void.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/path/inline.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/point/block-void.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/point/inline-void.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/point/text-with-marks.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/selection/block-across.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/selection/block-expanded.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/selection/block-hanging.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/selection/block-nested-void.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/selection/block-void-end.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/selection/block-void-middle.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/selection/block-void-start.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/selection/inline-across.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/selection/inline-expanded.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/selection/inline-void-end.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/splitNodes/selection/inline-void.tsx",
+      "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    }
+  ]
+}

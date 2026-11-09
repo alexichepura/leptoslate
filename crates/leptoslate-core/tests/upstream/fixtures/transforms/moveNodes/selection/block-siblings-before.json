@@ -1,0 +1,106 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/transforms/moveNodes/selection/block-siblings-before.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          2,
+          0
+        ],
+        "offset": 5
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "moveNodes",
+      "args": [
+        {
+          "match": {
+            "__fn": "n=>import_slate.Element.isElement(n)&&import_slate.Editor.isBlock(editor,n)"
+          },
+          "to": [
+            0
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "three"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 5
+      }
+    }
+  }
+}
