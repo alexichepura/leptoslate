@@ -1,0 +1,39 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/interfaces/Path/common/success.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "path": [
+      0,
+      1,
+      2
+    ],
+    "another": [
+      0,
+      2
+    ]
+  },
+  "calls": [
+    {
+      "target": "Path",
+      "method": "common",
+      "args": [
+        [
+          0,
+          1,
+          2
+        ],
+        [
+          0,
+          2
+        ]
+      ]
+    }
+  ],
+  "output": [
+    0
+  ]
+}

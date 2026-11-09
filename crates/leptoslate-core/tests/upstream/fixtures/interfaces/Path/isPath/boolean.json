@@ -1,0 +1,19 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/interfaces/Path/isPath/boolean.tsx"
+  },
+  "kind": "interface",
+  "input": true,
+  "calls": [
+    {
+      "target": "Path",
+      "method": "isPath",
+      "args": [
+        true
+      ]
+    }
+  ],
+  "output": false
+}

@@ -1,0 +1,35 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/interfaces/Path/transform/move_node/sibling-ends-after-to-sibling-ends-before.tsx"
+  },
+  "kind": "interface",
+  "calls": [
+    {
+      "target": "Path",
+      "method": "transform",
+      "args": [
+        [
+          0,
+          1
+        ],
+        {
+          "type": "move_node",
+          "path": [
+            0,
+            3
+          ],
+          "newPath": [
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  ],
+  "output": [
+    0,
+    2
+  ]
+}

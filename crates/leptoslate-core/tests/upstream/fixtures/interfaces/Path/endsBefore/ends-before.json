@@ -1,0 +1,33 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/interfaces/Path/endsBefore/ends-before.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "path": [
+      0
+    ],
+    "another": [
+      1,
+      2
+    ]
+  },
+  "calls": [
+    {
+      "target": "Path",
+      "method": "endsBefore",
+      "args": [
+        [
+          0
+        ],
+        [
+          1,
+          2
+        ]
+      ]
+    }
+  ],
+  "output": true
+}

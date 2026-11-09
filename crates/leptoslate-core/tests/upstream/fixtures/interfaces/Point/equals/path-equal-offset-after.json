@@ -1,0 +1,47 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/interfaces/Point/equals/path-equal-offset-after.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "point": {
+      "path": [
+        0,
+        1
+      ],
+      "offset": 7
+    },
+    "another": {
+      "path": [
+        0,
+        1
+      ],
+      "offset": 3
+    }
+  },
+  "calls": [
+    {
+      "target": "Point",
+      "method": "equals",
+      "args": [
+        {
+          "path": [
+            0,
+            1
+          ],
+          "offset": 7
+        },
+        {
+          "path": [
+            0,
+            1
+          ],
+          "offset": 3
+        }
+      ]
+    }
+  ],
+  "output": false
+}

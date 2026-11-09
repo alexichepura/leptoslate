@@ -32,11 +32,13 @@ pub enum Operation {
     },
     MoveNode {
         path: Path,
+        #[serde(rename = "newPath")]
         new_path: Path,
     },
     SetNode {
         path: Path,
         properties: Props,
+        #[serde(rename = "newProperties")]
         new_properties: Props,
     },
     SplitNode {
@@ -46,6 +48,7 @@ pub enum Operation {
     },
     SetSelection {
         properties: Option<Range>,
+        #[serde(rename = "newProperties")]
         new_properties: Option<Range>,
     },
 }

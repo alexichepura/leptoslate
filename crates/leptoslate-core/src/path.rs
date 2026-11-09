@@ -2,6 +2,8 @@
 
 use std::cmp::Ordering;
 
+use serde_json::Value;
+
 use crate::Operation;
 
 pub use crate::Path;
@@ -42,13 +44,31 @@ pub fn parent(path: &[usize]) -> Option<Path> {
 }
 
 pub fn levels(path: &[usize]) -> Vec<Path> {
-    (0..=path.len()).map(|i| path[..i].to_vec()).collect()
+    levels_with(path, false)
+}
+
+/// Slate's `Path.levels(path, { reverse })`.
+pub fn levels_with(path: &[usize], reverse: bool) -> Vec<Path> {
+    let mut list: Vec<Path> = (0..=path.len()).map(|i| path[..i].to_vec()).collect();
+    if reverse {
+        list.reverse();
+    }
+    list
 }
 
 pub fn ancestors(path: &[usize]) -> Vec<Path> {
-    let mut all = levels(path);
-    all.pop();
-    all
+    ancestors_with(path, false)
+}
+
+/// Slate's `Path.ancestors(path, { reverse })`.
+pub fn ancestors_with(path: &[usize], reverse: bool) -> Vec<Path> {
+    let mut paths = levels_with(path, reverse);
+    if reverse {
+        paths.remove(0);
+    } else {
+        paths.pop();
+    }
+    paths
 }
 
 pub fn relative(path: &[usize], ancestor: &[usize]) -> Option<Path> {
@@ -102,6 +122,34 @@ pub fn is_sibling(path: &[usize], another: &[usize]) -> bool {
         && path.last() != another.last()
 }
 
+/// True if `path` is a direct child of `another`.
+pub fn is_child(path: &[usize], another: &[usize]) -> bool {
+    path.len() == another.len() + 1 && compare(path, another) == Ordering::Equal
+}
+
+/// True if `path` is the direct parent of `another`.
+pub fn is_parent(path: &[usize], another: &[usize]) -> bool {
+    path.len() + 1 == another.len() && compare(path, another) == Ordering::Equal
+}
+
+/// True if `path` ends at one of the indexes in `another`.
+pub fn ends_at(path: &[usize], another: &[usize]) -> bool {
+    path.len() <= another.len() && path == &another[..path.len()]
+}
+
+/// True if the path has a previous sibling (its last index is greater than 0).
+pub fn has_previous(path: &[usize]) -> bool {
+    path.last().is_some_and(|index| *index > 0)
+}
+
+/// Check whether a JSON value is an array of numbers, like Slate's
+/// `Path.isPath`.
+pub fn is_path(value: &Value) -> bool {
+    value
+        .as_array()
+        .is_some_and(|items| items.iter().all(Value::is_u64))
+}
+
 /// True if `path` ends before `another` inside a shared parent.
 pub fn ends_before(path: &[usize], another: &[usize]) -> bool {
     let Some(i) = path.len().checked_sub(1) else {
@@ -114,7 +162,10 @@ pub fn ends_before(path: &[usize], another: &[usize]) -> bool {
 }
 
 pub fn ends_after(path: &[usize], another: &[usize]) -> bool {
-    ends_before(another, path)
+    let Some(i) = path.len().checked_sub(1) else {
+        return false;
+    };
+    another.len() > i && path[..i] == another[..i] && path[i] > another[i]
 }
 
 /// The longest common prefix of two paths.

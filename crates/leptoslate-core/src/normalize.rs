@@ -10,6 +10,8 @@
 //!    only block content; stray inline content is wrapped in the default block.
 //! 5. Inline nodes are surrounded by text.
 
+use serde_json::Value;
+
 use crate::{
     node::{Element, Node},
     operation::Operation,
@@ -17,6 +19,19 @@ use crate::{
 };
 
 use crate::Editor;
+
+/// Slate test editors mark inline nodes with an `inline: true` property. The
+/// schema normally decides by element type, but upstream fixtures use untyped
+/// elements, so honour the property too.
+fn is_inline(editor: &Editor, element: &Element) -> bool {
+    matches!(element.properties.get("inline"), Some(Value::Bool(true)))
+        || editor.schema.is_inline(&element.element_type)
+}
+
+fn is_void(editor: &Editor, element: &Element) -> bool {
+    matches!(element.properties.get("void"), Some(Value::Bool(true)))
+        || editor.schema.is_void(&element.element_type)
+}
 
 #[derive(Debug)]
 enum Fix {
@@ -85,10 +100,7 @@ impl Editor {
     fn scan_children(&self, children: &[Node], at: &[usize], is_root: bool) -> Option<Fix> {
         if !is_root {
             if let Some(element) = self.element(at) {
-                if self.schema.is_inline(&element.element_type)
-                    && !self.schema.is_void(&element.element_type)
-                    && element.text_len() == 0
-                {
+                if is_inline(self, element) && !is_void(self, element) && element.text_len() == 0 {
                     return Some(Fix::RemoveNode { path: at.to_vec() });
                 }
             }
@@ -111,9 +123,8 @@ impl Editor {
 
         let has_block = children.iter().any(|child| {
             child
-                .element_type()
-                .map(|kind| !self.schema.is_inline(kind))
-                .unwrap_or(false)
+                .as_element()
+                .is_some_and(|element| !is_inline(self, element))
         });
         let element_type = self
             .node(at)
@@ -133,13 +144,13 @@ impl Editor {
         } else if has_block {
             false
         } else {
-            self.schema.is_inline(element_type)
+            self.element(at)
+                .is_some_and(|element| is_inline(self, element))
                 || children.first().map(Node::is_text).unwrap_or(false)
                 || children
                     .first()
-                    .and_then(Node::element_type)
-                    .map(|kind| self.schema.is_inline(kind))
-                    .unwrap_or(false)
+                    .and_then(Node::as_element)
+                    .is_some_and(|element| is_inline(self, element))
         };
 
         if should_have_inlines {
@@ -168,8 +179,8 @@ impl Editor {
                         }
                     }
                 } else if let Some(element) = child.as_element() {
-                    if self.schema.is_void(&element.element_type) {
-                        if self.schema.is_inline(&element.element_type) {
+                    if is_void(self, element) {
+                        if is_inline(self, element) {
                             if index == 0 || !children[index - 1].is_text() {
                                 return Some(Fix::InsertNode {
                                     path: child_path(at, index),
@@ -183,7 +194,7 @@ impl Editor {
                                 });
                             }
                         }
-                    } else if self.schema.is_inline(&element.element_type) {
+                    } else if is_inline(self, element) {
                         if index == 0 || !children[index - 1].is_text() {
                             return Some(Fix::InsertNode {
                                 path: child_path(at, index),
@@ -210,9 +221,8 @@ impl Editor {
             for (index, child) in children.iter().enumerate() {
                 let inline = child.is_text()
                     || child
-                        .element_type()
-                        .map(|kind| self.schema.is_inline(kind))
-                        .unwrap_or(false);
+                        .as_element()
+                        .is_some_and(|element| is_inline(self, element));
                 if inline {
                     if run_start.is_none() {
                         run_start = Some(index);

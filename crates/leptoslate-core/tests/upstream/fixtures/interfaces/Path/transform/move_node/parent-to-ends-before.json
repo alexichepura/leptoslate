@@ -1,0 +1,37 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/interfaces/Path/transform/move_node/parent-to-ends-before.tsx"
+  },
+  "kind": "interface",
+  "calls": [
+    {
+      "target": "Path",
+      "method": "transform",
+      "args": [
+        [
+          3,
+          3,
+          3
+        ],
+        {
+          "type": "move_node",
+          "path": [
+            3,
+            3
+          ],
+          "newPath": [
+            2,
+            1
+          ]
+        }
+      ]
+    }
+  ],
+  "output": [
+    2,
+    1,
+    3
+  ]
+}

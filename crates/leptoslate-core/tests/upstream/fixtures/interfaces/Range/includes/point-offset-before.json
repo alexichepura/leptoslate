@@ -1,0 +1,59 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/interfaces/Range/includes/point-offset-before.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "range": {
+      "anchor": {
+        "path": [
+          1
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          3
+        ],
+        "offset": 0
+      }
+    },
+    "target": {
+      "path": [
+        1
+      ],
+      "offset": 0
+    }
+  },
+  "calls": [
+    {
+      "target": "Range",
+      "method": "includes",
+      "args": [
+        {
+          "anchor": {
+            "path": [
+              1
+            ],
+            "offset": 3
+          },
+          "focus": {
+            "path": [
+              3
+            ],
+            "offset": 0
+          }
+        },
+        {
+          "path": [
+            1
+          ],
+          "offset": 0
+        }
+      ]
+    }
+  ],
+  "output": false
+}

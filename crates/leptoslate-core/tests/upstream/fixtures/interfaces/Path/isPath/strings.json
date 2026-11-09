@@ -1,0 +1,25 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/interfaces/Path/isPath/strings.tsx"
+  },
+  "kind": "interface",
+  "input": [
+    "a",
+    "b"
+  ],
+  "calls": [
+    {
+      "target": "Path",
+      "method": "isPath",
+      "args": [
+        [
+          "a",
+          "b"
+        ]
+      ]
+    }
+  ],
+  "output": false
+}

@@ -1,0 +1,45 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/interfaces/Range/direction/same-path-backward.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "anchor": {
+      "path": [
+        1
+      ],
+      "offset": 5
+    },
+    "focus": {
+      "path": [
+        1
+      ],
+      "offset": 2
+    }
+  },
+  "calls": [
+    {
+      "target": "Range",
+      "method": "direction",
+      "args": [
+        {
+          "anchor": {
+            "path": [
+              1
+            ],
+            "offset": 5
+          },
+          "focus": {
+            "path": [
+              1
+            ],
+            "offset": 2
+          }
+        }
+      ]
+    }
+  ],
+  "output": "backward"
+}

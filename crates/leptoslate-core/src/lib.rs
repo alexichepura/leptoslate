@@ -53,7 +53,7 @@ pub use path::Affinity;
 pub use point::Point;
 pub use property::PropertyPath;
 pub use props::Props;
-pub use range::Range;
+pub use range::{Location, Range, RangeAffinity, RangeDirection};
 pub use schema::{ElementRule, Schema};
 pub use url::{is_safe_href, is_safe_image_src};
 
@@ -62,7 +62,7 @@ pub type Path = Vec<usize>;
 
 pub mod prelude {
     pub use crate::{
-        Affinity, Editor, Element, ElementRule, MarkKind, MarkSet, Node, Operation, Path, Point,
-        PropertyPath, Props, Range, Schema, SlateError, Text,
+        Affinity, Editor, Element, ElementRule, Location, MarkKind, MarkSet, Node, Operation, Path,
+        Point, PropertyPath, Props, Range, RangeAffinity, RangeDirection, Schema, SlateError, Text,
     };
 }

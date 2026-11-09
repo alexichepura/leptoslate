@@ -1,0 +1,38 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/interfaces/Path/transform/move_node/ends-before-to-no-relation.tsx"
+  },
+  "kind": "interface",
+  "calls": [
+    {
+      "target": "Path",
+      "method": "transform",
+      "args": [
+        [
+          3,
+          3,
+          3
+        ],
+        {
+          "type": "move_node",
+          "path": [
+            3,
+            2
+          ],
+          "newPath": [
+            3,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  ],
+  "output": [
+    3,
+    2,
+    3
+  ]
+}

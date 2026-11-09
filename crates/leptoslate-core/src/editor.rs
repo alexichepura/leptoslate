@@ -9,7 +9,7 @@ use crate::{
     path::{self, Affinity},
     point::Point,
     property::PropertyPath,
-    props::{merge as merge_props, Props},
+    props::Props,
     range::Range,
     schema::Schema,
     text::{char_len, char_slice, splice},
@@ -846,6 +846,91 @@ impl Editor {
         self.apply(op)
     }
 
+    /// Apply a single operation without normalizing, recording history, or
+    /// grouping a transaction.
+    ///
+    /// This mirrors Slate's `Editor.withoutNormalizing` behaviour and is used
+    /// by the upstream fixture suite, which applies operations to documents
+    /// that are deliberately not normalized yet.
+    pub fn apply_op_raw(&mut self, op: Operation) -> Result<(), SlateError> {
+        self.apply_value(&op)?;
+
+        if let Operation::SetSelection { new_properties, .. } = &op {
+            self.selection = new_properties.clone();
+        } else {
+            self.transform_selection_for_op(&op);
+        }
+
+        Ok(())
+    }
+
+    /// Apply Slate's selection transform for an operation, including the
+    /// special remove-node fallback that moves points to a neighbouring text
+    /// node instead of dropping the selection.
+    fn transform_selection_for_op(&mut self, op: &Operation) {
+        let Some(selection) = self.selection.clone() else {
+            return;
+        };
+
+        let Operation::RemoveNode { path: removed } = op else {
+            self.selection = selection.transform(op, Affinity::Forward);
+            return;
+        };
+
+        let mut points = [selection.anchor.clone(), selection.focus.clone()];
+
+        for point in &mut points {
+            if let Some(transformed) = point.transform(op, Affinity::Forward) {
+                *point = transformed;
+                continue;
+            }
+
+            let Some(replacement) = self.point_after_removing_node(removed) else {
+                self.selection = None;
+                return;
+            };
+            *point = replacement;
+        }
+
+        self.selection = Some(Range::new(points[0].clone(), points[1].clone()));
+    }
+
+    fn point_after_removing_node(&self, removed: &[usize]) -> Option<Point> {
+        let mut prev: Option<(path::Path, usize)> = None;
+        let mut next: Option<(path::Path, usize)> = None;
+        let mut texts = Vec::new();
+        collect_text_entries(&self.children, &mut Vec::new(), &mut texts);
+
+        for (text_path, len) in texts {
+            if path::compare(&text_path, removed) == std::cmp::Ordering::Less {
+                prev = Some((text_path, len));
+            } else {
+                next = Some((text_path, len));
+                break;
+            }
+        }
+
+        let prefer_next = match (&prev, &next) {
+            (Some((prev_path, _)), Some((next_path, _))) => {
+                if path::is_sibling(prev_path, removed) {
+                    false
+                } else if path::equals(next_path, removed) {
+                    true
+                } else {
+                    path::common(prev_path, removed).len() < path::common(next_path, removed).len()
+                }
+            }
+            _ => false,
+        };
+
+        if let Some((prev_path, len)) = prev {
+            if !prefer_next {
+                return Some(Point::new(prev_path, len));
+            }
+        }
+        next.map(|(next_path, _)| Point::new(next_path, 0))
+    }
+
     pub(crate) fn apply(&mut self, op: Operation) -> Result<(), SlateError> {
         if self.batch.is_some() || self.is_normalizing {
             return self.apply_inner(op);
@@ -889,8 +974,8 @@ impl Editor {
             self.node_selection = None;
             self.node_selection_end = None;
             self.selection = new_properties.clone();
-        } else if let Some(selection) = &self.selection {
-            self.selection = selection.transform(&op, Affinity::Forward);
+        } else {
+            self.transform_selection_for_op(&op);
         }
 
         if let Some(batch) = &mut self.batch {
@@ -1251,16 +1336,16 @@ impl Editor {
                         len,
                     });
                 }
-                let mut second_properties = text.properties.clone();
-                merge_props(&mut second_properties, properties);
                 let rest = char_slice(&text.text, position, len).to_string();
                 let first_text = char_slice(&text.text, 0, position).to_string();
                 if let Some(Node::Text(first)) = self.node_mut(at) {
                     first.text = first_text;
                 }
+                // Slate starts the new node with exactly the operation's
+                // properties; callers that want inherited marks pass them in.
                 Node::Text(Text {
                     text: rest,
-                    properties: second_properties,
+                    properties: properties.clone(),
                 })
             }
             Node::Element(element) => {
@@ -1269,20 +1354,18 @@ impl Editor {
                         "split position outside element children".into(),
                     ));
                 }
-                let mut second_properties = element.properties.clone();
-                merge_props(&mut second_properties, properties);
-                let second_type = properties
-                    .get("type")
-                    .and_then(Value::as_str)
-                    .map(str::to_string);
-                second_properties.remove("type");
+                let mut second_properties = properties.clone();
+                let second_type = second_properties
+                    .remove("type")
+                    .and_then(|value| value.as_str().map(str::to_string))
+                    .unwrap_or_default();
                 let mut first = element.clone();
                 let rest = first.children.split_off(position);
                 if let Some(Node::Element(target)) = self.node_mut(at) {
                     *target = first;
                 }
                 Node::Element(Element {
-                    element_type: second_type.unwrap_or(element.element_type),
+                    element_type: second_type,
                     properties: second_properties,
                     children: rest,
                 })
@@ -1318,8 +1401,23 @@ impl Editor {
         &mut self,
         at: &[usize],
         position: usize,
-        properties: Props,
+        mut properties: Props,
     ) -> Result<(), SlateError> {
+        // High-level transforms call this with no properties and expect the
+        // new node to inherit the old one's marks/type, matching Slate's
+        // `getSplitProperties` helper.
+        if properties.is_empty() {
+            if let Some(node) = self.node(at) {
+                match node {
+                    Node::Text(text) => properties = text.properties.clone(),
+                    Node::Element(element) => {
+                        properties = element.properties.clone();
+                        properties.insert("type".into(), json!(element.element_type));
+                    }
+                }
+            }
+        }
+
         self.apply(Operation::SplitNode {
             path: at.to_vec(),
             position,
@@ -1394,6 +1492,21 @@ fn node_kind(node: &Node) -> &'static str {
     }
 }
 
+fn collect_text_entries(
+    children: &[Node],
+    prefix: &mut Vec<usize>,
+    out: &mut Vec<(Vec<usize>, usize)>,
+) {
+    for (index, child) in children.iter().enumerate() {
+        prefix.push(index);
+        match child {
+            Node::Text(text) => out.push((prefix.clone(), text.len())),
+            Node::Element(element) => collect_text_entries(&element.children, prefix, out),
+        }
+        prefix.pop();
+    }
+}
+
 fn append_document_string(node: &Node, out: &mut String) {
     match node {
         Node::Text(text) => out.push_str(&text.text),
@@ -1408,10 +1521,18 @@ fn append_document_string(node: &Node, out: &mut String) {
     }
 }
 
-fn apply_set_node(node: &mut Node, _properties: &Props, new_properties: &Props) {
+fn apply_set_node(node: &mut Node, properties: &Props, new_properties: &Props) {
     if let Node::Element(element) = node {
         if let Some(Value::String(new_type)) = new_properties.get("type") {
             element.element_type = new_type.clone();
+        }
+    }
+
+    // Properties that were set before but are absent from `new_properties`
+    // are removals. Slate keeps this backwards-compatible behaviour.
+    for key in properties.keys() {
+        if key != "type" && !new_properties.contains_key(key) {
+            node.properties_mut().remove(key);
         }
     }
 

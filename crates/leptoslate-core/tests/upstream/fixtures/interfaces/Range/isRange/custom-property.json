@@ -1,0 +1,51 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/interfaces/Range/isRange/custom-property.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "anchor": {
+      "path": [
+        0,
+        1
+      ],
+      "offset": 0
+    },
+    "focus": {
+      "path": [
+        0,
+        1
+      ],
+      "offset": 0
+    },
+    "custom": "value"
+  },
+  "calls": [
+    {
+      "target": "Range",
+      "method": "isRange",
+      "args": [
+        {
+          "anchor": {
+            "path": [
+              0,
+              1
+            ],
+            "offset": 0
+          },
+          "focus": {
+            "path": [
+              0,
+              1
+            ],
+            "offset": 0
+          },
+          "custom": "value"
+        }
+      ]
+    }
+  ],
+  "output": true
+}

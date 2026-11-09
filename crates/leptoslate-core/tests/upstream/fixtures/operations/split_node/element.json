@@ -1,0 +1,76 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/operations/split_node/element.tsx"
+  },
+  "kind": "operations",
+  "input": {
+    "children": [
+      {
+        "data": true,
+        "children": [
+          {
+            "text": "before text"
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "hyperlink"
+              }
+            ]
+          },
+          {
+            "text": "after text"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "operations": [
+    {
+      "type": "split_node",
+      "path": [
+        0
+      ],
+      "position": 1,
+      "properties": {
+        "data": true
+      }
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "data": true,
+        "children": [
+          {
+            "text": "before text"
+          }
+        ]
+      },
+      {
+        "data": true,
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "hyperlink"
+              }
+            ]
+          },
+          {
+            "text": "after text"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

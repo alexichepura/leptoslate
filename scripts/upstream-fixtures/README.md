@@ -1,0 +1,66 @@
+# Upstream fixture extractor
+
+Converts Slate's TypeScript fixture modules into JSON replayed by
+`crates/leptoslate-core/tests/upstream.rs`.
+
+The extractor is a development tool, not part of the Rust build. Generated
+fixtures are committed, so `cargo test` works offline without Node.
+
+## Usage
+
+```bash
+npm ci
+npm run extract
+```
+
+Pinned upstream commit:
+`fd42a8046db8da329f4584dcf2a68ac7abd3137b`.
+
+Environment overrides:
+
+- `UPSTREAM_SHA` — extract a different Slate commit.
+- `UPSTREAM_CACHE` — where the tarball and work directory live
+  (default: `~/.cache/leptoslate-upstream`).
+
+## How it works
+
+1. Downloads the pinned Slate tarball into the cache and extracts it.
+2. Creates generated ESM packages (`.deps/`, `node_modules/`) that re-export
+   Slate's TypeScript sources, so no upstream build step is needed.
+3. Rewrites fixture imports that point at Slate's Mocha harness to a local JSX
+   shim.
+4. Instruments `Path`, `Point` and `Range` methods to capture the arguments of
+   each top-level call in `interfaces` fixtures.
+5. Evaluates each fixture with `tsx`, checks the fixture's own
+   `test`/`input`/`output` agree, and writes JSON under
+   `crates/leptoslate-core/tests/upstream/fixtures`.
+6. Writes `skipped.json` with reasons for any fixture that could not be
+   evaluated.
+
+`node_modules/` and `.deps/` are generated and git-ignored.
+
+## Output shape
+
+`interfaces` fixture:
+
+```json
+{
+  "upstream": { "repository": "...", "commit": "...", "source": "..." },
+  "kind": "interface",
+  "input": {},
+  "calls": [{ "target": "Path", "method": "transform", "args": [] }],
+  "output": []
+}
+```
+
+`operations` fixture:
+
+```json
+{
+  "upstream": { "repository": "...", "commit": "...", "source": "..." },
+  "kind": "operations",
+  "input": { "children": [], "selection": null },
+  "operations": [],
+  "output": { "children": [], "selection": null }
+}
+```

@@ -1,0 +1,33 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/interfaces/Path/endsAt/ends-after.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "path": [
+      1
+    ],
+    "another": [
+      0,
+      2
+    ]
+  },
+  "calls": [
+    {
+      "target": "Path",
+      "method": "endsAt",
+      "args": [
+        [
+          1
+        ],
+        [
+          0,
+          2
+        ]
+      ]
+    }
+  ],
+  "output": false
+}

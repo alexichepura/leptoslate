@@ -1,0 +1,72 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "packages/slate/test/operations/set_selection/custom-props.tsx"
+  },
+  "kind": "operations",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "a"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 1
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 1
+      }
+    }
+  },
+  "operations": [
+    {
+      "type": "set_selection",
+      "oldProperties": {},
+      "newProperties": {
+        "custom": 123
+      }
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "a"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 1
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 1
+      },
+      "custom": 123
+    }
+  }
+}
