@@ -1264,22 +1264,68 @@ impl Editor {
             return;
         }
 
-        let inline_children = if nodes.len() == 1 {
-            match &nodes[0] {
-                Node::Element(element) if element.element_type == "p" => {
-                    let inline = element.children.iter().all(|child| {
-                        child.is_text()
-                            || child
-                                .as_element()
-                                .is_some_and(|element| self.is_inline_element(element))
-                    });
-                    inline.then(|| element.children.clone())
-                }
-                _ => None,
-            }
-        } else {
-            None
+        let is_inline_node = |node: &Node| {
+            node.is_text()
+                || node
+                    .as_element()
+                    .is_some_and(|element| self.is_inline_element(element))
         };
+
+        let inline_children = nodes.iter().all(is_inline_node).then(|| nodes.clone());
+
+        if let Some(selection) = self.selection.clone() {
+            if selection.is_expanded() {
+                let end = selection.end().clone();
+                if let Some(point) = self.text_point(&end) {
+                    if self.point_has_void_ancestor(&point) {
+                        return;
+                    }
+                    if let Some(element_path) = self.read_only_ancestor(&point) {
+                        let inline = self
+                            .element(&element_path)
+                            .is_some_and(|element| self.is_inline_element(element));
+                        if inline {
+                            let mut after = element_path;
+                            if let Some(index) = after.last_mut() {
+                                *index += 1;
+                            }
+                            self.selection =
+                                Some(Range::new(selection.anchor.clone(), Point::new(after, 0)));
+                        } else {
+                            self.remove_nodes(&element_path, 1);
+                            let anchor_point = self
+                                .text_point(&selection.anchor)
+                                .unwrap_or_else(|| selection.anchor.clone());
+                            if let Some(text) = self.text(&anchor_point.path).cloned() {
+                                let removed =
+                                    char_slice(&text.text, anchor_point.offset, text.len())
+                                        .to_string();
+                                if !removed.is_empty() {
+                                    let _ = self.apply(Operation::RemoveText {
+                                        path: anchor_point.path.clone(),
+                                        offset: anchor_point.offset,
+                                        text: removed,
+                                    });
+                                }
+                            }
+                            self.selection = Some(Range::collapsed(anchor_point));
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(point) = self.selection.as_ref().map(|range| range.anchor.clone()) {
+            if let Some(point) = self.text_point(&point) {
+                if self.point_is_read_only(&point) {
+                    return;
+                }
+            }
+        }
+
+        if self.insert_hanging_fragment(&nodes) {
+            return;
+        }
 
         self.transaction(|editor| {
             if editor.node_selection.is_some() {
@@ -1302,6 +1348,67 @@ impl Editor {
         });
     }
 
+    /// Slate's `unhangRange` for fragment insertion: when a selection starts
+    /// at one block and ends at the start of the next block, replace the first
+    /// block with the fragment and leave the following blocks intact.
+    fn insert_hanging_fragment(&mut self, nodes: &[Node]) -> bool {
+        let Some(selection) = self.selection.clone() else {
+            return false;
+        };
+        if !selection.is_expanded() {
+            return false;
+        }
+
+        let anchor = self
+            .text_point(&selection.anchor)
+            .unwrap_or_else(|| selection.anchor.clone());
+        let focus = self
+            .text_point(&selection.focus)
+            .unwrap_or_else(|| selection.focus.clone());
+        let (Some(anchor_block), Some(focus_block)) =
+            (self.leaf_block_path(&anchor), self.leaf_block_path(&focus))
+        else {
+            return false;
+        };
+        if self.first_text_point_in(&focus_block).as_ref() != Some(&focus) {
+            return false;
+        }
+
+        let (Some(&anchor_index), Some(&focus_index)) = (anchor_block.first(), focus_block.first())
+        else {
+            return false;
+        };
+        if focus_index <= anchor_index {
+            return false;
+        }
+
+        let anchor_has_void = self
+            .children
+            .get(anchor_index)
+            .is_some_and(|node| contains_void_or_read_only(self, node));
+        let focus_is_empty = self
+            .element(&focus_block)
+            .is_some_and(|element| element.text_len() == 0 && element.is_text_only());
+
+        let focus_is_last = focus_index + 1 == self.children.len();
+        self.transaction(|editor| {
+            if focus_is_last && focus_is_empty {
+                let count = editor.children.len() - anchor_index;
+                editor.remove_nodes(&[anchor_index], count);
+            } else {
+                editor.remove_nodes(&[anchor_index], 1);
+                if anchor_has_void && focus_is_empty {
+                    editor.remove_nodes(&[anchor_index], 1);
+                }
+            }
+            editor.insert_nodes(&[anchor_index], nodes.to_vec());
+            if let Some(last) = nodes.len().checked_sub(1) {
+                editor.select_end_of(&[anchor_index + last]);
+            }
+        });
+        true
+    }
+
     fn insert_inline_children_inner(&mut self, children: Vec<Node>) {
         if children.is_empty() {
             return;
@@ -1319,6 +1426,30 @@ impl Editor {
             return;
         };
         if point.path.len() < 2 {
+            return;
+        }
+
+        if let Some(inline_path) = self.inline_ancestor_matching(&point.path, |_| true) {
+            let parent = inline_path[..inline_path.len() - 1].to_vec();
+            let index = *inline_path.last().unwrap();
+            let at_start = self.first_text_point_in(&inline_path).as_ref() == Some(&point);
+            let at_end = self.last_text_point_in(&inline_path).as_ref() == Some(&point);
+
+            let insert_index = if at_start || at_end {
+                index + 1
+            } else {
+                self.selection = Some(Range::collapsed(point.clone()));
+                let Some(after) = self.split_inline_at_point(&point, &inline_path) else {
+                    return;
+                };
+                after
+            };
+
+            let count = children.len();
+            self.insert_nodes(&child_path(&parent, insert_index), children);
+            if count > 0 {
+                self.select_end_of(&child_path(&parent, insert_index + count - 1));
+            }
             return;
         }
 
@@ -1375,64 +1506,344 @@ impl Editor {
         let Some(point) = self.text_point(&point) else {
             return;
         };
-        if point.path.is_empty() {
+        let Some(block) = self.leaf_block_path(&point) else {
+            return;
+        };
+        let block_index = *block.last().unwrap();
+        let parent = block[..block.len() - 1].to_vec();
+        let at_start = self.first_text_point_in(&block).as_ref() == Some(&point);
+        let at_end = self.last_text_point_in(&block).as_ref() == Some(&point);
+        let is_empty = at_start && at_end;
+
+        let is_block = |editor: &Self, node: &Node| {
+            node.as_element()
+                .is_some_and(|element| !editor.is_inline_element(element))
+        };
+        if !nodes.iter().any(|node| is_block(self, node)) {
+            self.insert_inline_children_inner(nodes);
             return;
         }
 
-        let top = path::parent(&point.path).and_then(|parent| parent.first().copied());
-        let Some(top) = top else {
-            return;
-        };
-
-        let at_start = point.offset == 0 && point.path[1..].iter().all(|index| *index == 0);
-        let count = nodes.len();
-        let insert_at = if at_start {
-            top
+        let (starts, middles, ends) = if is_empty {
+            (Vec::new(), nodes.clone(), Vec::new())
         } else {
-            let Some(tail) = self.split_top_level_at_point(&point) else {
-                return;
-            };
-            tail
+            self.classify_fragment(&nodes, at_start, at_end)
         };
 
-        for (offset, node) in nodes.into_iter().enumerate() {
-            if self
-                .apply(Operation::InsertNode {
-                    path: vec![insert_at + offset],
-                    node,
-                })
-                .is_err()
-            {
-                return;
-            }
+        if middles.is_empty() && ends.is_empty() {
+            self.insert_inline_children_inner(starts);
+            return;
         }
 
-        // Slate leaves the caret at the end of the last inserted block rather
-        // than at the start of the block that follows it.
-        let last_inserted = insert_at + count - 1;
+        let inline_only = |editor: &Self, nodes: &[Node]| {
+            nodes.iter().all(|node| {
+                node.is_text()
+                    || node
+                        .as_element()
+                        .is_some_and(|element| editor.is_inline_element(element))
+            })
+        };
+        if !inline_only(self, &starts) || !inline_only(self, &ends) {
+            return;
+        }
+
+        if is_empty {
+            let template = self.element(&block).cloned();
+            let mut replacement = Vec::new();
+            let mut run = Vec::new();
+            for node in middles {
+                if inline_only(self, std::slice::from_ref(&node)) {
+                    run.push(node);
+                } else {
+                    if !run.is_empty() {
+                        replacement
+                            .push(self.block_from_template(&template, std::mem::take(&mut run)));
+                    }
+                    replacement.push(node);
+                }
+            }
+            if !run.is_empty() {
+                replacement.push(self.block_from_template(&template, run));
+            }
+
+            let _ = self.apply(Operation::RemoveNode {
+                path: block.clone(),
+            });
+            self.insert_nodes(&child_path(&parent, block_index), replacement.clone());
+            if let Some(last) = replacement.len().checked_sub(1) {
+                self.select_end_of(&child_path(&parent, block_index + last));
+            }
+            return;
+        }
+
+        if at_start {
+            let mut insert_index = block_index;
+            if !starts.is_empty() {
+                let template = self.element(&block).cloned();
+                self.insert_nodes(
+                    &child_path(&parent, insert_index),
+                    vec![self.block_from_template(&template, starts)],
+                );
+                insert_index += 1;
+            }
+            let middle_count = middles.len();
+            if middle_count > 0 {
+                self.insert_nodes(&child_path(&parent, insert_index), middles);
+                insert_index += middle_count;
+            }
+            let current = child_path(&parent, insert_index);
+            if !ends.is_empty() {
+                let end_count = ends.len();
+                self.prepend_children(&current, ends);
+                self.select_end_of(&child_path(&current, end_count - 1));
+            } else if insert_index > block_index {
+                self.select_end_of(&child_path(&parent, insert_index - 1));
+            } else {
+                self.select_end_of(&current);
+            }
+            return;
+        }
+
+        if at_end {
+            let start_index = self
+                .element(&block)
+                .map(|element| element.children.len())
+                .unwrap_or(0);
+            let start_count = starts.len();
+            if !starts.is_empty() {
+                self.append_children(&block, starts);
+            }
+
+            let mut insert_index = block_index + 1;
+            let middle_count = middles.len();
+            if middle_count > 0 {
+                self.insert_nodes(&child_path(&parent, insert_index), middles);
+                insert_index += middle_count;
+            }
+
+            let mut selection = if middle_count > 0 {
+                child_path(&parent, insert_index - 1)
+            } else if start_count > 0 {
+                child_path(&block, start_index + start_count - 1)
+            } else {
+                block.clone()
+            };
+
+            if !ends.is_empty() {
+                let template = self.element(&block).cloned();
+                self.insert_nodes(
+                    &child_path(&parent, insert_index),
+                    vec![self.block_from_template(&template, ends)],
+                );
+                selection = child_path(&parent, insert_index);
+            }
+            self.select_end_of(&selection);
+            return;
+        }
+
+        // Insertion point is inside the destination block: split it into a
+        // before/after pair, merge the fragment edges into each side and put
+        // whole middle blocks between them.
+        self.selection = Some(Range::collapsed(point.clone()));
+        let Some(after_index) = self.split_block_at_point(&point, &block) else {
+            return;
+        };
+        if !starts.is_empty() {
+            self.append_children(&block, starts);
+        }
+        let middle_count = middles.len();
+        if middle_count > 0 {
+            self.insert_nodes(&child_path(&parent, after_index), middles);
+        }
+        let after_final = child_path(&parent, after_index + middle_count);
+        if !ends.is_empty() {
+            let end_count = ends.len();
+            self.prepend_children(&after_final, ends);
+            self.select_end_of(&child_path(&after_final, end_count - 1));
+        } else if middle_count > 0 {
+            let last_middle = child_path(&parent, after_index + middle_count - 1);
+            let is_void = self
+                .element(&last_middle)
+                .is_some_and(|element| self.is_void_element(element));
+            if is_void {
+                self.select_start_of(&after_final);
+            } else {
+                self.select_end_of(&last_middle);
+            }
+        } else {
+            self.select_end_of(&block);
+        }
+    }
+
+    fn classify_fragment(
+        &self,
+        nodes: &[Node],
+        at_start: bool,
+        at_end: bool,
+    ) -> (Vec<Node>, Vec<Node>, Vec<Node>) {
+        let first = first_leaf_path(nodes);
+        let last = last_leaf_path(nodes);
+        let mut starts = Vec::new();
+        let mut middles = Vec::new();
+        let mut ends = Vec::new();
+        let mut starting = true;
+
+        self.walk_fragment(
+            nodes,
+            &mut Vec::new(),
+            first.as_deref(),
+            last.as_deref(),
+            at_start,
+            at_end,
+            &mut starting,
+            &mut starts,
+            &mut middles,
+            &mut ends,
+        );
+
+        (starts, middles, ends)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn walk_fragment(
+        &self,
+        nodes: &[Node],
+        path: &mut Vec<usize>,
+        first: Option<&[usize]>,
+        last: Option<&[usize]>,
+        at_start: bool,
+        at_end: bool,
+        starting: &mut bool,
+        starts: &mut Vec<Node>,
+        middles: &mut Vec<Node>,
+        ends: &mut Vec<Node>,
+    ) {
+        for (index, node) in nodes.iter().enumerate() {
+            path.push(index);
+            match node {
+                Node::Text(_) => {
+                    if *starting {
+                        starts.push(node.clone());
+                    } else {
+                        ends.push(node.clone());
+                    }
+                }
+                Node::Element(element) if self.is_inline_element(element) => {
+                    if *starting {
+                        starts.push(node.clone());
+                    } else {
+                        ends.push(node.clone());
+                    }
+                }
+                Node::Element(element) => {
+                    let contains_first = first.is_some_and(|leaf| is_path_prefix(path, leaf));
+                    let contains_last = last.is_some_and(|leaf| is_path_prefix(path, leaf));
+                    if *starting && !contains_first {
+                        *starting = false;
+                    }
+                    let should_insert = self.is_void_element(element)
+                        || ((at_start || !contains_first) && (at_end || !contains_last));
+
+                    if should_insert {
+                        *starting = false;
+                        middles.push(node.clone());
+                    } else {
+                        self.walk_fragment(
+                            &element.children,
+                            path,
+                            first,
+                            last,
+                            at_start,
+                            at_end,
+                            starting,
+                            starts,
+                            middles,
+                            ends,
+                        );
+                    }
+                }
+            }
+            path.pop();
+        }
+    }
+
+    fn append_children(&mut self, block: &[usize], children: Vec<Node>) {
+        if children.is_empty() {
+            return;
+        }
+        let length = self
+            .element(block)
+            .map(|element| element.children.len())
+            .unwrap_or(0);
+        self.insert_nodes(&child_path(block, length), children);
+    }
+
+    fn prepend_children(&mut self, block: &[usize], children: Vec<Node>) {
+        if children.is_empty() {
+            return;
+        }
+        self.insert_nodes(&child_path(block, 0), children);
+    }
+
+    fn block_from_template(&self, template: &Option<Element>, children: Vec<Node>) -> Node {
+        match template {
+            Some(element) => {
+                let mut block = element.clone();
+                block.children = children;
+                Node::Element(block)
+            }
+            None => Node::Element(Element::paragraph(children)),
+        }
+    }
+
+    fn select_end_of(&mut self, path: &[usize]) {
         if let Some(point) = self
-            .last_text_point_in(&[last_inserted])
-            .or_else(|| self.first_text_point_in(&[last_inserted + 1]))
-            .or_else(|| self.end_point())
+            .last_text_point_in(path)
+            .or_else(|| self.first_text_point_in(path))
         {
             self.selection = Some(Range::collapsed(point));
         }
     }
 
-    fn split_top_level_at_point(&mut self, point: &Point) -> Option<usize> {
-        let leaf = point.path.clone();
-        self.apply_split(&leaf, point.offset, Props::new()).ok()?;
-        let mut caret = Point::new(path::next(&leaf), 0);
-        self.selection = Some(Range::collapsed(caret.clone()));
+    fn select_start_of(&mut self, path: &[usize]) {
+        if let Some(point) = self
+            .first_text_point_in(path)
+            .or_else(|| self.last_text_point_in(path))
+        {
+            self.selection = Some(Range::collapsed(point));
+        }
+    }
 
-        for depth in (1..leaf.len()).rev() {
-            let ancestor = leaf[..depth].to_vec();
-            let position = caret.path.get(depth).copied()?;
-            self.apply_split(&ancestor, position, Props::new()).ok()?;
-            caret = self.selection.as_ref()?.anchor.clone();
+    fn split_inline_at_point(&mut self, point: &Point, inline: &[usize]) -> Option<usize> {
+        if point.offset > 0 {
+            self.apply_split(&point.path, point.offset, Props::new())
+                .ok()?;
         }
 
-        caret.path.first().copied()
+        for depth in (inline.len()..point.path.len()).rev() {
+            let ancestor = point.path[..depth].to_vec();
+            let position = self.selection.as_ref()?.anchor.path.get(depth).copied()?;
+            self.apply_split(&ancestor, position, Props::new()).ok()?;
+        }
+
+        inline.last().map(|index| index + 1)
+    }
+
+    fn split_block_at_point(&mut self, point: &Point, block: &[usize]) -> Option<usize> {
+        if point.offset > 0 {
+            self.apply_split(&point.path, point.offset, Props::new())
+                .ok()?;
+        } else {
+            self.selection = Some(Range::collapsed(point.clone()));
+        }
+
+        for depth in (block.len()..point.path.len()).rev() {
+            let ancestor = point.path[..depth].to_vec();
+            let position = self.selection.as_ref()?.anchor.path.get(depth).copied()?;
+            self.apply_split(&ancestor, position, Props::new()).ok()?;
+        }
+
+        block.last().map(|index| index + 1)
     }
 
     /// Insert an inline node at the caret and move the caret into the text
@@ -1857,6 +2268,54 @@ impl Editor {
                 new_properties: properties,
             });
         });
+    }
+}
+
+fn first_leaf_path(nodes: &[Node]) -> Option<Vec<usize>> {
+    for (index, node) in nodes.iter().enumerate() {
+        match node {
+            Node::Text(_) => return Some(vec![index]),
+            Node::Element(element) => {
+                if let Some(mut path) = first_leaf_path(&element.children) {
+                    path.insert(0, index);
+                    return Some(path);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn last_leaf_path(nodes: &[Node]) -> Option<Vec<usize>> {
+    for (index, node) in nodes.iter().enumerate().rev() {
+        match node {
+            Node::Text(_) => return Some(vec![index]),
+            Node::Element(element) => {
+                if let Some(mut path) = last_leaf_path(&element.children) {
+                    path.insert(0, index);
+                    return Some(path);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn is_path_prefix(prefix: &[usize], path: &[usize]) -> bool {
+    prefix.len() <= path.len() && path[..prefix.len()] == *prefix
+}
+
+fn contains_void_or_read_only(editor: &Editor, node: &Node) -> bool {
+    match node {
+        Node::Element(element) => {
+            editor.is_void_element(element)
+                || matches!(element.properties.get("readOnly"), Some(Value::Bool(true)))
+                || element
+                    .children
+                    .iter()
+                    .any(|child| contains_void_or_read_only(editor, child))
+        }
+        Node::Text(_) => false,
     }
 }
 

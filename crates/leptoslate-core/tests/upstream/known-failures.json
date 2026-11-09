@@ -65,14 +65,6 @@
       "reason": "Slate supports arbitrary properties on a selection; leptoslate Range is anchor/focus only."
     },
     {
-      "source": "transforms/delete/emojis/inline-only-reverse.tsx",
-      "reason": "Slate keeps empty inline nodes; leptoslate normalization removes them."
-    },
-    {
-      "source": "transforms/delete/path/replace-all-blocks.tsx",
-      "reason": "Multi-call replace flow depends on Slate insertNodes semantics."
-    },
-    {
       "source": "transforms/delete/point/depths-reverse.tsx",
       "reason": "Cross-block and inline point deletion differs from Slate."
     },
@@ -149,11 +141,15 @@
       "reason": "Cross-block selection deletion differs from Slate."
     },
     {
-      "source": "transforms/delete/selection/inline-whole.tsx",
-      "reason": "Cross-block selection deletion differs from Slate."
+      "source": "transforms/delete/unit-character/inline-before.tsx",
+      "reason": "Inline/void-aware grapheme deletion differs from Slate."
     },
     {
-      "source": "transforms/delete/unit-character/inline-before.tsx",
+      "source": "transforms/delete/unit-character/inline-empty-after.tsx",
+      "reason": "Inline/void-aware grapheme deletion differs from Slate."
+    },
+    {
+      "source": "transforms/delete/unit-character/inline-empty-before-reverse.tsx",
       "reason": "Inline/void-aware grapheme deletion differs from Slate."
     },
     {
@@ -162,14 +158,6 @@
     },
     {
       "source": "transforms/delete/unit-character/inline-empty-inside.tsx",
-      "reason": "Inline/void-aware grapheme deletion differs from Slate."
-    },
-    {
-      "source": "transforms/delete/unit-character/inline-inside-reverse.tsx",
-      "reason": "Inline/void-aware grapheme deletion differs from Slate."
-    },
-    {
-      "source": "transforms/delete/unit-character/inline-inside.tsx",
       "reason": "Inline/void-aware grapheme deletion differs from Slate."
     },
     {
@@ -289,223 +277,11 @@
       "reason": "Void/read-only-aware deletion is not implemented."
     },
     {
-      "source": "transforms/insertFragment/document-end/block-void-backward.ts",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/document-end/block-void-one-empty.ts",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/document-end/block-void-two-empty.ts",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/document-end/hanging-non-final.ts",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/document-end/inline-void.ts",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/document-end/nested-list.ts",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/document-end/nested-table.ts",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-blocks/block-empty-only-block-2.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-blocks/block-empty-only-block.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-blocks/block-empty-void-last-block.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-blocks/block-empty.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-blocks/block-end-void-last-block.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-blocks/block-end.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-blocks/block-middle-3.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-blocks/block-middle-void-nested.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-blocks/block-middle-void-then-block.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-blocks/block-middle-void.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-blocks/block-nested.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-blocks/block-start.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-blocks/blocks-middle-1.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-blocks/blocks-middle-2.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-blocks/with-inline.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-inlines/block-empty.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-inlines/block-end.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-inlines/block-middle.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-inlines/block-start.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-inlines/inline-empty.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-inlines/inline-middle.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-inlines/with-multiple.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-inlines/with-text.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-lists/merge-lists.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-mixed/block-empty.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-mixed/block-empty2.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-mixed/block-empty3.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-mixed/block-end.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-mixed/block-end2.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-mixed/block-middle.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-mixed/block-start.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-mixed/block-start2.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-texts/block-across.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-texts/block-empty.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-texts/block-end.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-texts/block-middle.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-texts/block-start.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-texts/inline-empty.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-texts/inline-middle.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/of-texts/with-multiple.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/range-ending-in-readonly/block.ts",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/range-ending-in-readonly/inline.ts",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/range-ending-in-void/block.ts",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/range-ending-in-void/inline.ts",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/voids-false/block.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/voids-false/inline.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertFragment/with-filter/no-filter.tsx",
-      "reason": "insertFragment's block/inline splitting and selection updates are not fully implemented."
-    },
-    {
       "source": "transforms/insertNodes/block/block-empty.tsx",
+      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
+    },
+    {
+      "source": "transforms/insertNodes/block/block-middle.tsx",
       "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
     },
     {
@@ -517,39 +293,7 @@
       "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
     },
     {
-      "source": "transforms/insertNodes/inline/block-empty.tsx",
-      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertNodes/inline/block-end.tsx",
-      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertNodes/inline/block-middle.tsx",
-      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertNodes/inline/block-start.tsx",
-      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertNodes/inline/block-void.tsx",
-      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
-    },
-    {
       "source": "transforms/insertNodes/inline/inline-middle.tsx",
-      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertNodes/path/inline.tsx",
-      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertNodes/path/multiple-inline-not-end.tsx",
-      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertNodes/path/multiple-inline.tsx",
       "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
     },
     {
@@ -570,14 +314,6 @@
     },
     {
       "source": "transforms/insertNodes/selection/none-end.tsx",
-      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertNodes/void/block-nested.tsx",
-      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertNodes/void/block.tsx",
       "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
     },
     {

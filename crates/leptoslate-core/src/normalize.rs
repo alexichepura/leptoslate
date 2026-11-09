@@ -96,7 +96,18 @@ impl Editor {
     fn scan_children(&self, children: &[Node], at: &[usize], is_root: bool) -> Option<Fix> {
         if !is_root {
             if let Some(element) = self.element(at) {
-                if is_inline(self, element) && !is_void(self, element) && element.text_len() == 0 {
+                // Remove an empty inline only when it is the sole child, so
+                // an empty inline still surrounded by siblings survives
+                // (Slate keeps these).
+                let sibling_count = self
+                    .children_at(&at[..at.len() - 1])
+                    .map(<[Node]>::len)
+                    .unwrap_or(1);
+                if is_inline(self, element)
+                    && !is_void(self, element)
+                    && element.text_len() == 0
+                    && sibling_count == 1
+                {
                     return Some(Fix::RemoveNode { path: at.to_vec() });
                 }
             }

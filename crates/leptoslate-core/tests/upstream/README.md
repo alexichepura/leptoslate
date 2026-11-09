@@ -35,9 +35,11 @@ Current results:
 | Suite | Passing | Known failures | Unsupported | Upstream skip |
 | --- | ---: | ---: | ---: | ---: |
 | interfaces + operations | 232 | 2 | 0 | 0 |
-| transforms | 166 | 163 | 163 | 4 |
+| transforms | 232 | 97 | 163 | 4 |
 | normalization | 11 | 6 | 3 | 0 |
 | history | 3 | 7 | 0 | 6 |
+
+All 61 `insertFragment` fixtures pass.
 
 `skipped.json` lists fixtures the extractor could not evaluate, including
 upstream fixtures marked `skip: true`, table fixtures marked skip by Slate, and
@@ -51,7 +53,9 @@ reasons in its output.
 
 The list is deliberately strict: if a known failure starts passing, the test
 fails until the entry is removed. Add a new entry only after deciding that the
-divergence is a deliberate gap rather than a bug to fix now.
+divergence is a deliberate gap rather than a bug to fix now. Set
+`UPSTREAM_INCLUDE_KNOWN=1` while working on a gap to print the actual mismatch
+even for known failures.
 
 Fixtures whose *call shape* is not supported yet (for example `match`
 predicates, `unit: 'line'`, or `voids` options) are not listed individually.
@@ -62,8 +66,6 @@ The largest current gaps are:
 
 - Generic `wrapNodes` / `unwrapNodes` are not implemented (83 unsupported
   fixtures in P2).
-- `insertFragment` block/inline splitting, void handling and selection updates
-  (54 known failures).
 - Slate's void/read-only-aware deletion and cross-block deletion edge cases.
 - `insertNodes` block/inline splitting and selection updates.
 - `splitNodes` edge/height/match semantics.

@@ -121,7 +121,11 @@ fn fixtures_root() -> PathBuf {
 }
 
 fn run_category(category: &str) {
-    let known = known_failures();
+    let known = if std::env::var_os("UPSTREAM_INCLUDE_KNOWN").is_some() {
+        BTreeMap::new()
+    } else {
+        known_failures()
+    };
     let mut files = Vec::new();
     collect_json(&fixtures_root(), &mut files);
     files.sort();

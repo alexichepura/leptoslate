@@ -252,6 +252,26 @@ impl Editor {
         false
     }
 
+    /// Whether `point` is inside a void element.
+    pub fn point_has_void_ancestor(&self, point: &Point) -> bool {
+        (1..point.path.len()).rev().any(|depth| {
+            self.element(&point.path[..depth])
+                .is_some_and(|element| self.is_void_element(element))
+        })
+    }
+
+    /// The innermost read-only ancestor of `point`, if any.
+    pub fn read_only_ancestor(&self, point: &Point) -> Option<path::Path> {
+        (1..point.path.len()).rev().find_map(|depth| {
+            let path = &point.path[..depth];
+            self.element(path)
+                .filter(|element| {
+                    matches!(element.properties.get("readOnly"), Some(Value::Bool(true)))
+                })
+                .map(|_| path.to_vec())
+        })
+    }
+
     /// Whether text at `at` can receive marks. Text inside a void is only
     /// markable when the void itself opts in with `markable: true`.
     pub fn is_text_markable(&self, at: &[usize]) -> bool {
