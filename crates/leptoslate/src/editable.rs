@@ -327,6 +327,26 @@ pub fn Editable(
             }
         }
 
+        // A single blank block has nothing to delete. Preventing the default
+        // stops the browser from mutating the contenteditable DOM without a
+        // matching model change, which otherwise desynchronizes the caret and
+        // the block keys until the page reloads.
+        if matches!(key.as_str(), "Backspace" | "Delete")
+            && keydown_editor
+                .state
+                .with_untracked(|state| state.is_single_blank_block())
+        {
+            ev.prevent_default();
+            keydown_editor.update(|state| {
+                if state.selection.is_none() {
+                    if let Some(point) = state.start_point() {
+                        state.select_point(point);
+                    }
+                }
+            });
+            return;
+        }
+
         if modifier {
             match lower.as_str() {
                 "b" => {

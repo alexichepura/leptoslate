@@ -1329,3 +1329,107 @@ test("IME composition reconciles the DOM text into the model", async ({
 
   await expectTopBlockText(page, 2, "漢Select");
 });
+
+test("pasting inline text keeps the caret after the pasted fragment", async ({
+  page,
+}) => {
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([{ type: "p", children: [{ text: "hello" }] }]),
+  );
+  await setCaret(page, "0.0", 5);
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData("text/html", "<p>XY</p>");
+    data.setData("text/plain", "XY");
+    document.querySelector(".ls-editor")!.dispatchEvent(
+      new ClipboardEvent("paste", {
+        clipboardData: data,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  });
+
+  await expectTopBlockText(page, 0, "helloXY");
+  const { selection } = await getSelection(page);
+  expect(selection?.anchor).toEqual({ path: [0, 0], offset: 7 });
+  expect(selection?.focus).toEqual({ path: [0, 0], offset: 7 });
+});
+
+test("pasting blocks keeps the caret at the end of the last pasted block", async ({
+  page,
+}) => {
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([{ type: "p", children: [{ text: "hello" }] }]),
+  );
+  await setCaret(page, "0.0", 5);
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData("text/html", "<p>one</p><p>two</p>");
+    data.setData("text/plain", "one\n\ntwo");
+    document.querySelector(".ls-editor")!.dispatchEvent(
+      new ClipboardEvent("paste", {
+        clipboardData: data,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  });
+
+  await expectTopBlockText(page, 1, "one");
+  await expectTopBlockText(page, 2, "two");
+  const { selection } = await getSelection(page);
+  expect(selection?.anchor).toEqual({ path: [2, 0], offset: 3 });
+  expect(selection?.focus).toEqual({ path: [2, 0], offset: 3 });
+});
+
+test("Backspace in an empty document keeps the caret and typing alive", async ({
+  page,
+}) => {
+  await page.evaluate(
+    (json) => (window as any).__leptoslate.load(json),
+    JSON.stringify([{ type: "p", children: [{ text: "" }] }]),
+  );
+
+  await page.evaluate(() => {
+    const editor = document.querySelector(".ls-editor") as HTMLElement;
+    editor.focus();
+    const paragraph = editor.querySelector("p")!;
+    const range = document.createRange();
+    range.setStart(paragraph, 0);
+    range.collapse(true);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    editor.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+  });
+  await page.waitForTimeout(30);
+
+  const prevented = await page.evaluate(() => {
+    const editor = document.querySelector(".ls-editor") as HTMLElement;
+    return ["Backspace", "Delete"].map((key) => {
+      const event = new KeyboardEvent("keydown", {
+        key,
+        bubbles: true,
+        cancelable: true,
+      });
+      editor.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+  });
+  expect(prevented).toEqual([true, true]);
+
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.type("hello");
+
+  await expect
+    .poll(async () => plainText((await getJson(page))[0]))
+    .toBe("hello");
+  const { selection } = await getSelection(page);
+  expect(selection?.anchor.path[0]).toBe(0);
+  expect(selection?.focus.path[0]).toBe(0);
+});
+

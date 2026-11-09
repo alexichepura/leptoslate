@@ -1328,8 +1328,16 @@ impl Editor {
             }
         }
 
+        // Leave the caret at the end of the last inserted child, like Slate's
+        // `Transforms.insertFragment`. Falling back to the following node only
+        // when the last child has no text (e.g. an inline void).
+        let last_path = child_path(&parent, start + count - 1);
         let after_path = child_path(&parent, start + count);
-        if let Some(point) = self.first_text_point_in(&after_path) {
+        if let Some(point) = self
+            .last_text_point_in(&last_path)
+            .or_else(|| self.first_text_point_in(&after_path))
+            .or_else(|| self.end_point())
+        {
             self.selection = Some(Range::collapsed(point));
         }
     }
@@ -1360,13 +1368,13 @@ impl Editor {
 
         let at_start = point.offset == 0 && point.path[1..].iter().all(|index| *index == 0);
         let count = nodes.len();
-        let (insert_at, caret_path) = if at_start {
-            (top, top + count)
+        let insert_at = if at_start {
+            top
         } else {
             let Some(tail) = self.split_top_level_at_point(&point) else {
                 return;
             };
-            (tail, tail + count)
+            tail
         };
 
         for (offset, node) in nodes.into_iter().enumerate() {
@@ -1381,7 +1389,14 @@ impl Editor {
             }
         }
 
-        if let Some(point) = self.first_text_point_in(&[caret_path]) {
+        // Slate leaves the caret at the end of the last inserted block rather
+        // than at the start of the block that follows it.
+        let last_inserted = insert_at + count - 1;
+        if let Some(point) = self
+            .last_text_point_in(&[last_inserted])
+            .or_else(|| self.first_text_point_in(&[last_inserted + 1]))
+            .or_else(|| self.end_point())
+        {
             self.selection = Some(Range::collapsed(point));
         }
     }
