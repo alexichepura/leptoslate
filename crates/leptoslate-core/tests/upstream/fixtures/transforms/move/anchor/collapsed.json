@@ -1,0 +1,73 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/move/anchor/collapsed.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one two three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 9
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 9
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "move",
+      "args": [
+        {
+          "edge": "anchor"
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one two three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 10
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 9
+      }
+    }
+  }
+}

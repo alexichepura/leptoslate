@@ -1,0 +1,113 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/unwrapNodes/match-inline/inline-over.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "wo"
+          },
+          {
+            "inline": true,
+            "a": true,
+            "children": [
+              {
+                "text": "rd"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "a": true,
+            "children": [
+              {
+                "text": "an"
+              }
+            ]
+          },
+          {
+            "text": "other"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 1
+      },
+      "focus": {
+        "path": [
+          1,
+          2
+        ],
+        "offset": 2
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "unwrapNodes",
+      "args": [
+        {
+          "match": {
+            "__fn": "n=>n.a===true"
+          }
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "another"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 1
+      },
+      "focus": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 4
+      }
+    }
+  }
+}

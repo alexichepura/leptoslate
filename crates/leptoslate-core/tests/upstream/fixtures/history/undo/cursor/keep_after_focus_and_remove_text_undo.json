@@ -1,0 +1,164 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "history/undo/cursor/keep_after_focus_and_remove_text_undo.tsx"
+  },
+  "kind": "history",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "Hello"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "select",
+      "args": [
+        {
+          "anchor": {
+            "path": [
+              0,
+              0
+            ],
+            "offset": 5
+          },
+          "focus": {
+            "path": [
+              0,
+              0
+            ],
+            "offset": 5
+          }
+        }
+      ]
+    },
+    {
+      "target": "Transforms",
+      "method": "select",
+      "args": [
+        {
+          "anchor": {
+            "path": [
+              0,
+              0
+            ],
+            "offset": 5
+          },
+          "focus": {
+            "path": [
+              0,
+              0
+            ],
+            "offset": 0
+          }
+        }
+      ]
+    },
+    {
+      "target": "EditorInstance",
+      "method": "deleteFragment",
+      "args": [
+        null
+      ]
+    },
+    {
+      "target": "Transforms",
+      "method": "deselect",
+      "args": []
+    },
+    {
+      "target": "Transforms",
+      "method": "select",
+      "args": [
+        {
+          "anchor": {
+            "path": [
+              0,
+              0
+            ],
+            "offset": 0
+          },
+          "focus": {
+            "path": [
+              0,
+              0
+            ],
+            "offset": 0
+          }
+        }
+      ]
+    },
+    {
+      "target": "Transforms",
+      "method": "transform",
+      "args": [
+        {
+          "type": "insert_text",
+          "path": [
+            0,
+            0
+          ],
+          "offset": 0,
+          "text": "Hello"
+        }
+      ]
+    },
+    {
+      "target": "Transforms",
+      "method": "select",
+      "args": [
+        {
+          "anchor": {
+            "path": [
+              0,
+              0
+            ],
+            "offset": 5
+          },
+          "focus": {
+            "path": [
+              0,
+              0
+            ],
+            "offset": 0
+          }
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "Hello"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 5
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  }
+}

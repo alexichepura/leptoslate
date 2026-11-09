@@ -1,0 +1,67 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "normalization/editor/remove-text-with-wrapping.tsx"
+  },
+  "kind": "normalization",
+  "input": {
+    "children": [
+      {
+        "text": "one"
+      },
+      {
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      },
+      {
+        "text": "three"
+      },
+      {
+        "children": [
+          {
+            "text": "four"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "three"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "four"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "withFallbackElement": true
+}

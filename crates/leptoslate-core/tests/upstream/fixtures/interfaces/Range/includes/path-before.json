@@ -2,7 +2,7 @@
   "upstream": {
     "repository": "ianstormtaylor/slate",
     "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
-    "source": "packages/slate/test/interfaces/Range/includes/path-before.tsx"
+    "source": "interfaces/Range/includes/path-before.tsx"
   },
   "kind": "interface",
   "input": {

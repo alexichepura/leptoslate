@@ -30,27 +30,55 @@ const CACHE =
   process.env.UPSTREAM_CACHE ??
   path.join(os.homedir(), '.cache', 'leptoslate-upstream')
 const SOURCE = path.join(CACHE, `slate-${SHA}`)
-const TEST_ROOT = path.join(SOURCE, 'packages/slate/test')
+const SLATE_TEST_ROOT = path.join(SOURCE, 'packages/slate/test')
+const HISTORY_TEST_ROOT = path.join(SOURCE, 'packages/slate-history/test')
 const WORK = path.join(CACHE, `work-${SHA}`)
 const OUT = path.join(
   REPO,
   'crates/leptoslate-core/tests/upstream/fixtures'
 )
-const CATEGORIES = [
-  'interfaces/Path',
-  'interfaces/Point',
-  'interfaces/Range',
-  'operations',
-  'transforms/insertText',
-  'transforms/splitNodes',
-  'transforms/mergeNodes',
-  'transforms/removeNodes',
-  'transforms/insertNodes',
-  'transforms/delete',
-  'transforms/setNodes',
-  'transforms/unsetNodes',
-  'transforms/moveNodes',
-] as const
+
+type Category = {
+  /** Prefix used for output paths and known-failure keys. */
+  name: string
+  root: string
+  /** Directory relative to `root`. */
+  dir: string
+}
+
+const slateCategory = (dir: string): Category => ({
+  name: dir,
+  root: SLATE_TEST_ROOT,
+  dir,
+})
+
+const CATEGORIES: Category[] = [
+  slateCategory('interfaces/Path'),
+  slateCategory('interfaces/Point'),
+  slateCategory('interfaces/Range'),
+  slateCategory('operations'),
+  slateCategory('transforms/insertText'),
+  slateCategory('transforms/splitNodes'),
+  slateCategory('transforms/mergeNodes'),
+  slateCategory('transforms/removeNodes'),
+  slateCategory('transforms/insertNodes'),
+  slateCategory('transforms/delete'),
+  slateCategory('transforms/setNodes'),
+  slateCategory('transforms/unsetNodes'),
+  slateCategory('transforms/moveNodes'),
+  slateCategory('transforms/insertFragment'),
+  slateCategory('transforms/move'),
+  slateCategory('transforms/wrapNodes'),
+  slateCategory('transforms/unwrapNodes'),
+  slateCategory('transforms/liftNodes'),
+  slateCategory('transforms/select'),
+  slateCategory('transforms/deselect'),
+  slateCategory('transforms/setPoint'),
+  slateCategory('transforms/setChildren'),
+  slateCategory('transforms/general'),
+  slateCategory('normalization'),
+  { name: 'history/undo', root: HISTORY_TEST_ROOT, dir: 'undo' },
+]
 
 type TraceCall = {
   target: string
@@ -119,7 +147,7 @@ function ensureDeps() {
   fs.mkdirSync(nodeModules, { recursive: true })
   fs.mkdirSync(deps, { recursive: true })
 
-  for (const name of ['slate', 'slate-hyperscript']) {
+  for (const name of ['slate', 'slate-hyperscript', 'slate-history']) {
     const packageDir = path.join(deps, name)
     fs.mkdirSync(packageDir, { recursive: true })
     fs.writeFileSync(
@@ -170,7 +198,7 @@ function ensureDeps() {
 function linkWorkDeps() {
   const nodeModules = path.join(WORK, 'node_modules')
   fs.mkdirSync(nodeModules, { recursive: true })
-  for (const name of ['slate', 'slate-hyperscript']) {
+  for (const name of ['slate', 'slate-hyperscript', 'slate-history']) {
     const link = path.join(nodeModules, name)
     fs.rmSync(link, { recursive: true, force: true })
     fs.symlinkSync(path.join(HERE, '.deps', name), link, 'dir')
@@ -191,6 +219,7 @@ import {
   createHyperscript,
   createEditor as createEditorCreator,
 } from 'slate-hyperscript'
+import { withHistory } from 'slate-history'
 
 const withTest = (editor: any) => {
   const { isInline, isVoid, isElementReadOnly, isSelectable } = editor
@@ -211,7 +240,9 @@ export const jsx = createHyperscript({
     inline: { inline: true },
   },
   creators: {
-    editor: createEditorCreator(() => withTest(createBaseEditor())),
+    editor: createEditorCreator(() =>
+      withTest(withHistory(createBaseEditor()))
+    ),
   },
 })
 `
@@ -219,9 +250,19 @@ export const jsx = createHyperscript({
   return shim
 }
 
-function rewriteFixture(sourceFile: string, shim: string) {
-  const relative = path.relative(TEST_ROOT, sourceFile)
-  const target = path.join(WORK, relative)
+function outputRelative(category: Category, sourceFile: string) {
+  return path.join(
+    category.name,
+    path.relative(path.join(category.root, category.dir), sourceFile)
+  )
+}
+
+function rewriteFixture(
+  sourceFile: string,
+  shim: string,
+  category: Category
+) {
+  const target = path.join(WORK, outputRelative(category, sourceFile))
   fs.mkdirSync(path.dirname(target), { recursive: true })
 
   const from = path
@@ -347,15 +388,72 @@ function convertArguments(value: any, children: unknown): any {
   return value
 }
 
-function fixtureFiles(category: string) {
-  const root = path.join(TEST_ROOT, category)
+const EDITOR_INSTANCE_METHODS = [
+  'insertText',
+  'insertBreak',
+  'insertSoftBreak',
+  'insertFragment',
+  'deleteBackward',
+  'deleteForward',
+  'deleteFragment',
+  'setNodes',
+  'splitNodes',
+  'mergeNodes',
+  'moveNodes',
+  'insertNodes',
+  'removeNodes',
+  'wrapNodes',
+  'unwrapNodes',
+  'liftNodes',
+  'select',
+  'deselect',
+  'collapse',
+  'move',
+  'setSelection',
+]
+
+/**
+ * History fixtures drive the editor instance directly (`editor.insertBreak()`).
+ * Wrap those methods just like the `Transforms` namespace.
+ */
+function instrumentEditorInstance(editor: any) {
+  for (const method of EDITOR_INSTANCE_METHODS) {
+    const original = editor[method]
+    if (typeof original !== 'function') continue
+    editor[method] = function (...args: unknown[]) {
+      if (depth > 0) return original.apply(this, args)
+      depth += 1
+      try {
+        const result = original.apply(this, args)
+        trace.push({
+          target: 'EditorInstance',
+          method,
+          args: args.map(toJson),
+        })
+        return result
+      } finally {
+        depth -= 1
+      }
+    }
+  }
+}
+
+function fixtureFiles(category: Category) {
+  const root = path.join(category.root, category.dir)
   const files: string[] = []
 
   const walk = (directory: string) => {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       const full = path.join(directory, entry.name)
       if (entry.isDirectory()) walk(full)
-      else if (entry.isFile() && entry.name.endsWith('.tsx')) files.push(full)
+      else if (
+        entry.isFile() &&
+        (entry.name.endsWith('.tsx') || entry.name.endsWith('.ts')) &&
+        !entry.name.endsWith('.spec.ts') &&
+        entry.name !== 'index.ts'
+      ) {
+        files.push(full)
+      }
     }
   }
 
@@ -363,15 +461,19 @@ function fixtureFiles(category: string) {
   return files.sort()
 }
 
-function writeFixture(source: string, data: unknown) {
-  const relative = path.relative(TEST_ROOT, source).replace(/\.tsx$/, '.json')
+function writeFixture(
+  category: Category,
+  source: string,
+  data: unknown
+) {
+  const relative = outputRelative(category, source).replace(/\.tsx?$/, '.json')
   const target = path.join(OUT, relative)
   fs.mkdirSync(path.dirname(target), { recursive: true })
   fs.writeFileSync(target, `${JSON.stringify(data, null, 2)}\n`)
 }
 
 async function main() {
-  if (!fs.existsSync(path.join(TEST_ROOT, 'index.ts'))) {
+  if (!fs.existsSync(path.join(SLATE_TEST_ROOT, 'index.ts'))) {
     ensureSource()
   }
   ensureDeps()
@@ -397,14 +499,20 @@ async function main() {
   let imported = 0
 
   for (const category of CATEGORIES) {
-    counts[category] = 0
+    counts[category.name] = 0
     for (const sourceFile of fixtureFiles(category)) {
-      const relative = path.relative(TEST_ROOT, sourceFile)
+      const relative = outputRelative(category, sourceFile)
+        .split(path.sep)
+        .join('/')
+      const upstreamSource = path
+        .relative(SOURCE, sourceFile)
+        .split(path.sep)
+        .join('/')
       let module: any
 
       try {
         module = await import(
-          `${pathToFileURL(rewriteFixture(sourceFile, shim)).href}?v=${imported++}`
+          `${pathToFileURL(rewriteFixture(sourceFile, shim, category)).href}?v=${imported++}`
         )
       } catch (error) {
         skipped.push({ source: relative, reason: `import failed: ${error}` })
@@ -426,7 +534,7 @@ async function main() {
           continue
         }
 
-        if (category === 'operations') {
+        if (category.name === 'operations') {
           const input = module.input
           const output = module.output
           assert.ok(input?.children, `${relative}: missing input editor`)
@@ -436,11 +544,11 @@ async function main() {
             `${relative}: missing operations`
           )
 
-          writeFixture(sourceFile, {
+          writeFixture(category, sourceFile, {
             upstream: {
               repository: 'ianstormtaylor/slate',
               commit: SHA,
-              source: `packages/slate/test/${relative}`,
+              source: relative,
             },
             kind: 'operations',
             input: {
@@ -453,7 +561,7 @@ async function main() {
               selection: toJson(output.selection ?? null),
             },
           })
-        } else if (category.startsWith('transforms/')) {
+        } else if (category.name.startsWith('transforms/')) {
           assert.equal(
             typeof module.run,
             'function',
@@ -491,15 +599,96 @@ async function main() {
             `${relative}: no instrumented Transforms/Editor call`
           )
 
-          writeFixture(sourceFile, {
+          writeFixture(category, sourceFile, {
             upstream: {
               repository: 'ianstormtaylor/slate',
               commit: SHA,
-              source: `packages/slate/test/${relative}`,
+              source: relative,
             },
             kind: 'transform',
             input: inputSnapshot,
             calls: transformCalls.map(call => ({
+              target: call.target,
+              method: call.method,
+              args: convertArguments(call.args, inputSnapshot.children),
+            })),
+            output: convertSnapshot({
+              children: toJson(module.output.children),
+              selection: toJson(module.output.selection ?? null),
+            }),
+          })
+        } else if (category.name === 'normalization') {
+          assert.ok(module.input?.children, `${relative}: missing input editor`)
+          assert.ok(module.output?.children, `${relative}: missing output editor`)
+
+          writeFixture(category, sourceFile, {
+            upstream: {
+              repository: 'ianstormtaylor/slate',
+              commit: SHA,
+              source: relative,
+            },
+            kind: 'normalization',
+            input: convertSnapshot({
+              children: toJson(module.input.children),
+              selection: toJson(module.input.selection ?? null),
+            }),
+            output: convertSnapshot({
+              children: toJson(module.output.children),
+              selection: toJson(module.output.selection ?? null),
+            }),
+            ...(module.withFallbackElement
+              ? { withFallbackElement: true }
+              : {}),
+          })
+        } else if (category.name.startsWith('history/')) {
+          assert.equal(
+            typeof module.run,
+            'function',
+            `${relative}: missing run function`
+          )
+          assert.ok(module.input?.children, `${relative}: missing input editor`)
+          assert.ok(module.output?.children, `${relative}: missing output editor`)
+
+          const inputSnapshot = convertSnapshot({
+            children: toJson(module.input.children),
+            selection: toJson(module.input.selection ?? null),
+          })
+
+          trace.length = 0
+          instrumentEditorInstance(module.input)
+          module.run(module.input)
+          module.input.undo()
+          assert.deepEqual(
+            {
+              children: module.input.children,
+              selection: module.input.selection ?? null,
+            },
+            {
+              children: module.output.children,
+              selection: module.output.selection ?? null,
+            },
+            `${relative}: fixture's own run/undo/output disagree`
+          )
+          const historyCalls = trace.filter(
+            call =>
+              call.target === 'EditorInstance' ||
+              call.target === 'Transforms' ||
+              (call.target === 'Editor' && call.method === 'addMark')
+          )
+          assert.ok(
+            historyCalls.length > 0,
+            `${relative}: no instrumented editor call`
+          )
+
+          writeFixture(category, sourceFile, {
+            upstream: {
+              repository: 'ianstormtaylor/slate',
+              commit: SHA,
+              source: relative,
+            },
+            kind: 'history',
+            input: inputSnapshot,
+            calls: historyCalls.map(call => ({
               target: call.target,
               method: call.method,
               args: convertArguments(call.args, inputSnapshot.children),
@@ -522,11 +711,11 @@ async function main() {
             `${relative}: no instrumented Path/Point/Range call`
           )
 
-          writeFixture(sourceFile, {
+          writeFixture(category, sourceFile, {
             upstream: {
               repository: 'ianstormtaylor/slate',
               commit: SHA,
-              source: `packages/slate/test/${relative}`,
+              source: relative,
             },
             kind: 'interface',
             ...(module.input === undefined ? {} : { input: toJson(module.input) }),
@@ -538,7 +727,7 @@ async function main() {
             output: toJson(module.output),
           })
         }
-        counts[category] += 1
+        counts[category.name] += 1
       } catch (error) {
         skipped.push({ source: relative, reason: String(error) })
       }
@@ -562,7 +751,7 @@ async function main() {
 
   console.log(`upstream commit: ${SHA}`)
   for (const category of CATEGORIES) {
-    console.log(`${category}: ${counts[category]}`)
+    console.log(`${category.name}: ${counts[category.name]}`)
   }
   console.log(`skipped: ${skipped.length}`)
   for (const entry of skipped) {

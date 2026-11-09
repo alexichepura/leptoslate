@@ -1,0 +1,38 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "normalization/text/merge-adjacent-match.tsx"
+  },
+  "kind": "normalization",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "1",
+            "a": true
+          },
+          {
+            "text": "2",
+            "a": true
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "12",
+            "a": true
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

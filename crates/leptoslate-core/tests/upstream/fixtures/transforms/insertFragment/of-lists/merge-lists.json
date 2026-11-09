@@ -1,0 +1,124 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/insertFragment/of-lists/merge-lists.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "text": "1"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "2"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          1,
+          0
+        ],
+        "offset": 1
+      },
+      "focus": {
+        "path": [
+          0,
+          1,
+          0
+        ],
+        "offset": 1
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "insertFragment",
+      "args": [
+        [
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "text": "3"
+                  }
+                ]
+              },
+              {
+                "children": [
+                  {
+                    "text": "4"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        {}
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "text": "1"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "23"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "4"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          2,
+          0
+        ],
+        "offset": 1
+      },
+      "focus": {
+        "path": [
+          0,
+          2,
+          0
+        ],
+        "offset": 1
+      }
+    }
+  }
+}

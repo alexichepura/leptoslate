@@ -15,7 +15,9 @@ use std::fs;
 use std::path::{Path as FsPath, PathBuf};
 
 use leptoslate_core::{
-    path, Editor, Location, Node, Operation, Point, Props, Range, RangeAffinity, RangeDirection,
+    path,
+    text::{grapheme_end_after, grapheme_start_before, word_end_after, word_start_before},
+    Editor, Location, Node, Operation, Point, Props, Range, RangeAffinity, RangeDirection,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -56,6 +58,8 @@ struct Fixture {
     calls: Vec<Call>,
     #[serde(default)]
     operations: Vec<Value>,
+    #[serde(default, rename = "withFallbackElement")]
+    with_fallback_element: bool,
     output: Value,
 }
 
@@ -102,6 +106,16 @@ fn upstream_transforms() {
     run_category("transforms");
 }
 
+#[test]
+fn upstream_normalization() {
+    run_category("normalization");
+}
+
+#[test]
+fn upstream_history() {
+    run_category("history");
+}
+
 fn fixtures_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/upstream/fixtures")
 }
@@ -140,12 +154,7 @@ fn run_category(category: &str) {
             }
         };
 
-        let source = fixture
-            .upstream
-            .source
-            .strip_prefix("packages/slate/test/")
-            .unwrap_or(&fixture.upstream.source)
-            .to_string();
+        let source = fixture.upstream.source.clone();
 
         match run_fixture(&fixture) {
             Ok(()) if known.contains_key(source.as_str()) => {
@@ -197,6 +206,8 @@ fn run_fixture(fixture: &Fixture) -> Result<(), String> {
         "interface" => run_interface(fixture),
         "operations" => run_operations(fixture),
         "transform" => run_transform(fixture),
+        "normalization" => run_normalization(fixture),
+        "history" => run_history(fixture),
         other => Err(format!("unknown fixture kind {other:?}")),
     }
 }
@@ -287,6 +298,65 @@ fn run_transform(fixture: &Fixture) -> Result<(), String> {
     Ok(())
 }
 
+fn run_normalization(fixture: &Fixture) -> Result<(), String> {
+    if fixture.with_fallback_element {
+        return Err(unsupported("normalization withFallbackElement"));
+    }
+
+    let input: Snapshot = serde_json::from_value(fixture.input.clone())
+        .map_err(|error| format!("invalid input snapshot: {error}"))?;
+    let expected: Snapshot = serde_json::from_value(fixture.output.clone())
+        .map_err(|error| format!("invalid output snapshot: {error}"))?;
+
+    let mut editor = Editor::default();
+    editor.children = input.children;
+    editor.selection = input.selection;
+    editor.normalize();
+
+    let actual = Snapshot {
+        children: editor.children,
+        selection: editor.selection,
+    };
+    if actual != expected {
+        return Err(format!(
+            "normalization result mismatch\n  actual:   {}\n  expected: {}",
+            serde_json::to_string(&actual).unwrap(),
+            serde_json::to_string(&expected).unwrap()
+        ));
+    }
+    Ok(())
+}
+
+fn run_history(fixture: &Fixture) -> Result<(), String> {
+    let input: Snapshot = serde_json::from_value(fixture.input.clone())
+        .map_err(|error| format!("invalid input snapshot: {error}"))?;
+    let expected: Snapshot = serde_json::from_value(fixture.output.clone())
+        .map_err(|error| format!("invalid output snapshot: {error}"))?;
+
+    let mut editor = Editor::default();
+    editor.children = input.children;
+    editor.selection = input.selection;
+
+    for call in &fixture.calls {
+        apply_transform_call(&mut editor, call)?;
+    }
+
+    editor.undo();
+
+    let actual = Snapshot {
+        children: editor.children,
+        selection: editor.selection,
+    };
+    if actual != expected {
+        return Err(format!(
+            "history result mismatch\n  actual:   {}\n  expected: {}",
+            serde_json::to_string(&actual).unwrap(),
+            serde_json::to_string(&expected).unwrap()
+        ));
+    }
+    Ok(())
+}
+
 fn apply_transform_call(editor: &mut Editor, call: &Call) -> Result<(), String> {
     match (call.target.as_str(), call.method.as_str()) {
         ("Editor", "addMark") => {
@@ -314,6 +384,18 @@ fn apply_transform_call(editor: &mut Editor, call: &Call) -> Result<(), String> 
         ("Transforms", "setNodes") => replay_set_nodes(editor, &call.args),
         ("Transforms", "unsetNodes") => replay_unset_nodes(editor, &call.args),
         ("Transforms", "moveNodes") => replay_move_nodes(editor, &call.args),
+        ("Transforms", "insertFragment") => replay_insert_fragment(editor, &call.args),
+        ("Transforms", "move") => replay_move_selection(editor, &call.args),
+        ("Transforms", "select") => replay_select(editor, &call.args),
+        ("Transforms", "deselect") => {
+            editor.deselect();
+            Ok(())
+        }
+        ("Transforms", "setPoint") => replay_set_point(editor, &call.args),
+        ("Transforms", "liftNodes") => replay_lift_nodes(editor, &call.args),
+        ("Transforms", "wrapNodes") => Err(unsupported("generic wrapNodes is not implemented")),
+        ("Transforms", "unwrapNodes") => Err(unsupported("generic unwrapNodes is not implemented")),
+        ("EditorInstance", method) => replay_editor_instance(editor, method, &call.args),
         (target, method) => Err(unsupported(format!(
             "{target}::{method} has no replay mapping"
         ))),
@@ -636,6 +718,348 @@ fn replay_move_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> 
 
     editor.move_nodes(&as_path(at)?, &as_path(to)?);
     Ok(())
+}
+
+fn replay_insert_fragment(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let value = arg(args, 0)?.clone();
+    let nodes: Vec<Node> = if value.is_array() {
+        serde_json::from_value(value)
+            .map_err(|error| format!("invalid insertFragment nodes: {error}"))?
+    } else {
+        vec![serde_json::from_value(value)
+            .map_err(|error| format!("invalid insertFragment node: {error}"))?]
+    };
+    let options = args.get(1).and_then(Value::as_object);
+
+    if options
+        .is_some_and(|options| options.contains_key("voids") || options.contains_key("filter"))
+    {
+        return Err(unsupported("insertFragment voids/filter option"));
+    }
+    if options.is_some_and(|options| options.contains_key("at")) {
+        return Err(unsupported("insertFragment at option"));
+    }
+
+    editor.insert_fragment(nodes);
+    Ok(())
+}
+
+fn replay_editor_instance(editor: &mut Editor, method: &str, args: &[Value]) -> Result<(), String> {
+    match method {
+        "insertText" => {
+            let text = arg_str(args, 0)?;
+            editor.insert_text(text);
+            Ok(())
+        }
+        "insertBreak" => {
+            editor.insert_break();
+            Ok(())
+        }
+        "insertSoftBreak" => {
+            editor.insert_soft_break();
+            Ok(())
+        }
+        "insertFragment" => replay_insert_fragment(editor, args),
+        "deleteBackward" => {
+            editor.delete_backward();
+            Ok(())
+        }
+        "deleteForward" => {
+            editor.delete_forward();
+            Ok(())
+        }
+        "deleteFragment" => {
+            editor.delete_selection();
+            Ok(())
+        }
+        "insertNodes" => replay_insert_nodes(editor, args),
+        "removeNodes" => replay_remove_nodes(editor, args),
+        "mergeNodes" => replay_merge_nodes(editor, args),
+        "splitNodes" => replay_split_nodes(editor, args),
+        "setNodes" => replay_set_nodes(editor, args),
+        "unsetNodes" => replay_unset_nodes(editor, args),
+        "moveNodes" => replay_move_nodes(editor, args),
+        "wrapNodes" => Err(unsupported("generic wrapNodes is not implemented")),
+        "unwrapNodes" => Err(unsupported("generic unwrapNodes is not implemented")),
+        "liftNodes" => replay_lift_nodes(editor, args),
+        "select" => replay_select(editor, args),
+        "deselect" => {
+            editor.deselect();
+            Ok(())
+        }
+        "move" => replay_move_selection(editor, args),
+        other => Err(unsupported(format!(
+            "EditorInstance::{other} has no replay mapping"
+        ))),
+    }
+}
+
+fn replay_select(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let target = arg(args, 0)?;
+    if target.is_array() {
+        let range = range_for_path(editor, &as_path(target)?)
+            .ok_or_else(|| unsupported("select path has no text"))?;
+        editor.select(range);
+    } else if target.get("anchor").is_some() {
+        editor.select(as_range(target)?);
+    } else {
+        editor.select_point(as_point(target)?);
+    }
+    Ok(())
+}
+
+fn range_for_path(editor: &Editor, path: &[usize]) -> Option<Range> {
+    if let Some(text) = editor.text(path) {
+        return Some(Range::new(
+            Point::new(path.to_vec(), 0),
+            Point::new(path.to_vec(), text.len()),
+        ));
+    }
+    let start = editor.first_text_point_in(path)?;
+    let end = editor.last_text_point_in(path)?;
+    Some(Range::new(start, end))
+}
+
+fn replay_set_point(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let Some(selection) = editor.selection.clone() else {
+        return Ok(());
+    };
+    let props = arg(args, 0)?
+        .as_object()
+        .ok_or_else(|| "setPoint properties are not an object".to_string())?;
+    let options = args.get(1).and_then(Value::as_object);
+    let edge = options
+        .and_then(|options| options.get("edge"))
+        .and_then(Value::as_str)
+        .unwrap_or("focus");
+
+    let mut point = match edge {
+        "anchor" => selection.anchor.clone(),
+        "start" => selection.start().clone(),
+        "end" => selection.end().clone(),
+        _ => selection.focus.clone(),
+    };
+    if let Some(path) = props.get("path") {
+        point.path = as_path(path)?;
+    }
+    if let Some(offset) = props.get("offset").and_then(Value::as_u64) {
+        point.offset = offset as usize;
+    }
+
+    editor.selection = Some(match edge {
+        "anchor" => Range::new(point, selection.focus.clone()),
+        "focus" => Range::new(selection.anchor.clone(), point),
+        "start" => {
+            if selection.is_backward() {
+                Range::new(selection.anchor.clone(), point)
+            } else {
+                Range::new(point, selection.focus.clone())
+            }
+        }
+        "end" => {
+            if selection.is_backward() {
+                Range::new(point, selection.focus.clone())
+            } else {
+                Range::new(selection.anchor.clone(), point)
+            }
+        }
+        _ => return Err(unsupported("setPoint edge option")),
+    });
+    Ok(())
+}
+
+fn replay_move_selection(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let Some(selection) = editor.selection.clone() else {
+        return Ok(());
+    };
+    let options = args.first().and_then(Value::as_object);
+    let reverse = options
+        .and_then(|options| options.get("reverse"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let distance = options
+        .and_then(|options| options.get("distance"))
+        .and_then(Value::as_u64)
+        .unwrap_or(1) as usize;
+    let word = match options
+        .and_then(|options| options.get("unit"))
+        .and_then(Value::as_str)
+    {
+        None | Some("character") => false,
+        Some("word") => true,
+        Some(_) => return Err(unsupported("move unit line/block")),
+    };
+    let edge = options
+        .and_then(|options| options.get("edge"))
+        .and_then(Value::as_str);
+
+    let backward = selection.is_backward();
+    let edge = match edge {
+        Some("start") => Some(if backward { "focus" } else { "anchor" }),
+        Some("end") => Some(if backward { "anchor" } else { "focus" }),
+        other => other,
+    };
+
+    let move_point = |point: &Point| step_point(editor, point, !reverse, word, distance);
+    let mut next = selection.clone();
+    if edge.is_none() || edge == Some("anchor") {
+        next.anchor = move_point(&selection.anchor);
+    }
+    if edge.is_none() || edge == Some("focus") {
+        next.focus = move_point(&selection.focus);
+    }
+    if !matches!(edge, None | Some("anchor") | Some("focus")) {
+        return Err(unsupported("move edge option"));
+    }
+
+    editor.selection = Some(next);
+    Ok(())
+}
+
+fn step_point(editor: &Editor, point: &Point, forward: bool, word: bool, distance: usize) -> Point {
+    let mut point = point.clone();
+    for _ in 0..distance {
+        let Some(text) = editor.text(&point.path) else {
+            break;
+        };
+        let len = text.len();
+        if forward {
+            if point.offset < len {
+                point.offset = if word {
+                    word_end_after(&text.text, point.offset)
+                } else {
+                    grapheme_end_after(&text.text, point.offset)
+                };
+            } else if let Some(next) = next_text_path(editor, &point.path) {
+                point.path = next;
+                point.offset = 0;
+            } else {
+                break;
+            }
+        } else if point.offset > 0 {
+            point.offset = if word {
+                word_start_before(&text.text, point.offset)
+            } else {
+                grapheme_start_before(&text.text, point.offset)
+            };
+        } else if let Some(previous) = previous_text_path(editor, &point.path) {
+            point.path = previous;
+            point.offset = editor.text_len_at(&point.path).unwrap_or(0);
+        } else {
+            break;
+        }
+    }
+    point
+}
+
+fn text_entries(editor: &Editor) -> Vec<(Vec<usize>, usize)> {
+    fn walk(children: &[Node], prefix: &mut Vec<usize>, out: &mut Vec<(Vec<usize>, usize)>) {
+        for (index, child) in children.iter().enumerate() {
+            prefix.push(index);
+            match child {
+                Node::Text(text) => out.push((prefix.clone(), text.len())),
+                Node::Element(element) => walk(&element.children, prefix, out),
+            }
+            prefix.pop();
+        }
+    }
+
+    let mut out = Vec::new();
+    walk(&editor.children, &mut Vec::new(), &mut out);
+    out
+}
+
+fn next_text_path(editor: &Editor, path: &[usize]) -> Option<Vec<usize>> {
+    let entries = text_entries(editor);
+    let index = entries
+        .iter()
+        .position(|(candidate, _)| candidate == path)?;
+    entries
+        .get(index + 1)
+        .map(|(candidate, _)| candidate.clone())
+}
+
+fn previous_text_path(editor: &Editor, path: &[usize]) -> Option<Vec<usize>> {
+    let entries = text_entries(editor);
+    let index = entries
+        .iter()
+        .position(|(candidate, _)| candidate == path)?;
+    index
+        .checked_sub(1)
+        .and_then(|index| entries.get(index))
+        .map(|(candidate, _)| candidate.clone())
+}
+
+fn replay_lift_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let options = args.first().and_then(Value::as_object);
+    if options.is_some_and(|options| {
+        options.contains_key("match") || options.get("voids").and_then(Value::as_bool) == Some(true)
+    }) {
+        return Err(unsupported("liftNodes match/voids option"));
+    }
+    let Some(at) = options.and_then(|options| options.get("at")) else {
+        return Err(unsupported("liftNodes without at"));
+    };
+    if !at.is_array() {
+        return Err(unsupported("liftNodes at a point/range"));
+    }
+
+    let path = as_path(at)?;
+    if path.len() < 2 {
+        return Err(unsupported("liftNodes at a root-level node"));
+    }
+    let parent_path = path[..path.len() - 1].to_vec();
+    let parent_index = *parent_path
+        .last()
+        .ok_or_else(|| unsupported("liftNodes without a parent"))?;
+    let child_index = *path.last().unwrap();
+    let grandparent = parent_path[..parent_path.len() - 1].to_vec();
+    let parent = editor
+        .element(&parent_path)
+        .cloned()
+        .ok_or_else(|| unsupported("liftNodes parent is not an element"))?;
+    if child_index >= parent.children.len() {
+        return Err(unsupported("liftNodes path outside parent"));
+    }
+
+    let lifted = parent.children[child_index].clone();
+    let before = parent.children[..child_index].to_vec();
+    let after = parent.children[child_index + 1..].to_vec();
+    let mut after_parent = parent.clone();
+    after_parent.children = after.clone();
+
+    editor.transaction(|editor| {
+        editor.remove_nodes(&path, 1);
+        if !after.is_empty() {
+            editor.remove_nodes(&child_path(&parent_path, child_index), after.len());
+        }
+
+        if before.is_empty() {
+            editor.remove_nodes(&parent_path, 1);
+            editor.insert_nodes(&child_path(&grandparent, parent_index), vec![lifted]);
+            if !after.is_empty() {
+                editor.insert_nodes(
+                    &child_path(&grandparent, parent_index + 1),
+                    vec![Node::Element(after_parent)],
+                );
+            }
+        } else {
+            editor.insert_nodes(&child_path(&grandparent, parent_index + 1), vec![lifted]);
+            if !after.is_empty() {
+                editor.insert_nodes(
+                    &child_path(&grandparent, parent_index + 2),
+                    vec![Node::Element(after_parent)],
+                );
+            }
+        }
+    });
+    Ok(())
+}
+
+fn child_path(parent: &[usize], index: usize) -> Vec<usize> {
+    let mut path = parent.to_vec();
+    path.push(index);
+    path
 }
 
 fn arg(args: &[Value], index: usize) -> Result<&Value, String> {

@@ -1,0 +1,112 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/wrapNodes/split-block/block-across.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      },
+      "focus": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 1
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "wrapNodes",
+      "args": [
+        {
+          "new": true,
+          "children": []
+        },
+        {
+          "split": true
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "on"
+          }
+        ]
+      },
+      {
+        "new": true,
+        "children": [
+          {
+            "children": [
+              {
+                "text": "e"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "t"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "wo"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          1,
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          1,
+          1,
+          0
+        ],
+        "offset": 1
+      }
+    }
+  }
+}

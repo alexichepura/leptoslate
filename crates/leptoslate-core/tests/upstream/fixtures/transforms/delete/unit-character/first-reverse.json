@@ -2,7 +2,7 @@
   "upstream": {
     "repository": "ianstormtaylor/slate",
     "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
-    "source": "packages/slate/test/transforms/delete/unit-character/first-reverse.tsx"
+    "source": "transforms/delete/unit-character/first-reverse.tsx"
   },
   "kind": "transform",
   "input": {

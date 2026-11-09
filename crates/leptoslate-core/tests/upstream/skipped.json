@@ -5,6 +5,42 @@
   },
   "skipped": [
     {
+      "source": "history/undo/insert_text/non-contiguous.tsx",
+      "reason": "marked skip upstream"
+    },
+    {
+      "source": "history/undo/with_new_batch/nested-empty.tsx",
+      "reason": "TypeError: Cannot read properties of undefined (reading 'withNewBatch')"
+    },
+    {
+      "source": "history/undo/with_new_batch/nested-throws.tsx",
+      "reason": "TypeError: Cannot read properties of undefined (reading 'withNewBatch')"
+    },
+    {
+      "source": "history/undo/with_new_batch/nested.tsx",
+      "reason": "TypeError: Cannot read properties of undefined (reading 'withNewBatch')"
+    },
+    {
+      "source": "history/undo/with_new_batch/throws.tsx",
+      "reason": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /boom/. Input:\n\n\"TypeError: Cannot read properties of undefined (reading 'withNewBatch')\"\n"
+    },
+    {
+      "source": "history/undo/without_merging/throws.tsx",
+      "reason": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /boom/. Input:\n\n\"TypeError: Cannot read properties of undefined (reading 'withoutMerging')\"\n"
+    },
+    {
+      "source": "transforms/insertFragment/of-tables/merge-cells-with-nested-blocks.tsx",
+      "reason": "marked skip upstream"
+    },
+    {
+      "source": "transforms/insertFragment/of-tables/merge-into-empty-cells.tsx",
+      "reason": "marked skip upstream"
+    },
+    {
+      "source": "transforms/insertFragment/of-tables/merge-into-full-cells.tsx",
+      "reason": "marked skip upstream"
+    },
+    {
       "source": "transforms/insertText/selection/block-hanging-across.tsx",
       "reason": "marked skip upstream"
     }

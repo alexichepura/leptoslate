@@ -1,0 +1,126 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/unwrapNodes/split-inline/across.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "a": true,
+            "children": [
+              {
+                "text": "abcd"
+              }
+            ]
+          },
+          {
+            "text": "middle"
+          },
+          {
+            "inline": true,
+            "a": true,
+            "children": [
+              {
+                "text": "efgh"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          1,
+          0
+        ],
+        "offset": 2
+      },
+      "focus": {
+        "path": [
+          0,
+          3,
+          0
+        ],
+        "offset": 2
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "unwrapNodes",
+      "args": [
+        {
+          "match": {
+            "__fn": "n=>n.a===true"
+          },
+          "split": true
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "a": true,
+            "children": [
+              {
+                "text": "ab"
+              }
+            ]
+          },
+          {
+            "text": "cdmiddleef"
+          },
+          {
+            "inline": true,
+            "a": true,
+            "children": [
+              {
+                "text": "gh"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          2
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          2
+        ],
+        "offset": 10
+      }
+    }
+  }
+}

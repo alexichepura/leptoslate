@@ -1,0 +1,137 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/insertFragment/document-end/nested-table.ts"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "type": "table",
+        "children": [
+          {
+            "type": "row",
+            "children": [
+              {
+                "type": "cell",
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "text": "before"
+                      }
+                    ]
+                  },
+                  {
+                    "void": true,
+                    "children": [
+                      {
+                        "text": ""
+                      }
+                    ]
+                  },
+                  {
+                    "children": [
+                      {
+                        "text": ""
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          0,
+          0,
+          2,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "insertFragment",
+      "args": [
+        [
+          {
+            "children": [
+              {
+                "text": "pasted"
+              }
+            ]
+          }
+        ],
+        {}
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "type": "table",
+        "children": [
+          {
+            "type": "row",
+            "children": [
+              {
+                "type": "cell",
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "text": "pasted"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "offset": 6
+      },
+      "focus": {
+        "path": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "offset": 6
+      }
+    }
+  }
+}

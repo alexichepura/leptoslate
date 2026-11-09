@@ -26,16 +26,20 @@ Environment overrides:
 
 1. Downloads the pinned Slate tarball into the cache and extracts it.
 2. Creates generated ESM packages (`.deps/`, `node_modules/`) that re-export
-   Slate's TypeScript sources, so no upstream build step is needed.
+   Slate's TypeScript sources (`slate`, `slate-hyperscript`, `slate-history`),
+   so no upstream build step is needed.
 3. Rewrites fixture imports that point at Slate's Mocha harness to a local JSX
    shim.
-4. Instruments `Path`, `Point` and `Range` methods to capture the arguments of
-   each top-level call in `interfaces` fixtures.
-5. Evaluates each fixture with `tsx`, checks the fixture's own
-   `test`/`input`/`output` agree, and writes JSON under
+4. Instruments `Path`, `Point`, `Range`, `Transforms`, `Editor` and editor
+   instances to capture the arguments of each top-level call.
+5. Evaluates each `.ts`/`.tsx` fixture with `tsx`, checks the fixture's own
+   `input`/`run`/`output` agree, and writes JSON under
    `crates/leptoslate-core/tests/upstream/fixtures`.
 6. Writes `skipped.json` with reasons for any fixture that could not be
    evaluated.
+
+Slate suites are read from `packages/slate/test` and, for history fixtures,
+`packages/slate-history/test`.
 
 `node_modules/` and `.deps/` are generated and git-ignored.
 
@@ -76,6 +80,10 @@ Environment overrides:
   "output": { "children": [], "selection": null }
 }
 ```
+
+`normalization` and `history` fixtures use the same input/output snapshot
+shape. Normalization fixtures have no `calls`; history fixtures additionally
+run `undo()` after replaying their calls.
 
 Selection offsets are converted from UTF-16 code units to Unicode scalar
 values when fixtures are written. Input snapshots are captured before the

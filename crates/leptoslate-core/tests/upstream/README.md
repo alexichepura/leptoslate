@@ -26,17 +26,22 @@ Each fixture carries its exact upstream source path in `upstream.source`.
 | `fixtures/interfaces/Point` | 50 | pure `Point` functions |
 | `fixtures/interfaces/Range` | 36 | pure `Range` functions |
 | `fixtures/operations` | 31 | `Editor::apply_op_raw` + normalize |
-| `fixtures/transforms/*` | 278 | high-level method replay |
+| `fixtures/transforms/*` | 492 | high-level method replay |
+| `fixtures/normalization` | 20 | `Editor::normalize` |
+| `fixtures/history` | 10 | editor calls + `Editor::undo` |
 
 Current results:
 
 | Suite | Passing | Known failures | Unsupported | Upstream skip |
 | --- | ---: | ---: | ---: | ---: |
 | interfaces + operations | 232 | 2 | 0 | 0 |
-| transforms | 105 | 102 | 71 | 1 |
+| transforms | 166 | 163 | 163 | 4 |
+| normalization | 11 | 6 | 3 | 0 |
+| history | 3 | 7 | 0 | 6 |
 
-`skipped.json` lists fixtures the extractor could not evaluate. It currently
-contains one upstream fixture marked `skip: true` in Slate.
+`skipped.json` lists fixtures the extractor could not evaluate, including
+upstream fixtures marked `skip: true`, table fixtures marked skip by Slate, and
+history fixtures using APIs our test editor does not provide.
 
 ## Known failures
 
@@ -53,13 +58,19 @@ predicates, `unit: 'line'`, or `voids` options) are not listed individually.
 The runner reports them as `unsupported` with a grouped reason and does not
 count them as failures.
 
-The largest current P1 gaps are:
+The largest current gaps are:
 
+- Generic `wrapNodes` / `unwrapNodes` are not implemented (83 unsupported
+  fixtures in P2).
+- `insertFragment` block/inline splitting, void handling and selection updates
+  (54 known failures).
 - Slate's void/read-only-aware deletion and cross-block deletion edge cases.
 - `insertNodes` block/inline splitting and selection updates.
 - `splitNodes` edge/height/match semantics.
 - `match`/`replace`/`merge`/`split` options on `setNodes`, and `match` on
   `mergeNodes`, `moveNodes`, `unsetNodes` and `splitNodes`.
+- History coalescing and undo selection restoration.
+- Core normalization of mixed block/inline containers.
 - Arbitrary selection properties (`set_selection` operations).
 
 ## Regenerating

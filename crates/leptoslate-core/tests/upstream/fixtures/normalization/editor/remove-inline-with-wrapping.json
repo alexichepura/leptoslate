@@ -1,0 +1,99 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "normalization/editor/remove-inline-with-wrapping.tsx"
+  },
+  "kind": "normalization",
+  "input": {
+    "children": [
+      {
+        "inline": true,
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      },
+      {
+        "inline": true,
+        "children": [
+          {
+            "text": "three"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "four"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "three"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "four"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "withFallbackElement": true
+}
