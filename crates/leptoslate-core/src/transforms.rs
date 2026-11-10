@@ -567,7 +567,8 @@ impl Editor {
             return None;
         };
         if range.is_collapsed() {
-            return None;
+            self.selection = Some(Range::collapsed(range.anchor.clone()));
+            return Some(range.anchor);
         }
 
         if !options.voids && options.at.is_none() && !from_point {
@@ -1284,6 +1285,70 @@ impl Editor {
             });
             if both_inline {
                 break;
+            }
+            let previous_container = self.element(&previous).is_some_and(|element| {
+                !self.is_inline_element(element)
+                    && element.children.iter().any(|child| {
+                        child
+                            .as_element()
+                            .is_some_and(|child| !self.is_inline_element(child))
+                    })
+            });
+            let merge_container = self.element(&merge_at).is_some_and(|element| {
+                !self.is_inline_element(element)
+                    && element.children.iter().any(|child| {
+                        child
+                            .as_element()
+                            .is_some_and(|child| !self.is_inline_element(child))
+                    })
+            });
+            if previous_container {
+                let mut previous_leaves = Vec::new();
+                self.collect_leaf_blocks(&previous, &mut previous_leaves);
+                let merge_leaf = if merge_container {
+                    let mut merge_leaves = Vec::new();
+                    self.collect_leaf_blocks(&merge_at, &mut merge_leaves);
+                    merge_leaves.first().cloned()
+                } else {
+                    Some(merge_at.clone())
+                };
+                if let (Some(previous_leaf), Some(merge_leaf)) =
+                    (previous_leaves.last().cloned(), merge_leaf)
+                {
+                    let target = path::next(&previous_leaf);
+                    let position = match self.node(&previous_leaf) {
+                        Some(Node::Text(text)) => text.len(),
+                        Some(Node::Element(element)) => element.children.len(),
+                        None => 0,
+                    };
+                    if target != merge_leaf {
+                        let operation = Operation::MoveNode {
+                            path: merge_leaf,
+                            new_path: target.clone(),
+                        };
+                        if self.apply(operation.clone()).is_ok() {
+                            if let Some(next) = start.transform(&operation, Affinity::Forward) {
+                                start = next;
+                            }
+                            if let Some(next) = end.transform(&operation, Affinity::Forward) {
+                                end = next;
+                            }
+                        }
+                    }
+                    let operation = Operation::MergeNode {
+                        path: target,
+                        position,
+                    };
+                    if self.apply(operation.clone()).is_ok() {
+                        if let Some(next) = start.transform(&operation, Affinity::Forward) {
+                            start = next;
+                        }
+                        if let Some(next) = end.transform(&operation, Affinity::Forward) {
+                            end = next;
+                        }
+                    }
+                    continue;
+                }
             }
             let position = match self.node(&previous) {
                 Some(Node::Text(text)) => text.len(),
