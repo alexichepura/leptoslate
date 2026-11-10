@@ -9,10 +9,6 @@
       "reason": "Cross-block and inline point deletion differs from Slate."
     },
     {
-      "source": "transforms/delete/point/inline-void-reverse.tsx",
-      "reason": "Cross-block and inline point deletion differs from Slate."
-    },
-    {
       "source": "transforms/delete/selection/block-void-end.tsx",
       "reason": "Deletion edge case differs from Slate."
     },

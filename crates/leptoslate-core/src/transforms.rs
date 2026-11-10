@@ -700,9 +700,9 @@ impl Editor {
         if reverse {
             let previous = path::previous(&block);
             if let Some(previous) = &previous {
-                let previous_is_empty = self
-                    .element(previous)
-                    .is_some_and(|element| element.text_len() == 0);
+                let previous_is_empty = self.element(previous).is_some_and(|element| {
+                    element.text_len() == 0 && element.children.iter().all(Node::is_text)
+                });
                 if previous_is_empty {
                     self.remove_nodes(previous, 1);
                     let mut shifted = block.clone();
@@ -723,20 +723,37 @@ impl Editor {
         let Some(node) = self.node(&merge_path) else {
             return self.selection.as_ref().map(|range| range.anchor.clone());
         };
+        let previous_path = if reverse {
+            path::previous(&merge_path)
+        } else {
+            Some(merge_path.clone())
+        };
+        let previous_had_elements = previous_path.as_ref().is_some_and(|previous| {
+            self.element(previous)
+                .is_some_and(|element| element.children.iter().any(Node::is_element))
+        });
         let position = match node {
             Node::Text(text) => text.len(),
             Node::Element(element) => element.children.len(),
         };
         let operation = Operation::MergeNode {
-            path: merge_path,
+            path: merge_path.clone(),
             position,
         };
         if self.apply(operation.clone()).is_err() {
             return self.selection.as_ref().map(|range| range.anchor.clone());
         }
-        let point = point
-            .transform(&operation, Affinity::Forward)
-            .unwrap_or_else(|| point.clone());
+        let point = if previous_had_elements {
+            previous_path
+                .as_ref()
+                .and_then(|previous| self.last_text_point_in(previous))
+                .map(|point| Point::new(point.path.clone(), 0))
+                .unwrap_or_else(|| point.clone())
+        } else {
+            point
+                .transform(&operation, Affinity::Forward)
+                .unwrap_or_else(|| point.clone())
+        };
         self.selection = Some(Range::collapsed(point.clone()));
         Some(point)
     }
