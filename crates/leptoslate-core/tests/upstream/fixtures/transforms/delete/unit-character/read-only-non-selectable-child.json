@@ -1,0 +1,93 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/delete/unit-character/read-only-non-selectable-child.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "readOnly": true,
+        "children": [
+          {
+            "nonSelectable": true,
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 3
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "delete",
+      "args": [
+        {
+          "unit": "character"
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "onethree"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 3
+      }
+    }
+  }
+}

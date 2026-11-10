@@ -1,0 +1,102 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/delete/voids-false/block-point-reverse.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "void": true,
+        "children": [
+          {
+            "text": ""
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          2,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          2,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "delete",
+      "args": [
+        {
+          "at": {
+            "path": [
+              1,
+              0
+            ],
+            "offset": 0
+          },
+          "reverse": true
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  }
+}

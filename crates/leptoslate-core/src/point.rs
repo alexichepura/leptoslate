@@ -3,6 +3,7 @@
 use std::cmp::Ordering;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{
     path::{self, Affinity},
@@ -41,6 +42,15 @@ impl Point {
 
     pub fn equals(&self, other: &Point) -> bool {
         self.path == other.path && self.offset == other.offset
+    }
+
+    /// Slate's `Point.isPoint`.
+    pub fn is_point(value: &Value) -> bool {
+        let Some(object) = value.as_object() else {
+            return false;
+        };
+        object.get("offset").is_some_and(Value::is_u64)
+            && object.get("path").is_some_and(path::is_path)
     }
 
     /// Return this point moved `delta` characters within its text node.

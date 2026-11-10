@@ -1,0 +1,49 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/setNodes/basic-structure/can-be-serialized.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "setNodes",
+      "args": [
+        {
+          "someKey": true
+        },
+        {
+          "at": [
+            0
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "someKey": true,
+        "children": [
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

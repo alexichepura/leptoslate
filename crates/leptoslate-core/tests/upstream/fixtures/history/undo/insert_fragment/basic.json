@@ -1,0 +1,141 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "history/undo/insert_fragment/basic.tsx"
+  },
+  "kind": "history",
+  "input": {
+    "children": [
+      {
+        "type": "d",
+        "children": [
+          {
+            "children": [
+              {
+                "text": ""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "EditorInstance",
+      "method": "insertFragment",
+      "args": [
+        {
+          "type": "d",
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "A"
+                }
+              ]
+            },
+            {
+              "type": "c",
+              "children": [
+                {
+                  "type": "d",
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "text": "B"
+                        }
+                      ]
+                    },
+                    {
+                      "children": [
+                        {
+                          "type": "d",
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "text": "C"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "d",
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "text": "D"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "type": "d",
+        "children": [
+          {
+            "children": [
+              {
+                "text": ""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  }
+}

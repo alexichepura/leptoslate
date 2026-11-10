@@ -1,0 +1,131 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/splitNodes/selection/inline-across.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "word"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "another"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          1,
+          0
+        ],
+        "offset": 2
+      },
+      "focus": {
+        "path": [
+          1,
+          1,
+          0
+        ],
+        "offset": 2
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "splitNodes",
+      "args": []
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "wo"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "other"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          1,
+          1,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          1,
+          1,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  }
+}

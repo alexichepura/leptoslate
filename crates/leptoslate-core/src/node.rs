@@ -58,7 +58,9 @@ impl Text {
 /// Serializes as `{ "type": "paragraph", "children": [...], ...properties }`.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Element {
-    #[serde(rename = "type")]
+    // Slate elements may omit `type`; keep them parseable for upstream
+    // fixtures and untyped documents.
+    #[serde(rename = "type", default)]
     pub element_type: String,
     #[serde(flatten)]
     pub properties: Props,

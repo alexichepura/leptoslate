@@ -9,7 +9,7 @@ use crate::{
     path::{self, Affinity},
     point::Point,
     property::PropertyPath,
-    props::{merge as merge_props, Props},
+    props::Props,
     range::Range,
     schema::Schema,
     text::{char_len, char_slice, splice},
@@ -57,6 +57,12 @@ pub struct Editor {
     pub history: History,
     batch: Option<PendingBatch>,
     pub(crate) is_normalizing: bool,
+    /// Per-endpoint affinities used while a transform is tracking a range with
+    /// Slate's `inward` affinity (for example during `wrapNodes` splits).
+    pub(crate) selection_affinities: Option<(Affinity, Affinity)>,
+    /// Collapse a range deletion to its end point (Slate's behaviour for
+    /// point deletes) instead of its start point.
+    pub(crate) collapse_to_end: bool,
 }
 
 impl Default for Editor {
@@ -93,6 +99,8 @@ impl Editor {
             history: History::default(),
             batch: None,
             is_normalizing: false,
+            selection_affinities: None,
+            collapse_to_end: false,
         };
 
         if editor.children.is_empty() {
@@ -221,6 +229,88 @@ impl Editor {
             node = node.children().get(*index)?;
         }
         Some(node)
+    }
+
+    /// Whether an element is inline. Besides schema rules, Slate test editors
+    /// and common serialized documents mark inline nodes with `inline: true`.
+    pub fn is_inline_element(&self, element: &Element) -> bool {
+        matches!(element.properties.get("inline"), Some(Value::Bool(true)))
+            || self.schema.is_inline(&element.element_type)
+    }
+
+    /// Whether an element is a void. As with inline detection, `void: true`
+    /// on the node takes precedence over the schema.
+    pub fn is_void_element(&self, element: &Element) -> bool {
+        matches!(element.properties.get("void"), Some(Value::Bool(true)))
+            || self.schema.is_void(&element.element_type)
+    }
+
+    /// Whether editing at `point` is blocked by a read-only or void ancestor.
+    pub fn point_is_read_only(&self, point: &Point) -> bool {
+        for depth in (1..point.path.len()).rev() {
+            if let Some(element) = self.element(&point.path[..depth]) {
+                if matches!(element.properties.get("readOnly"), Some(Value::Bool(true)))
+                    || (self.is_void_element(element)
+                        && !matches!(element.properties.get("markable"), Some(Value::Bool(true))))
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Whether `point` is inside a non-editable *inline* element. Slate
+    /// nudges endpoints out of these before deleting, but keeps block voids
+    /// intact so they are removed as whole blocks.
+    pub fn point_inside_inline_non_editable(&self, point: &Point) -> bool {
+        for depth in (1..point.path.len()).rev() {
+            let Some(element) = self.element(&point.path[..depth]) else {
+                continue;
+            };
+            let non_editable =
+                matches!(element.properties.get("readOnly"), Some(Value::Bool(true)))
+                    || self.is_void_element(element);
+            if non_editable {
+                return self.is_inline_element(element);
+            }
+        }
+        false
+    }
+
+    /// Whether `point` is inside a void element.
+    pub fn point_has_void_ancestor(&self, point: &Point) -> bool {
+        (1..point.path.len()).rev().any(|depth| {
+            self.element(&point.path[..depth])
+                .is_some_and(|element| self.is_void_element(element))
+        })
+    }
+
+    /// The innermost read-only ancestor of `point`, if any.
+    pub fn read_only_ancestor(&self, point: &Point) -> Option<path::Path> {
+        (1..point.path.len()).rev().find_map(|depth| {
+            let path = &point.path[..depth];
+            self.element(path)
+                .filter(|element| {
+                    matches!(element.properties.get("readOnly"), Some(Value::Bool(true)))
+                })
+                .map(|_| path.to_vec())
+        })
+    }
+
+    /// Whether text at `at` can receive marks. Text inside a void is only
+    /// markable when the void itself opts in with `markable: true`.
+    pub fn is_text_markable(&self, at: &[usize]) -> bool {
+        for depth in (1..at.len()).rev() {
+            if let Some(element) = self.element(&at[..depth]) {
+                if self.is_void_element(element)
+                    && !matches!(element.properties.get("markable"), Some(Value::Bool(true)))
+                {
+                    return false;
+                }
+            }
+        }
+        true
     }
 
     pub fn node_mut(&mut self, at: &[usize]) -> Option<&mut Node> {
@@ -624,7 +714,7 @@ impl Editor {
             editor
                 .node(path)
                 .and_then(Node::as_element)
-                .map(|element| editor.schema.is_void(&element.element_type))
+                .map(|element| editor.is_void_element(element))
                 .unwrap_or(false)
         };
 
@@ -669,7 +759,7 @@ impl Editor {
         self.collect_text_between_node(&self.children_as_node(), &[], start, end, out);
     }
 
-    fn children_as_node(&self) -> Node {
+    pub(crate) fn children_as_node(&self) -> Node {
         Node::Element(Element::new("root", self.children.clone()))
     }
 
@@ -735,9 +825,12 @@ impl Editor {
             Node::Text(text) => {
                 let leaf_start = Point::new(at.to_vec(), 0);
                 let leaf_end = Point::new(at.to_vec(), text.len());
-                if leaf_start.compare(end) == std::cmp::Ordering::Less
-                    && leaf_end.compare(start) == std::cmp::Ordering::Greater
-                {
+                let intersects = leaf_start.compare(end) == std::cmp::Ordering::Less
+                    && leaf_end.compare(start) == std::cmp::Ordering::Greater;
+                let empty_at_boundary = text.is_empty()
+                    && leaf_start.compare(start) != std::cmp::Ordering::Less
+                    && leaf_start.compare(end) != std::cmp::Ordering::Greater;
+                if intersects || empty_at_boundary {
                     out.push(at.to_vec());
                 }
             }
@@ -846,6 +939,100 @@ impl Editor {
         self.apply(op)
     }
 
+    /// Apply a single operation without normalizing, recording history, or
+    /// grouping a transaction.
+    ///
+    /// This mirrors Slate's `Editor.withoutNormalizing` behaviour and is used
+    /// by the upstream fixture suite, which applies operations to documents
+    /// that are deliberately not normalized yet.
+    pub fn apply_op_raw(&mut self, op: Operation) -> Result<(), SlateError> {
+        self.apply_value(&op)?;
+
+        if let Operation::SetSelection { new_properties, .. } = &op {
+            self.selection = new_properties.clone();
+        } else {
+            self.transform_selection_for_op(&op);
+        }
+
+        Ok(())
+    }
+
+    /// Apply Slate's selection transform for an operation, including the
+    /// special remove-node fallback that moves points to a neighbouring text
+    /// node instead of dropping the selection.
+    fn transform_selection_for_op(&mut self, op: &Operation) {
+        let Some(selection) = self.selection.clone() else {
+            return;
+        };
+
+        let Operation::RemoveNode { path: removed } = op else {
+            if let Some((anchor_affinity, focus_affinity)) = self.selection_affinities {
+                let anchor = selection.anchor.transform(op, anchor_affinity);
+                let focus = selection.focus.transform(op, focus_affinity);
+                self.selection = match (anchor, focus) {
+                    (Some(anchor), Some(focus)) => Some(Range::new(anchor, focus)),
+                    _ => None,
+                };
+            } else {
+                self.selection = selection.transform(op, Affinity::Forward);
+            }
+            return;
+        };
+
+        let mut points = [selection.anchor.clone(), selection.focus.clone()];
+
+        for point in &mut points {
+            if let Some(transformed) = point.transform(op, Affinity::Forward) {
+                *point = transformed;
+                continue;
+            }
+
+            let Some(replacement) = self.point_after_removing_node(removed) else {
+                self.selection = None;
+                return;
+            };
+            *point = replacement;
+        }
+
+        self.selection = Some(Range::new(points[0].clone(), points[1].clone()));
+    }
+
+    fn point_after_removing_node(&self, removed: &[usize]) -> Option<Point> {
+        let mut prev: Option<(path::Path, usize)> = None;
+        let mut next: Option<(path::Path, usize)> = None;
+        let mut texts = Vec::new();
+        collect_text_entries(&self.children, &mut Vec::new(), &mut texts);
+
+        for (text_path, len) in texts {
+            if path::compare(&text_path, removed) == std::cmp::Ordering::Less {
+                prev = Some((text_path, len));
+            } else {
+                next = Some((text_path, len));
+                break;
+            }
+        }
+
+        let prefer_next = match (&prev, &next) {
+            (Some((prev_path, _)), Some((next_path, _))) => {
+                if path::is_sibling(prev_path, removed) {
+                    false
+                } else if path::equals(next_path, removed) {
+                    true
+                } else {
+                    path::common(prev_path, removed).len() < path::common(next_path, removed).len()
+                }
+            }
+            _ => false,
+        };
+
+        if let Some((prev_path, len)) = prev {
+            if !prefer_next {
+                return Some(Point::new(prev_path, len));
+            }
+        }
+        next.map(|(next_path, _)| Point::new(next_path, 0))
+    }
+
     pub(crate) fn apply(&mut self, op: Operation) -> Result<(), SlateError> {
         if self.batch.is_some() || self.is_normalizing {
             return self.apply_inner(op);
@@ -889,8 +1076,8 @@ impl Editor {
             self.node_selection = None;
             self.node_selection_end = None;
             self.selection = new_properties.clone();
-        } else if let Some(selection) = &self.selection {
-            self.selection = selection.transform(&op, Affinity::Forward);
+        } else {
+            self.transform_selection_for_op(&op);
         }
 
         if let Some(batch) = &mut self.batch {
@@ -957,7 +1144,11 @@ impl Editor {
         let anchor = self.sanitize_point(&range.anchor);
         let focus = self.sanitize_point(&range.focus);
         self.selection = match (anchor, focus) {
-            (Some(anchor), Some(focus)) => Some(Range::new(anchor, focus)),
+            (Some(anchor), Some(focus)) => {
+                let mut sanitized = Range::new(anchor, focus);
+                sanitized.properties = range.properties.clone();
+                Some(sanitized)
+            }
             _ => None,
         };
     }
@@ -1125,8 +1316,25 @@ impl Editor {
                     .node(from)
                     .cloned()
                     .ok_or_else(|| SlateError::InvalidPath(from.clone()))?;
+                // `path` and `newPath` refer to the same snapshot. After the
+                // removal the destination may have shifted, so transform the
+                // source path to find the real insertion point.
+                let mut true_path = path::transform_with_affinity(from, op, Affinity::Forward)
+                    .unwrap_or_else(|| new_path.clone());
                 self.remove_node_value(from)?;
-                self.insert_node_value(new_path, node)
+                // Slate's insertion splices at the destination index, which
+                // clamps past-the-end indices to an append. A move can produce
+                // such a path when several nodes are moved to one destination.
+                if let Some(index) = true_path.last().copied() {
+                    let parent = true_path[..true_path.len() - 1].to_vec();
+                    if let Some(length) = self.children_at(&parent).map(<[Node]>::len) {
+                        if index > length {
+                            let last = true_path.len() - 1;
+                            true_path[last] = length;
+                        }
+                    }
+                }
+                self.insert_node_value(&true_path, node)
             }
             Operation::SetNode {
                 path: at,
@@ -1196,13 +1404,7 @@ impl Editor {
 
         match (&previous_node, &node) {
             (Node::Text(_), Node::Text(_)) => {}
-            (Node::Element(previous_element), Node::Element(element)) => {
-                if previous_element.is_text_only() != element.is_text_only() {
-                    return Err(SlateError::InvalidOperation(
-                        "cannot merge blocks with different child kinds".into(),
-                    ));
-                }
-            }
+            (Node::Element(_), Node::Element(_)) => {}
             _ => {
                 return Err(SlateError::InvalidOperation(format!(
                     "cannot merge a {} node into a {} node",
@@ -1251,16 +1453,16 @@ impl Editor {
                         len,
                     });
                 }
-                let mut second_properties = text.properties.clone();
-                merge_props(&mut second_properties, properties);
                 let rest = char_slice(&text.text, position, len).to_string();
                 let first_text = char_slice(&text.text, 0, position).to_string();
                 if let Some(Node::Text(first)) = self.node_mut(at) {
                     first.text = first_text;
                 }
+                // Slate starts the new node with exactly the operation's
+                // properties; callers that want inherited marks pass them in.
                 Node::Text(Text {
                     text: rest,
-                    properties: second_properties,
+                    properties: properties.clone(),
                 })
             }
             Node::Element(element) => {
@@ -1269,20 +1471,18 @@ impl Editor {
                         "split position outside element children".into(),
                     ));
                 }
-                let mut second_properties = element.properties.clone();
-                merge_props(&mut second_properties, properties);
-                let second_type = properties
-                    .get("type")
-                    .and_then(Value::as_str)
-                    .map(str::to_string);
-                second_properties.remove("type");
+                let mut second_properties = properties.clone();
+                let second_type = second_properties
+                    .remove("type")
+                    .and_then(|value| value.as_str().map(str::to_string))
+                    .unwrap_or_default();
                 let mut first = element.clone();
                 let rest = first.children.split_off(position);
                 if let Some(Node::Element(target)) = self.node_mut(at) {
                     *target = first;
                 }
                 Node::Element(Element {
-                    element_type: second_type.unwrap_or(element.element_type),
+                    element_type: second_type,
                     properties: second_properties,
                     children: rest,
                 })
@@ -1318,8 +1518,23 @@ impl Editor {
         &mut self,
         at: &[usize],
         position: usize,
-        properties: Props,
+        mut properties: Props,
     ) -> Result<(), SlateError> {
+        // High-level transforms call this with no properties and expect the
+        // new node to inherit the old one's marks/type, matching Slate's
+        // `getSplitProperties` helper.
+        if properties.is_empty() {
+            if let Some(node) = self.node(at) {
+                match node {
+                    Node::Text(text) => properties = text.properties.clone(),
+                    Node::Element(element) => {
+                        properties = element.properties.clone();
+                        properties.insert("type".into(), json!(element.element_type));
+                    }
+                }
+            }
+        }
+
         self.apply(Operation::SplitNode {
             path: at.to_vec(),
             position,
@@ -1394,6 +1609,21 @@ fn node_kind(node: &Node) -> &'static str {
     }
 }
 
+fn collect_text_entries(
+    children: &[Node],
+    prefix: &mut Vec<usize>,
+    out: &mut Vec<(Vec<usize>, usize)>,
+) {
+    for (index, child) in children.iter().enumerate() {
+        prefix.push(index);
+        match child {
+            Node::Text(text) => out.push((prefix.clone(), text.len())),
+            Node::Element(element) => collect_text_entries(&element.children, prefix, out),
+        }
+        prefix.pop();
+    }
+}
+
 fn append_document_string(node: &Node, out: &mut String) {
     match node {
         Node::Text(text) => out.push_str(&text.text),
@@ -1408,10 +1638,18 @@ fn append_document_string(node: &Node, out: &mut String) {
     }
 }
 
-fn apply_set_node(node: &mut Node, _properties: &Props, new_properties: &Props) {
+fn apply_set_node(node: &mut Node, properties: &Props, new_properties: &Props) {
     if let Node::Element(element) = node {
         if let Some(Value::String(new_type)) = new_properties.get("type") {
             element.element_type = new_type.clone();
+        }
+    }
+
+    // Properties that were set before but are absent from `new_properties`
+    // are removals. Slate keeps this backwards-compatible behaviour.
+    for key in properties.keys() {
+        if key != "type" && !new_properties.contains_key(key) {
+            node.properties_mut().remove(key);
         }
     }
 

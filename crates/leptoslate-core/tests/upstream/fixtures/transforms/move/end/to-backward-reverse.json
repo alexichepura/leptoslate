@@ -1,0 +1,75 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/move/end/to-backward-reverse.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one two three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 4
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 7
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "move",
+      "args": [
+        {
+          "edge": "end",
+          "reverse": true,
+          "distance": 6
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one two three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 4
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 1
+      }
+    }
+  }
+}

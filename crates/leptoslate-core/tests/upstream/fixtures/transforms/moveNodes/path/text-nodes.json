@@ -1,0 +1,97 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/moveNodes/path/text-nodes.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "bar"
+          },
+          {
+            "text": "foo"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "baz"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "moveNodes",
+      "args": [
+        {
+          "at": [
+            0,
+            0
+          ],
+          "to": [
+            1,
+            0
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "foo"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "barbaz"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 3
+      }
+    }
+  }
+}

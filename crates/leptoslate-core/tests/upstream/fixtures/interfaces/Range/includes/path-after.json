@@ -1,0 +1,53 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "interfaces/Range/includes/path-after.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "range": {
+      "anchor": {
+        "path": [
+          1
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          3
+        ],
+        "offset": 0
+      }
+    },
+    "target": [
+      4
+    ]
+  },
+  "calls": [
+    {
+      "target": "Range",
+      "method": "includes",
+      "args": [
+        {
+          "anchor": {
+            "path": [
+              1
+            ],
+            "offset": 0
+          },
+          "focus": {
+            "path": [
+              3
+            ],
+            "offset": 0
+          }
+        },
+        [
+          4
+        ]
+      ]
+    }
+  ],
+  "output": false
+}

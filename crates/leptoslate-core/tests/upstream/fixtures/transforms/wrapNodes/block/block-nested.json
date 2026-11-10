@@ -1,0 +1,97 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/wrapNodes/block/block-nested.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "a": true,
+        "children": [
+          {
+            "b": true,
+            "children": [
+              {
+                "text": "word"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "wrapNodes",
+      "args": [
+        {
+          "new": true,
+          "children": []
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "a": true,
+        "children": [
+          {
+            "new": true,
+            "children": [
+              {
+                "b": true,
+                "children": [
+                  {
+                    "text": "word"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  }
+}

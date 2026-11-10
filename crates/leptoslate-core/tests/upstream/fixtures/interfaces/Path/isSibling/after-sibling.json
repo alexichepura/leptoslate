@@ -1,0 +1,35 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "interfaces/Path/isSibling/after-sibling.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "path": [
+      1,
+      4
+    ],
+    "another": [
+      1,
+      2
+    ]
+  },
+  "calls": [
+    {
+      "target": "Path",
+      "method": "isSibling",
+      "args": [
+        [
+          1,
+          4
+        ],
+        [
+          1,
+          2
+        ]
+      ]
+    }
+  ],
+  "output": true
+}

@@ -1,0 +1,167 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/insertFragment/of-inlines/with-multiple.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "word"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          1,
+          0
+        ],
+        "offset": 2
+      },
+      "focus": {
+        "path": [
+          0,
+          1,
+          0
+        ],
+        "offset": 2
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "insertFragment",
+      "args": [
+        [
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "three"
+              }
+            ]
+          }
+        ],
+        {}
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "wo"
+              }
+            ]
+          },
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          },
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          },
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "three"
+              }
+            ]
+          },
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "rd"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          7,
+          0
+        ],
+        "offset": 5
+      },
+      "focus": {
+        "path": [
+          0,
+          7,
+          0
+        ],
+        "offset": 5
+      }
+    }
+  }
+}

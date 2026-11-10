@@ -1,0 +1,87 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/insertFragment/with-filter/filter-by-block-entry.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "type": "lic",
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "insertFragment",
+      "args": [
+        [
+          {
+            "void": true,
+            "children": [
+              {
+                "text": ""
+              }
+            ]
+          }
+        ],
+        {
+          "filter": {
+            "__fn": "(node,filterOptions)=>{const[blockNode]=filterOptions.blockEntry;if(blockNode.type===\"lic\"&&import_slate.Element.isElement(node)&&import_slate.Editor.isBlock(editor,node)&&editor.isVoid(node)){return false}return true}"
+          }
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "type": "lic",
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      }
+    }
+  }
+}

@@ -1,0 +1,174 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/insertFragment/of-blocks/with-inline.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "insertFragment",
+      "args": [
+        [
+          {
+            "children": [
+              {
+                "text": "one"
+              },
+              {
+                "inline": true,
+                "children": [
+                  {
+                    "text": "two"
+                  }
+                ]
+              },
+              {
+                "text": "three"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "four"
+              },
+              {
+                "inline": true,
+                "children": [
+                  {
+                    "text": "five"
+                  }
+                ]
+              },
+              {
+                "text": "six"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "seven"
+              },
+              {
+                "inline": true,
+                "children": [
+                  {
+                    "text": "eight"
+                  }
+                ]
+              },
+              {
+                "text": "nine"
+              }
+            ]
+          }
+        ],
+        {}
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "woone"
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          },
+          {
+            "text": "three"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "four"
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "five"
+              }
+            ]
+          },
+          {
+            "text": "six"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "seven"
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "eight"
+              }
+            ]
+          },
+          {
+            "text": "ninerd"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          2,
+          2
+        ],
+        "offset": 4
+      },
+      "focus": {
+        "path": [
+          2,
+          2
+        ],
+        "offset": 4
+      }
+    }
+  }
+}

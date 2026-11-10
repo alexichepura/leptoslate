@@ -1,0 +1,106 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/insertFragment/with-filter/filter-allows-text.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "insertFragment",
+      "args": [
+        [
+          {
+            "children": [
+              {
+                "text": "hello"
+              }
+            ]
+          },
+          {
+            "void": true,
+            "children": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "world"
+              }
+            ]
+          }
+        ],
+        {
+          "filter": {
+            "__fn": "(node,_filterOptions)=>{if(import_slate.Element.isElement(node)&&import_slate.Editor.isBlock(editor,node)&&editor.isVoid(node)){return false}return true}"
+          }
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "wohello"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "worldrd"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 5
+      },
+      "focus": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 5
+      }
+    }
+  }
+}

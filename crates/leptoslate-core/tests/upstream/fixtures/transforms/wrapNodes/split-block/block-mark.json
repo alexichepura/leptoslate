@@ -1,0 +1,110 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/wrapNodes/split-block/block-mark.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "old": true,
+        "children": [
+          {
+            "text": "one"
+          },
+          {
+            "text": "two",
+            "bold": true
+          },
+          {
+            "text": "three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          0,
+          2
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "wrapNodes",
+      "args": [
+        {
+          "new": true,
+          "children": []
+        },
+        {
+          "split": true
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "old": true,
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "new": true,
+        "children": [
+          {
+            "old": true,
+            "children": [
+              {
+                "text": "two",
+                "bold": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "old": true,
+        "children": [
+          {
+            "text": "three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          1,
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          1,
+          0,
+          0
+        ],
+        "offset": 3
+      }
+    }
+  }
+}

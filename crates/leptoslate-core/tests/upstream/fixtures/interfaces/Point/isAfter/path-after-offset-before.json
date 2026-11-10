@@ -1,0 +1,47 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "interfaces/Point/isAfter/path-after-offset-before.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "point": {
+      "path": [
+        0,
+        4
+      ],
+      "offset": 0
+    },
+    "another": {
+      "path": [
+        0,
+        1
+      ],
+      "offset": 3
+    }
+  },
+  "calls": [
+    {
+      "target": "Point",
+      "method": "isAfter",
+      "args": [
+        {
+          "path": [
+            0,
+            4
+          ],
+          "offset": 0
+        },
+        {
+          "path": [
+            0,
+            1
+          ],
+          "offset": 3
+        }
+      ]
+    }
+  ],
+  "output": true
+}

@@ -1,0 +1,49 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "interfaces/Point/transform/forward-insert-text-after-point.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "path": [
+      0,
+      0
+    ],
+    "offset": 0
+  },
+  "calls": [
+    {
+      "target": "Point",
+      "method": "transform",
+      "args": [
+        {
+          "path": [
+            0,
+            0
+          ],
+          "offset": 0
+        },
+        {
+          "type": "insert_text",
+          "path": [
+            0,
+            0
+          ],
+          "text": "a",
+          "offset": 1
+        },
+        {
+          "affinity": "forward"
+        }
+      ]
+    }
+  ],
+  "output": {
+    "path": [
+      0,
+      0
+    ],
+    "offset": 0
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "leptoslate-upstream-fixtures",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Extracts Slate's upstream test fixtures into JSON for leptoslate-core",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "extract": "tsx extract.ts"
+  },
+  "devDependencies": {
+    "lodash": "^4.18.1",
+    "tsx": "^4.23.15"
+  }
+}

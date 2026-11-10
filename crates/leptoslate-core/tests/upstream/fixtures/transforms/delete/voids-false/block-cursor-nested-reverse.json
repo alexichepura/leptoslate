@@ -1,0 +1,115 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/delete/voids-false/block-cursor-nested-reverse.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "void": true,
+            "children": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          1,
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          1,
+          0,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "delete",
+      "args": [
+        {
+          "reverse": true
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          1,
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          1,
+          0,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  }
+}

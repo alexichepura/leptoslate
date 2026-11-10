@@ -1,0 +1,91 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/delete/path/replace-all-blocks.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "delete",
+      "args": [
+        {
+          "at": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "target": "Transforms",
+      "method": "delete",
+      "args": [
+        {
+          "at": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "target": "Transforms",
+      "method": "insertNodes",
+      "args": [
+        {
+          "children": [
+            {
+              "text": "new"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "new"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 3
+      }
+    }
+  }
+}

@@ -1,0 +1,120 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/insertFragment/of-blocks/block-nested.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "text": "word"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 4
+      },
+      "focus": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 4
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "insertFragment",
+      "args": [
+        [
+          {
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "three"
+              }
+            ]
+          }
+        ],
+        {}
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "text": "wordone"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "three"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          2,
+          0
+        ],
+        "offset": 5
+      },
+      "focus": {
+        "path": [
+          0,
+          2,
+          0
+        ],
+        "offset": 5
+      }
+    }
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/wrapNodes/block/block-hanging.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          2,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "wrapNodes",
+      "args": [
+        {
+          "a": true,
+          "children": []
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "a": true,
+        "children": [
+          {
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  }
+}

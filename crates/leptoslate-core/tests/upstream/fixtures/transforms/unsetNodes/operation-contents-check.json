@@ -1,0 +1,47 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/unsetNodes/operation-contents-check.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "someKey": true,
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "unsetNodes",
+      "args": [
+        "someKey",
+        {
+          "at": [
+            0
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

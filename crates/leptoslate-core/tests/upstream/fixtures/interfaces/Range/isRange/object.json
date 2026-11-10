@@ -1,0 +1,19 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "interfaces/Range/isRange/object.tsx"
+  },
+  "kind": "interface",
+  "input": {},
+  "calls": [
+    {
+      "target": "Range",
+      "method": "isRange",
+      "args": [
+        {}
+      ]
+    }
+  ],
+  "output": false
+}

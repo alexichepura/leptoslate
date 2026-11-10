@@ -1,0 +1,72 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/setNodes/path/inline.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "word"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "setNodes",
+      "args": [
+        {
+          "key": "a"
+        },
+        {
+          "at": [
+            0,
+            1
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "key": "a",
+            "children": [
+              {
+                "text": "word"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

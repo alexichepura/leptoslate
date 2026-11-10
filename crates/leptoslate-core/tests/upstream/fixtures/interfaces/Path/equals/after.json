@@ -1,0 +1,35 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "interfaces/Path/equals/after.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "path": [
+      1,
+      1,
+      2
+    ],
+    "another": [
+      0
+    ]
+  },
+  "calls": [
+    {
+      "target": "Path",
+      "method": "equals",
+      "args": [
+        [
+          1,
+          1,
+          2
+        ],
+        [
+          0
+        ]
+      ]
+    }
+  ],
+  "output": false
+}

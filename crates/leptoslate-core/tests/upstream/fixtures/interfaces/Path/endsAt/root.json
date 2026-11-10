@@ -1,0 +1,31 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "interfaces/Path/endsAt/root.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "path": [
+      0,
+      1,
+      2
+    ],
+    "another": []
+  },
+  "calls": [
+    {
+      "target": "Path",
+      "method": "endsAt",
+      "args": [
+        [
+          0,
+          1,
+          2
+        ],
+        []
+      ]
+    }
+  ],
+  "output": false
+}

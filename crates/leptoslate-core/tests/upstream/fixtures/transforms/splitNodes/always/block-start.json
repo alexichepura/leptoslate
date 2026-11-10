@@ -1,0 +1,97 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/splitNodes/always/block-start.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "another"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "splitNodes",
+      "args": [
+        {
+          "match": {
+            "__fn": "n=>import_slate.Element.isElement(n)&&import_slate.Editor.isBlock(editor,n)"
+          },
+          "always": true
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": ""
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "another"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          2,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          2,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  }
+}

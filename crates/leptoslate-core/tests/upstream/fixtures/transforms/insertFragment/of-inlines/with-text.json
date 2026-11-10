@@ -1,0 +1,98 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/insertFragment/of-inlines/with-text.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "insertFragment",
+      "args": [
+        [
+          {
+            "text": "one"
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          },
+          {
+            "text": "three"
+          }
+        ],
+        {}
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "woone"
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          },
+          {
+            "text": "threerd"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          2
+        ],
+        "offset": 5
+      },
+      "focus": {
+        "path": [
+          0,
+          2
+        ],
+        "offset": 5
+      }
+    }
+  }
+}

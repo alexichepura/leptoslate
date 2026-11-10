@@ -1,0 +1,85 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/delete/voids-false/read-only-inline-after-reverse.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "readOnly": true,
+            "children": [
+              {
+                "text": "read-only inline"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          2
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          2
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "delete",
+      "args": [
+        {
+          "reverse": true
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  }
+}

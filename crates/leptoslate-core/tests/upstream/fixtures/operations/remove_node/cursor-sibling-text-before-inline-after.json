@@ -1,0 +1,103 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "operations/remove_node/cursor-sibling-text-before-inline-after.tsx"
+  },
+  "kind": "operations",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "a",
+            "id": "0"
+          },
+          {
+            "text": "",
+            "id": "1"
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "b"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          1
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          1
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "operations": [
+    {
+      "type": "remove_node",
+      "path": [
+        0,
+        1
+      ],
+      "node": {
+        "text": "",
+        "id": "1"
+      }
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "a",
+            "id": "0"
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "b"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 1
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 1
+      }
+    }
+  }
+}

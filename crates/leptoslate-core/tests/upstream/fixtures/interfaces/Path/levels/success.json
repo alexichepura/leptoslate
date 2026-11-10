@@ -1,0 +1,41 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "interfaces/Path/levels/success.tsx"
+  },
+  "kind": "interface",
+  "input": [
+    0,
+    1,
+    2
+  ],
+  "calls": [
+    {
+      "target": "Path",
+      "method": "levels",
+      "args": [
+        [
+          0,
+          1,
+          2
+        ]
+      ]
+    }
+  ],
+  "output": [
+    [],
+    [
+      0
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      1,
+      2
+    ]
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/unwrapNodes/match-block/block.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "a": true,
+        "children": [
+          {
+            "children": [
+              {
+                "text": "word"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "unwrapNodes",
+      "args": [
+        {
+          "match": {
+            "__fn": "n=>n.a===true"
+          }
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  }
+}

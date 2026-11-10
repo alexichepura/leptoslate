@@ -1,0 +1,64 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "interfaces/Range/points/full-selection.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "anchor": {
+      "path": [
+        0
+      ],
+      "offset": 0
+    },
+    "focus": {
+      "path": [
+        0
+      ],
+      "offset": 0
+    }
+  },
+  "calls": [
+    {
+      "target": "Range",
+      "method": "points",
+      "args": [
+        {
+          "anchor": {
+            "path": [
+              0
+            ],
+            "offset": 0
+          },
+          "focus": {
+            "path": [
+              0
+            ],
+            "offset": 0
+          }
+        }
+      ]
+    }
+  ],
+  "output": [
+    [
+      {
+        "path": [
+          0
+        ],
+        "offset": 0
+      },
+      "anchor"
+    ],
+    [
+      {
+        "path": [
+          0
+        ],
+        "offset": 0
+      },
+      "focus"
+    ]
+  ]
+}

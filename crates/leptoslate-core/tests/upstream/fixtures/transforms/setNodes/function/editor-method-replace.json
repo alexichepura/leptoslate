@@ -1,0 +1,58 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/setNodes/function/editor-method-replace.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "type": "callout",
+        "data": "blue",
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "transform",
+      "args": [
+        {
+          "type": "set_node",
+          "path": [
+            0
+          ],
+          "properties": {
+            "type": "callout",
+            "data": "blue"
+          },
+          "newProperties": {
+            "type": "paragraph",
+            "key": false
+          }
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "type": "paragraph",
+        "key": false,
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

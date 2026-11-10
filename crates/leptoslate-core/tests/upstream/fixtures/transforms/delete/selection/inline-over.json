@@ -1,0 +1,80 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/delete/selection/inline-over.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one"
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          },
+          {
+            "text": "three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 1
+      },
+      "focus": {
+        "path": [
+          0,
+          2
+        ],
+        "offset": 4
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "delete",
+      "args": []
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "oe"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 1
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 1
+      }
+    }
+  }
+}

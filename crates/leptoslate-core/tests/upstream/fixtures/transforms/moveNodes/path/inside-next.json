@@ -1,0 +1,103 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/moveNodes/path/inside-next.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "moveNodes",
+      "args": [
+        {
+          "at": [
+            0
+          ],
+          "to": [
+            1,
+            1
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          1,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          1,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  }
+}

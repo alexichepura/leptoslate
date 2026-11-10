@@ -1,0 +1,97 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/splitNodes/path/block-inline.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          },
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "splitNodes",
+      "args": [
+        {
+          "at": [
+            0,
+            2
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          },
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

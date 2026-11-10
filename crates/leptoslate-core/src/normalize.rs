@@ -18,6 +18,17 @@ use crate::{
 
 use crate::Editor;
 
+/// Slate test editors mark inline nodes with an `inline: true` property. The
+/// schema normally decides by element type, but upstream fixtures use untyped
+/// elements, so honour the property too.
+fn is_inline(editor: &Editor, element: &Element) -> bool {
+    editor.is_inline_element(element)
+}
+
+fn is_void(editor: &Editor, element: &Element) -> bool {
+    editor.is_void_element(element)
+}
+
 #[derive(Debug)]
 enum Fix {
     InsertNode {
@@ -85,9 +96,17 @@ impl Editor {
     fn scan_children(&self, children: &[Node], at: &[usize], is_root: bool) -> Option<Fix> {
         if !is_root {
             if let Some(element) = self.element(at) {
-                if self.schema.is_inline(&element.element_type)
-                    && !self.schema.is_void(&element.element_type)
+                // Remove an empty inline only when it is the sole child, so
+                // an empty inline still surrounded by siblings survives
+                // (Slate keeps these).
+                let sibling_count = self
+                    .children_at(&at[..at.len() - 1])
+                    .map(<[Node]>::len)
+                    .unwrap_or(1);
+                if is_inline(self, element)
+                    && !is_void(self, element)
                     && element.text_len() == 0
+                    && sibling_count == 1
                 {
                     return Some(Fix::RemoveNode { path: at.to_vec() });
                 }
@@ -96,10 +115,7 @@ impl Editor {
 
         if children.is_empty() {
             if is_root {
-                return Some(Fix::InsertNode {
-                    path: vec![0],
-                    node: Node::Element(Element::empty(&self.schema.default_block)),
-                });
+                return None;
             }
             let mut insert_at = at.to_vec();
             insert_at.push(0);
@@ -109,12 +125,6 @@ impl Editor {
             });
         }
 
-        let has_block = children.iter().any(|child| {
-            child
-                .element_type()
-                .map(|kind| !self.schema.is_inline(kind))
-                .unwrap_or(false)
-        });
         let element_type = self
             .node(at)
             .and_then(Node::element_type)
@@ -126,20 +136,25 @@ impl Editor {
             .snapshot()
             .iter()
             .any(|feature| feature.inline_container(self, element_type));
+        let has_block = children.iter().any(|child| {
+            child
+                .as_element()
+                .is_some_and(|element| !is_inline(self, element))
+        });
         let should_have_inlines = if is_root {
             false
         } else if feature_inline_container {
             true
-        } else if has_block {
+        } else if element_type == "li" && has_block {
             false
         } else {
-            self.schema.is_inline(element_type)
+            self.element(at)
+                .is_some_and(|element| is_inline(self, element))
                 || children.first().map(Node::is_text).unwrap_or(false)
                 || children
                     .first()
-                    .and_then(Node::element_type)
-                    .map(|kind| self.schema.is_inline(kind))
-                    .unwrap_or(false)
+                    .and_then(Node::as_element)
+                    .is_some_and(|element| is_inline(self, element))
         };
 
         if should_have_inlines {
@@ -168,8 +183,8 @@ impl Editor {
                         }
                     }
                 } else if let Some(element) = child.as_element() {
-                    if self.schema.is_void(&element.element_type) {
-                        if self.schema.is_inline(&element.element_type) {
+                    if is_void(self, element) {
+                        if is_inline(self, element) {
                             if index == 0 || !children[index - 1].is_text() {
                                 return Some(Fix::InsertNode {
                                     path: child_path(at, index),
@@ -183,7 +198,7 @@ impl Editor {
                                 });
                             }
                         }
-                    } else if self.schema.is_inline(&element.element_type) {
+                    } else if is_inline(self, element) {
                         if index == 0 || !children[index - 1].is_text() {
                             return Some(Fix::InsertNode {
                                 path: child_path(at, index),
@@ -205,32 +220,37 @@ impl Editor {
                 }
             }
         } else {
-            // Block container: wrap runs of inline content.
-            let mut run_start: Option<usize> = None;
+            // Block container: allow only block children. Slate removes stray
+            // text and inline nodes instead of wrapping them.
             for (index, child) in children.iter().enumerate() {
                 let inline = child.is_text()
                     || child
-                        .element_type()
-                        .map(|kind| self.schema.is_inline(kind))
-                        .unwrap_or(false);
+                        .as_element()
+                        .is_some_and(|element| is_inline(self, element));
                 if inline {
-                    if run_start.is_none() {
-                        run_start = Some(index);
+                    if element_type == "li" {
+                        let mut end = index + 1;
+                        while end < children.len() {
+                            let next = &children[end];
+                            let next_inline = next.is_text()
+                                || next
+                                    .as_element()
+                                    .is_some_and(|element| is_inline(self, element));
+                            if !next_inline {
+                                break;
+                            }
+                            end += 1;
+                        }
+                        return Some(Fix::WrapRun {
+                            parent: at.to_vec(),
+                            start: index,
+                            len: end - index,
+                        });
                     }
-                } else if let Some(start) = run_start.take() {
-                    return Some(Fix::WrapRun {
-                        parent: at.to_vec(),
-                        start,
-                        len: index - start,
+                    return Some(Fix::RemoveNode {
+                        path: child_path(at, index),
                     });
                 }
-            }
-            if let Some(start) = run_start {
-                return Some(Fix::WrapRun {
-                    parent: at.to_vec(),
-                    start,
-                    len: children.len() - start,
-                });
             }
         }
 
@@ -271,7 +291,6 @@ impl Editor {
                     path: insert_at,
                     node: wrapper,
                 })?;
-
                 for _ in 0..len {
                     let mut remove_at = parent.clone();
                     remove_at.push(start + 1);

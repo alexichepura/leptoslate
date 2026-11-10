@@ -1,0 +1,98 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/insertText/selection/inline-end.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one"
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          },
+          {
+            "text": "three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          1,
+          0
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          0,
+          1,
+          0
+        ],
+        "offset": 3
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "insertText",
+      "args": [
+        "four",
+        {}
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one"
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "twofour"
+              }
+            ]
+          },
+          {
+            "text": "three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          1,
+          0
+        ],
+        "offset": 7
+      },
+      "focus": {
+        "path": [
+          0,
+          1,
+          0
+        ],
+        "offset": 7
+      }
+    }
+  }
+}

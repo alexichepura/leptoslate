@@ -1,0 +1,85 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/moveNodes/voids-true/block.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "void": true,
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "void": true,
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      },
+      {
+        "void": true,
+        "children": [
+          {
+            "text": "three"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "moveNodes",
+      "args": [
+        {
+          "at": [
+            1,
+            0
+          ],
+          "to": [
+            2,
+            0
+          ],
+          "voids": true
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "void": true,
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "void": true,
+        "children": [
+          {
+            "text": ""
+          }
+        ]
+      },
+      {
+        "void": true,
+        "children": [
+          {
+            "text": "twothree"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

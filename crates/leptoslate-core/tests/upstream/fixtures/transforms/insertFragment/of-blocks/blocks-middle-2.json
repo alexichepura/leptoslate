@@ -1,0 +1,94 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/insertFragment/of-blocks/blocks-middle-2.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 2
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "insertFragment",
+      "args": [
+        [
+          {
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          }
+        ],
+        {}
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "woone"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "tword"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 3
+      }
+    }
+  }
+}

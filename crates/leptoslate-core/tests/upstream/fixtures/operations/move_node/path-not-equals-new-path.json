@@ -1,0 +1,57 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "operations/move_node/path-not-equals-new-path.tsx"
+  },
+  "kind": "operations",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "1"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "2"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "operations": [
+    {
+      "type": "move_node",
+      "path": [
+        0
+      ],
+      "newPath": [
+        1
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "2"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "1"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

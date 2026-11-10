@@ -1,0 +1,109 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/setNodes/marks/mark-across-range.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word "
+          },
+          {
+            "text": "italic words ",
+            "italic": true
+          },
+          {
+            "inline": true,
+            "void": true,
+            "children": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          {
+            "text": " underlined words",
+            "underline": true
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          3
+        ],
+        "offset": 17
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Editor",
+      "method": "addMark",
+      "args": [
+        "bold",
+        true
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word ",
+            "bold": true
+          },
+          {
+            "text": "italic words ",
+            "italic": true,
+            "bold": true
+          },
+          {
+            "inline": true,
+            "void": true,
+            "children": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          {
+            "text": " underlined words",
+            "underline": true,
+            "bold": true
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          3
+        ],
+        "offset": 17
+      }
+    }
+  }
+}

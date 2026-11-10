@@ -1,0 +1,119 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/wrapNodes/split-inline/whole-inline-at-start-backward.ts"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "before "
+          },
+          {
+            "inline": true,
+            "children": [
+              {
+                "text": "Tobe"
+              }
+            ]
+          },
+          {
+            "text": "or after"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          2
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          0,
+          1,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "wrapNodes",
+      "args": [
+        {
+          "inline": true,
+          "a": true,
+          "children": []
+        },
+        {
+          "split": true,
+          "match": {
+            "__fn": "isText(value){return(0,import__.isObject)(value)&&typeof value.text===\"string\"}"
+          }
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "before "
+          },
+          {
+            "inline": true,
+            "a": true,
+            "children": [
+              {
+                "text": ""
+              },
+              {
+                "inline": true,
+                "children": [
+                  {
+                    "text": "Tobe"
+                  }
+                ]
+              },
+              {
+                "text": "or "
+              }
+            ]
+          },
+          {
+            "text": "after"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          1,
+          2
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          0,
+          1,
+          1,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  }
+}

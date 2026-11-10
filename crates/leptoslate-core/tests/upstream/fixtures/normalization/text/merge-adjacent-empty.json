@@ -1,0 +1,35 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "normalization/text/merge-adjacent-empty.tsx"
+  },
+  "kind": "normalization",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          },
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

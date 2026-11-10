@@ -1,0 +1,37 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "interfaces/Path/transform/move_node/equal-to-ends-after.tsx"
+  },
+  "kind": "interface",
+  "calls": [
+    {
+      "target": "Path",
+      "method": "transform",
+      "args": [
+        [
+          3,
+          3
+        ],
+        {
+          "type": "move_node",
+          "path": [
+            3,
+            3
+          ],
+          "newPath": [
+            3,
+            5,
+            0
+          ]
+        }
+      ]
+    }
+  ],
+  "output": [
+    3,
+    4,
+    0
+  ]
+}

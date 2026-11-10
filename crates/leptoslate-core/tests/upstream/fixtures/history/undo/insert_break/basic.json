@@ -1,0 +1,95 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "history/undo/insert_break/basic.tsx"
+  },
+  "kind": "history",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 2
+      },
+      "focus": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 2
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "EditorInstance",
+      "method": "insertBreak",
+      "args": []
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 2
+      },
+      "focus": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 2
+      }
+    }
+  }
+}

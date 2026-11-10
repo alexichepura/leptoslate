@@ -329,11 +329,11 @@ fn undo_a_block_split() {
 }
 
 #[test]
-fn normalization_wraps_stray_text() {
+fn normalization_drops_stray_root_text() {
+    // Slate only allows block nodes at the editor root and removes stray text.
     let editor = Editor::new(vec![Node::Text(Text::new("hello"))]);
-    assert_eq!(editor.children.len(), 1);
-    assert_eq!(editor.children[0].element_type(), Some("p"));
-    assert_eq!(editor.document_string(), "hello\n");
+    assert!(editor.children.is_empty());
+    assert_eq!(editor.document_string(), "");
 }
 
 #[test]
@@ -1043,13 +1043,15 @@ fn deleting_across_a_link_removes_the_link_element() {
 }
 
 #[test]
-fn normalization_removes_empty_inline_elements() {
+fn normalization_keeps_empty_inline_surrounded_by_text() {
+    // Slate keeps empty inline nodes and surrounds them with text.
     let editor = Editor::new(vec![Node::Element(Element::paragraph(vec![
         Node::Element(Element::new("a", vec![Node::empty_text()])),
     ]))]);
-    assert_eq!(editor.children[0].children().len(), 1);
+    assert_eq!(editor.children[0].children().len(), 3);
     assert_eq!(editor.children[0].children()[0].string(), "");
-    assert_eq!(editor.children[0].children()[0].element_type(), None);
+    assert_eq!(editor.children[0].children()[1].element_type(), Some("a"));
+    assert_eq!(editor.children[0].children()[2].string(), "");
 }
 
 fn mention(name: &str) -> Node {
@@ -1231,14 +1233,14 @@ fn inserting_a_block_fragment_splits_the_current_block() {
         Node::Element(Element::paragraph(vec![Node::Text(Text::new("Body"))])),
     ]);
 
-    assert_eq!(editor.children.len(), 4);
-    assert_eq!(editor.children[0].string(), "he");
-    assert_eq!(editor.children[1].element_type(), Some("h2"));
-    assert_eq!(editor.children[2].string(), "Body");
-    assert_eq!(editor.children[3].string(), "llo");
+    // Slate merges the first fragment block into the text before the caret
+    // and the last fragment block into the text after it.
+    assert_eq!(editor.children.len(), 2);
+    assert_eq!(editor.children[0].string(), "heTitle");
+    assert_eq!(editor.children[1].string(), "Bodyllo");
     assert_eq!(
         editor.selection,
-        Some(Range::collapsed(Point::new(vec![2, 0], 4)))
+        Some(Range::collapsed(Point::new(vec![1, 0], 4)))
     );
 }
 
@@ -1251,18 +1253,17 @@ fn inserting_a_block_fragment_at_the_end_keeps_the_caret_after_it() {
         Node::Element(Element::paragraph(vec![Node::Text(Text::new("Body"))])),
     ]);
 
-    assert_eq!(editor.children.len(), 4);
-    assert_eq!(editor.children[0].string(), "hello");
-    assert_eq!(editor.children[1].element_type(), Some("h2"));
-    assert_eq!(editor.children[2].string(), "Body");
+    assert_eq!(editor.children.len(), 2);
+    assert_eq!(editor.children[0].string(), "helloTitle");
+    assert_eq!(editor.children[1].string(), "Body");
     assert_eq!(
         editor.selection,
-        Some(Range::collapsed(Point::new(vec![2, 0], 4)))
+        Some(Range::collapsed(Point::new(vec![1, 0], 4)))
     );
 }
 
 #[test]
-fn inserting_a_fragment_at_the_block_start_does_not_leave_an_empty_block() {
+fn inserting_a_single_block_fragment_at_the_block_start_merges_the_text() {
     let mut editor = Editor::new(vec![p("hello")]);
     editor.select_point(Point::new(vec![0, 0], 0));
     editor.insert_fragment(vec![Node::Element(Element::new(
@@ -1270,9 +1271,8 @@ fn inserting_a_fragment_at_the_block_start_does_not_leave_an_empty_block() {
         vec![Node::Text(Text::new("Title"))],
     ))]);
 
-    assert_eq!(editor.children.len(), 2);
-    assert_eq!(editor.children[0].element_type(), Some("h2"));
-    assert_eq!(editor.children[1].string(), "hello");
+    assert_eq!(editor.children.len(), 1);
+    assert_eq!(editor.children[0].string(), "Titlehello");
     assert_eq!(
         editor.selection,
         Some(Range::collapsed(Point::new(vec![0, 0], 5)))

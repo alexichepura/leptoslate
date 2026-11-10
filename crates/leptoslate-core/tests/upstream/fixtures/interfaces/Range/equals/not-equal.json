@@ -1,0 +1,83 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "interfaces/Range/equals/not-equal.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "range": {
+      "anchor": {
+        "path": [
+          0,
+          4
+        ],
+        "offset": 7
+      },
+      "focus": {
+        "path": [
+          0,
+          4
+        ],
+        "offset": 7
+      }
+    },
+    "another": {
+      "anchor": {
+        "path": [
+          0,
+          1
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          1
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Range",
+      "method": "equals",
+      "args": [
+        {
+          "anchor": {
+            "path": [
+              0,
+              4
+            ],
+            "offset": 7
+          },
+          "focus": {
+            "path": [
+              0,
+              4
+            ],
+            "offset": 7
+          }
+        },
+        {
+          "anchor": {
+            "path": [
+              0,
+              1
+            ],
+            "offset": 0
+          },
+          "focus": {
+            "path": [
+              0,
+              1
+            ],
+            "offset": 0
+          }
+        }
+      ]
+    }
+  ],
+  "output": false
+}

@@ -1,0 +1,86 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/liftNodes/path/middle-block.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "three"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "liftNodes",
+      "args": [
+        {
+          "at": [
+            0,
+            1
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "text": "three"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

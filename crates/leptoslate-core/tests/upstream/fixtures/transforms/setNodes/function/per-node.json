@@ -1,0 +1,67 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/setNodes/function/per-node.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "id": "a",
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "id": "b",
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "setNodes",
+      "args": [
+        {
+          "__fn": "(node,path)=>({id:`${node.id}-${path[0]}`})"
+        },
+        {
+          "at": [],
+          "match": {
+            "__fn": "(n,p)=>p.length===1"
+          }
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "id": "a-0",
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "id": "b-1",
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

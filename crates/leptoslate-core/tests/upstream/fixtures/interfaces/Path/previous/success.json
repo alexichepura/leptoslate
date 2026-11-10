@@ -1,0 +1,28 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "interfaces/Path/previous/success.tsx"
+  },
+  "kind": "interface",
+  "input": [
+    0,
+    1
+  ],
+  "calls": [
+    {
+      "target": "Path",
+      "method": "previous",
+      "args": [
+        [
+          0,
+          1
+        ]
+      ]
+    }
+  ],
+  "output": [
+    0,
+    0
+  ]
+}

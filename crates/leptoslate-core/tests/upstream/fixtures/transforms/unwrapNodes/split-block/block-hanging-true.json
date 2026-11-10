@@ -1,0 +1,112 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/unwrapNodes/split-block/block-hanging-true.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "a": true,
+        "children": [
+          {
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "two"
+              }
+            ]
+          },
+          {
+            "children": [
+              {
+                "text": "three"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          2,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "unwrapNodes",
+      "args": [
+        {
+          "match": {
+            "__fn": "n=>n.a===true"
+          },
+          "split": true,
+          "hanging": true
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "two"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          2,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/insertNodes/range-ending-in-void/block.ts"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "onetwo"
+          }
+        ]
+      },
+      {
+        "void": true,
+        "children": [
+          {
+            "text": ""
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          1,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "insertNodes",
+      "args": [
+        {
+          "text": "inserted"
+        },
+        {}
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "oneinserted"
+          }
+        ]
+      },
+      {
+        "children": [
+          {
+            "text": "three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 11
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 11
+      }
+    }
+  }
+}

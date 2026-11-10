@@ -1,0 +1,31 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "interfaces/Point/isPoint/point.tsx"
+  },
+  "kind": "interface",
+  "input": {
+    "path": [
+      0,
+      1
+    ],
+    "offset": 0
+  },
+  "calls": [
+    {
+      "target": "Point",
+      "method": "isPoint",
+      "args": [
+        {
+          "path": [
+            0,
+            1
+          ],
+          "offset": 0
+        }
+      ]
+    }
+  ],
+  "output": true
+}

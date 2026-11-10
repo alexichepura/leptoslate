@@ -1,0 +1,98 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/liftNodes/selection/block-nested.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "a": true,
+        "children": [
+          {
+            "b": true,
+            "children": [
+              {
+                "c": true,
+                "children": [
+                  {
+                    "text": "one"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "liftNodes",
+      "args": [
+        {
+          "match": {
+            "__fn": "n=>n.c===true"
+          }
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "a": true,
+        "children": [
+          {
+            "c": true,
+            "children": [
+              {
+                "text": "one"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      },
+      "focus": {
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "offset": 0
+      }
+    }
+  }
+}

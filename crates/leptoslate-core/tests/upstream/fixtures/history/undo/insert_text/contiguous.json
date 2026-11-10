@@ -1,0 +1,85 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "history/undo/insert_text/contiguous.tsx"
+  },
+  "kind": "history",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 3
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "EditorInstance",
+      "method": "insertText",
+      "args": [
+        "t"
+      ]
+    },
+    {
+      "target": "EditorInstance",
+      "method": "insertText",
+      "args": [
+        "w"
+      ]
+    },
+    {
+      "target": "EditorInstance",
+      "method": "insertText",
+      "args": [
+        "o"
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "one"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 3
+      }
+    }
+  }
+}

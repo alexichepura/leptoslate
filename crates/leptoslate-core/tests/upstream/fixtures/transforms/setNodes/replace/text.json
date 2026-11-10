@@ -1,0 +1,56 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/setNodes/replace/text.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word",
+            "bold": true,
+            "underline": true
+          }
+        ]
+      }
+    ],
+    "selection": null
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "setNodes",
+      "args": [
+        {
+          "italic": true
+        },
+        {
+          "at": [
+            0,
+            0
+          ],
+          "match": {
+            "__fn": "isText(value){return(0,import__.isObject)(value)&&typeof value.text===\"string\"}"
+          },
+          "replace": true
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "word",
+            "italic": true
+          }
+        ]
+      }
+    ],
+    "selection": null
+  }
+}

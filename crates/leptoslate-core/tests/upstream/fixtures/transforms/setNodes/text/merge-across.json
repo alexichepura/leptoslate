@@ -1,0 +1,93 @@
+{
+  "upstream": {
+    "repository": "ianstormtaylor/slate",
+    "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+    "source": "transforms/setNodes/text/merge-across.tsx"
+  },
+  "kind": "transform",
+  "input": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "One"
+          },
+          {
+            "text": "Two",
+            "someKey": true
+          },
+          {
+            "text": "Three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          0,
+          2
+        ],
+        "offset": 0
+      }
+    }
+  },
+  "calls": [
+    {
+      "target": "Transforms",
+      "method": "setNodes",
+      "args": [
+        {
+          "someKey": true
+        },
+        {
+          "match": {
+            "__fn": "isText(value){return(0,import__.isObject)(value)&&typeof value.text===\"string\"}"
+          },
+          "split": true
+        }
+      ]
+    }
+  ],
+  "output": {
+    "children": [
+      {
+        "children": [
+          {
+            "text": "One"
+          },
+          {
+            "text": "Two",
+            "someKey": true
+          },
+          {
+            "text": "Three"
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0
+        ],
+        "offset": 3
+      },
+      "focus": {
+        "path": [
+          0,
+          1
+        ],
+        "offset": 3
+      }
+    }
+  }
+}

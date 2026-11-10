@@ -9,3 +9,5 @@ e2e/test-results/
 e2e/playwright-report/
 e2e/blob-report/
 e2e/.last-run.json
+scripts/upstream-fixtures/node_modules/
+scripts/upstream-fixtures/.deps/
