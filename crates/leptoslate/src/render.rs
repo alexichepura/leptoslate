@@ -2,8 +2,8 @@
 
 use leptos::prelude::*;
 use leptoslate_core::{
-    props::{get_bool, get_str},
     Element, MarkKind, MarkSet, Node, PropertyPath, Props, Schema, Text,
+    props::{get_bool, get_str},
 };
 use web_sys::MouseEvent;
 
@@ -430,17 +430,17 @@ fn mark_style(properties: &Props, renderers: &Renderers, marks: &MarkSet) -> Str
                 styles.push("font-size:.75em".into());
             }
             "color" => {
-                if let Some(color) = get_str(properties, "color") {
-                    if safe_color(color) {
-                        styles.push(format!("color:{color}"));
-                    }
+                if let Some(color) = get_str(properties, "color")
+                    && safe_color(color)
+                {
+                    styles.push(format!("color:{color}"));
                 }
             }
             "background" => {
-                if let Some(background) = get_str(properties, "background") {
-                    if safe_color(background) {
-                        styles.push(format!("background:{background}"));
-                    }
+                if let Some(background) = get_str(properties, "background")
+                    && safe_color(background)
+                {
+                    styles.push(format!("background:{background}"));
                 }
             }
             _ => {}

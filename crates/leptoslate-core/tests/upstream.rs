@@ -15,14 +15,13 @@ use std::fs;
 use std::path::{Path as FsPath, PathBuf};
 
 use leptoslate_core::{
-    path,
-    text::{grapheme_end_after, grapheme_start_before, word_end_after, word_start_before},
     DeleteTextOptions, DeleteUnit, Editor, Element, InsertNodesOptions, Location, MatchMode, Node,
     NodeMatch, Operation, Point, Props, Range, RangeAffinity, RangeDirection, SetNodesOptions,
-    SplitNodesOptions, UnwrapNodesOptions, WrapNodesOptions,
+    SplitNodesOptions, UnwrapNodesOptions, WrapNodesOptions, path,
+    text::{grapheme_end_after, grapheme_start_before, word_end_after, word_start_before},
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Fixtures we knowingly cannot replay yet. The file maps each upstream
 /// `source` (relative to `packages/slate/test/`) to a reason.
@@ -149,10 +148,10 @@ fn run_category(category: &str) {
         if !relative.starts_with(category) {
             continue;
         }
-        if let Ok(only) = std::env::var("UPSTREAM_ONLY") {
-            if !relative.contains(&only) {
-                continue;
-            }
+        if let Ok(only) = std::env::var("UPSTREAM_ONLY")
+            && !relative.contains(&only)
+        {
+            continue;
         }
 
         let fixture: Fixture = match serde_json::from_str(
@@ -617,8 +616,10 @@ fn replay_insert_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String
         serde_json::from_value(value)
             .map_err(|error| format!("invalid insertNodes nodes: {error}"))?
     } else {
-        vec![serde_json::from_value(value)
-            .map_err(|error| format!("invalid insertNodes node: {error}"))?]
+        vec![
+            serde_json::from_value(value)
+                .map_err(|error| format!("invalid insertNodes node: {error}"))?,
+        ]
     };
     let options = args.get(1).and_then(Value::as_object);
     let mut insert = InsertNodesOptions::default();
@@ -706,44 +707,40 @@ fn replay_merge_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String>
         }
     };
 
-    if text_match {
-        if let Some(current) = editor.text(&path).cloned() {
-            if let Some(previous) = previous_text_path(editor, &path) {
-                if let Some(previous_text) = editor.text(&previous).cloned() {
-                    let merged = format!("{}{}", previous_text.text, current.text);
-                    editor.set_text_at_path(&previous, &merged);
-                    let mut parent = path[..path.len() - 1].to_vec();
-                    editor.remove_nodes(&path, 1);
-                    while !parent.is_empty()
-                        && editor.children_at(&parent).is_some_and(|children| {
-                            children.iter().all(|child| match child {
-                                Node::Text(text) => text.text.is_empty(),
-                                Node::Element(_) => false,
-                            })
-                        })
-                    {
-                        editor.remove_nodes(&parent, 1);
-                        parent.pop();
-                    }
-                    return Ok(());
-                }
-            }
+    if text_match
+        && let Some(current) = editor.text(&path).cloned()
+        && let Some(previous) = previous_text_path(editor, &path)
+        && let Some(previous_text) = editor.text(&previous).cloned()
+    {
+        let merged = format!("{}{}", previous_text.text, current.text);
+        editor.set_text_at_path(&previous, &merged);
+        let mut parent = path[..path.len() - 1].to_vec();
+        editor.remove_nodes(&path, 1);
+        while !parent.is_empty()
+            && editor.children_at(&parent).is_some_and(|children| {
+                children.iter().all(|child| match child {
+                    Node::Text(text) => text.text.is_empty(),
+                    Node::Element(_) => false,
+                })
+            })
+        {
+            editor.remove_nodes(&parent, 1);
+            parent.pop();
         }
+        return Ok(());
     }
 
     let path_at = matches!(at, Some(value) if value.is_array());
-    if !path_at {
-        if let Some(previous) = previous_block_path(editor, &path) {
-            let new_path = path::next(&previous);
-            if new_path != path {
-                editor.move_nodes(&path, &new_path);
-            }
-            editor.merge_nodes(&new_path);
-            if editor.node(&new_path).is_some() && subtree_is_empty(editor, &new_path) {
-                editor.remove_nodes(&new_path, 1);
-            }
-            return Ok(());
+    if !path_at && let Some(previous) = previous_block_path(editor, &path) {
+        let new_path = path::next(&previous);
+        if new_path != path {
+            editor.move_nodes(&path, &new_path);
         }
+        editor.merge_nodes(&new_path);
+        if editor.node(&new_path).is_some() && subtree_is_empty(editor, &new_path) {
+            editor.remove_nodes(&new_path, 1);
+        }
+        return Ok(());
     }
 
     editor.merge_nodes(&path);
@@ -871,26 +868,27 @@ fn replay_set_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
         .get("__fn")
         .and_then(Value::as_str)
         .map(str::to_string);
-    if let Some(source) = &property_function {
-        if source.contains("node.id") && source.contains("path[0]") {
-            let ids: Vec<String> = editor
-                .children
-                .iter()
-                .map(|node| {
-                    node.properties()
-                        .get("id")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default()
-                        .to_string()
-                })
-                .collect();
-            for (index, id) in ids.into_iter().enumerate() {
-                let mut props = Props::new();
-                props.insert("id".into(), json!(format!("{id}-{index}")));
-                editor.set_nodes(&[&[index]], props);
-            }
-            return Ok(());
+    if let Some(source) = &property_function
+        && source.contains("node.id")
+        && source.contains("path[0]")
+    {
+        let ids: Vec<String> = editor
+            .children
+            .iter()
+            .map(|node| {
+                node.properties()
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            })
+            .collect();
+        for (index, id) in ids.into_iter().enumerate() {
+            let mut props = Props::new();
+            props.insert("id".into(), json!(format!("{id}-{index}")));
+            editor.set_nodes(&[&[index]], props);
         }
+        return Ok(());
     }
     let properties: Props = if let Some(source) = &property_function {
         if source.contains("id:\"x\"") || source.contains("id:'x'") {
@@ -944,8 +942,10 @@ fn replay_unset_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String>
         serde_json::from_value(key_value)
             .map_err(|error| format!("invalid unsetNodes keys: {error}"))?
     } else {
-        vec![serde_json::from_value(key_value)
-            .map_err(|error| format!("invalid unsetNodes key: {error}"))?]
+        vec![
+            serde_json::from_value(key_value)
+                .map_err(|error| format!("invalid unsetNodes key: {error}"))?,
+        ]
     };
     let options = args.get(1).and_then(Value::as_object);
 
@@ -1125,8 +1125,10 @@ fn replay_insert_fragment(editor: &mut Editor, args: &[Value]) -> Result<(), Str
         serde_json::from_value(value)
             .map_err(|error| format!("invalid insertFragment nodes: {error}"))?
     } else {
-        vec![serde_json::from_value(value)
-            .map_err(|error| format!("invalid insertFragment node: {error}"))?]
+        vec![
+            serde_json::from_value(value)
+                .map_err(|error| format!("invalid insertFragment node: {error}"))?,
+        ]
     };
     let options = args.get(1).and_then(Value::as_object);
     if options.is_some_and(|options| options.contains_key("at")) {
@@ -1450,9 +1452,11 @@ fn replay_lift_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> 
                     .map(|path| vec![path])
                     .ok_or_else(|| unsupported("liftNodes match predicate"))?
             } else {
-                vec![editor
-                    .leaf_block_path(&point)
-                    .ok_or_else(|| unsupported("liftNodes point outside a block"))?]
+                vec![
+                    editor
+                        .leaf_block_path(&point)
+                        .ok_or_else(|| unsupported("liftNodes point outside a block"))?,
+                ]
             }
         }
     } else {

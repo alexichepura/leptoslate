@@ -1,8 +1,9 @@
 //! The editor: document value, selection, marks, operations and history.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::{
+    FeatureSet, SlateError,
     history::{History, HistoryBatch},
     node::{Element, Node, Text},
     operation::Operation,
@@ -13,7 +14,6 @@ use crate::{
     range::Range,
     schema::Schema,
     text::{char_len, char_slice, splice},
-    FeatureSet, SlateError,
 };
 
 /// A pending transaction, grouping operations for undo/redo.
@@ -248,13 +248,12 @@ impl Editor {
     /// Whether editing at `point` is blocked by a read-only or void ancestor.
     pub fn point_is_read_only(&self, point: &Point) -> bool {
         for depth in (1..point.path.len()).rev() {
-            if let Some(element) = self.element(&point.path[..depth]) {
-                if matches!(element.properties.get("readOnly"), Some(Value::Bool(true)))
+            if let Some(element) = self.element(&point.path[..depth])
+                && (matches!(element.properties.get("readOnly"), Some(Value::Bool(true)))
                     || (self.is_void_element(element)
-                        && !matches!(element.properties.get("markable"), Some(Value::Bool(true))))
-                {
-                    return true;
-                }
+                        && !matches!(element.properties.get("markable"), Some(Value::Bool(true)))))
+            {
+                return true;
             }
         }
         false
@@ -302,12 +301,11 @@ impl Editor {
     /// markable when the void itself opts in with `markable: true`.
     pub fn is_text_markable(&self, at: &[usize]) -> bool {
         for depth in (1..at.len()).rev() {
-            if let Some(element) = self.element(&at[..depth]) {
-                if self.is_void_element(element)
-                    && !matches!(element.properties.get("markable"), Some(Value::Bool(true)))
-                {
-                    return false;
-                }
+            if let Some(element) = self.element(&at[..depth])
+                && self.is_void_element(element)
+                && !matches!(element.properties.get("markable"), Some(Value::Bool(true)))
+            {
+                return false;
             }
         }
         true
@@ -1025,10 +1023,10 @@ impl Editor {
             _ => false,
         };
 
-        if let Some((prev_path, len)) = prev {
-            if !prefer_next {
-                return Some(Point::new(prev_path, len));
-            }
+        if let Some((prev_path, len)) = prev
+            && !prefer_next
+        {
+            return Some(Point::new(prev_path, len));
         }
         next.map(|(next_path, _)| Point::new(next_path, 0))
     }
@@ -1087,21 +1085,21 @@ impl Editor {
     }
 
     fn finish_batch(&mut self) {
-        if let Some(mut batch) = self.batch.take() {
-            if !batch.is_empty() {
-                batch.after_selection = self.selection.clone();
-                batch.after_node_selection = self.node_selection.clone();
-                batch.after_node_selection_end = self.node_selection_end.clone();
-                self.history.push(HistoryBatch {
-                    ops: batch.ops,
-                    before_selection: batch.before_selection,
-                    after_selection: batch.after_selection,
-                    before_node_selection: batch.before_node_selection,
-                    before_node_selection_end: batch.before_node_selection_end,
-                    after_node_selection: batch.after_node_selection,
-                    after_node_selection_end: batch.after_node_selection_end,
-                });
-            }
+        if let Some(mut batch) = self.batch.take()
+            && !batch.is_empty()
+        {
+            batch.after_selection = self.selection.clone();
+            batch.after_node_selection = self.node_selection.clone();
+            batch.after_node_selection_end = self.node_selection_end.clone();
+            self.history.push(HistoryBatch {
+                ops: batch.ops,
+                before_selection: batch.before_selection,
+                after_selection: batch.after_selection,
+                before_node_selection: batch.before_node_selection,
+                before_node_selection_end: batch.before_node_selection_end,
+                after_node_selection: batch.after_node_selection,
+                after_node_selection_end: batch.after_node_selection_end,
+            });
         }
         self.sanitize_selection();
     }
@@ -1120,10 +1118,9 @@ impl Editor {
                     .node_selection_end
                     .as_ref()
                     .and_then(|path| path.first().copied())
+                    && (focus >= self.children.len() || self.children[focus].as_element().is_none())
                 {
-                    if focus >= self.children.len() || self.children[focus].as_element().is_none() {
-                        self.node_selection_end = None;
-                    }
+                    self.node_selection_end = None;
                 }
                 if self
                     .node_selection_end
@@ -1327,11 +1324,11 @@ impl Editor {
                 // such a path when several nodes are moved to one destination.
                 if let Some(index) = true_path.last().copied() {
                     let parent = true_path[..true_path.len() - 1].to_vec();
-                    if let Some(length) = self.children_at(&parent).map(<[Node]>::len) {
-                        if index > length {
-                            let last = true_path.len() - 1;
-                            true_path[last] = length;
-                        }
+                    if let Some(length) = self.children_at(&parent).map(<[Node]>::len)
+                        && index > length
+                    {
+                        let last = true_path.len() - 1;
+                        true_path[last] = length;
                     }
                 }
                 self.insert_node_value(&true_path, node)
@@ -1523,14 +1520,14 @@ impl Editor {
         // High-level transforms call this with no properties and expect the
         // new node to inherit the old one's marks/type, matching Slate's
         // `getSplitProperties` helper.
-        if properties.is_empty() {
-            if let Some(node) = self.node(at) {
-                match node {
-                    Node::Text(text) => properties = text.properties.clone(),
-                    Node::Element(element) => {
-                        properties = element.properties.clone();
-                        properties.insert("type".into(), json!(element.element_type));
-                    }
+        if properties.is_empty()
+            && let Some(node) = self.node(at)
+        {
+            match node {
+                Node::Text(text) => properties = text.properties.clone(),
+                Node::Element(element) => {
+                    properties = element.properties.clone();
+                    properties.insert("type".into(), json!(element.element_type));
                 }
             }
         }
@@ -1602,11 +1599,7 @@ impl Editor {
 }
 
 fn node_kind(node: &Node) -> &'static str {
-    if node.is_text() {
-        "text"
-    } else {
-        "element"
-    }
+    if node.is_text() { "text" } else { "element" }
 }
 
 fn collect_text_entries(
@@ -1639,10 +1632,10 @@ fn append_document_string(node: &Node, out: &mut String) {
 }
 
 fn apply_set_node(node: &mut Node, properties: &Props, new_properties: &Props) {
-    if let Node::Element(element) = node {
-        if let Some(Value::String(new_type)) = new_properties.get("type") {
-            element.element_type = new_type.clone();
-        }
+    if let Node::Element(element) = node
+        && let Some(Value::String(new_type)) = new_properties.get("type")
+    {
+        element.element_type = new_type.clone();
     }
 
     // Properties that were set before but are absent from `new_properties`

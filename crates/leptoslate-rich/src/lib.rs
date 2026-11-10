@@ -14,12 +14,12 @@ mod plugins;
 mod renderers;
 mod table;
 
-use leptoslate::core::{Feature, FeatureSet};
 use leptoslate::Editable as LeptoslateEditable;
+use leptoslate::core::{Feature, FeatureSet};
 pub use list::{ListContext, ListHandle, ListTransforms, RichListFeature, RichListPlugin};
 pub use paste::{PasteHandle, PasteTransforms};
 pub use plugins::{RichClipboardPlugin, RichPastePlugin};
-pub use renderers::{rich_renderers, RICH_STYLES};
+pub use renderers::{RICH_STYLES, rich_renderers};
 pub use table::{RichTableFeature, RichTablePlugin, TableHandle, TableTransforms};
 
 /// Configuration for [`RichEditor`].

@@ -1,5 +1,5 @@
 [workspace]
-resolver = "2"
+resolver = "3"
 members = [
     "crates/leptoslate-core",
     "crates/leptoslate",
@@ -9,8 +9,9 @@ members = [
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 license = "MIT"
+# Required by Leptos 0.9 (and by the let-chains we use in edition 2024).
 rust-version = "1.88"
 
 [workspace.dependencies]

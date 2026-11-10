@@ -3,7 +3,7 @@
 use serde_json::json;
 use tl::{NodeHandle, Parser};
 
-use leptoslate::core::{is_safe_href, is_safe_image_src, MarkKind, MarkSet, PropertyPath};
+use leptoslate::core::{MarkKind, MarkSet, PropertyPath, is_safe_href, is_safe_image_src};
 use leptoslate::{Element, Node, Props, Text};
 
 /// Parser configuration for rich fragments.
@@ -691,16 +691,15 @@ pub fn parse_markdown_with_config(markdown: &str, config: &FragmentConfig) -> Ve
                 index += 1;
             }
             let parsed = parse_markdown_with_config(&inner, config);
-            if parsed.len() == 1 {
-                if let Node::Element(element) = &parsed[0] {
-                    if element.element_type == "p" {
-                        blocks.push(Node::Element(Element::new(
-                            "blockquote",
-                            element.children.clone(),
-                        )));
-                        continue;
-                    }
-                }
+            if parsed.len() == 1
+                && let Node::Element(element) = &parsed[0]
+                && element.element_type == "p"
+            {
+                blocks.push(Node::Element(Element::new(
+                    "blockquote",
+                    element.children.clone(),
+                )));
+                continue;
             }
             blocks.push(Node::Element(Element::new("blockquote", parsed)));
             continue;
@@ -923,25 +922,24 @@ fn inline_markdown(text: &str, config: &FragmentConfig, properties: &Props) -> V
             }
         }
 
-        if rest.starts_with('[') {
-            if let Some(close) = rest.find("](") {
-                if let Some(end) = rest[close + 2..].find(')') {
-                    let label = &rest[1..close];
-                    let href = &rest[close + 2..close + 2 + end];
-                    if !buffer.is_empty() {
-                        push_text(&mut out, &buffer, properties, false);
-                        buffer.clear();
-                    }
-                    let children = inline_markdown(label, config, properties);
-                    let mut properties = Props::new();
-                    config.link_property.set(&mut properties, json!(href));
-                    out.push(Node::Element(
-                        Element::new("a", children).with_properties(properties),
-                    ));
-                    index += close + 2 + end + 1;
-                    continue;
-                }
+        if rest.starts_with('[')
+            && let Some(close) = rest.find("](")
+            && let Some(end) = rest[close + 2..].find(')')
+        {
+            let label = &rest[1..close];
+            let href = &rest[close + 2..close + 2 + end];
+            if !buffer.is_empty() {
+                push_text(&mut out, &buffer, properties, false);
+                buffer.clear();
             }
+            let children = inline_markdown(label, config, properties);
+            let mut properties = Props::new();
+            config.link_property.set(&mut properties, json!(href));
+            out.push(Node::Element(
+                Element::new("a", children).with_properties(properties),
+            ));
+            index += close + 2 + end + 1;
+            continue;
         }
 
         let ch = rest.chars().next().unwrap();

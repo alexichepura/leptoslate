@@ -33,7 +33,7 @@ use std::{
 use leptos::prelude::*;
 use leptoslate_core::Editor;
 use send_wrapper::SendWrapper;
-use wasm_bindgen::{closure::Closure, JsCast};
+use wasm_bindgen::{JsCast, closure::Closure};
 
 /// A stable fingerprint of a document's content.
 ///
@@ -141,10 +141,10 @@ impl ChangeEmitter {
     }
 
     pub(crate) fn cancel(&self) {
-        if let Some(handle) = self.timeout.get_value() {
-            if let Some(window) = web_sys::window() {
-                window.clear_timeout_with_handle(handle);
-            }
+        if let Some(handle) = self.timeout.get_value()
+            && let Some(window) = web_sys::window()
+        {
+            window.clear_timeout_with_handle(handle);
         }
         self.timeout.set_value(None);
         self.timer.set_value(None);

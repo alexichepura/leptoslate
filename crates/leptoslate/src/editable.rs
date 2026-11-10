@@ -7,13 +7,14 @@ use leptos::prelude::*;
 use leptoslate_core::{Editor, Element as SlateElement, MarkSet, Node, Point, Range};
 use send_wrapper::SendWrapper;
 use serde_json::Value;
-use wasm_bindgen::{closure::Closure, JsCast};
+use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{
     ClipboardEvent, CompositionEvent, DragEvent, Element, InputEvent, KeyboardEvent, MouseEvent,
 };
 
 use crate::{
-    change::{document_fingerprint, ChangeEmitter},
+    EDITOR_STYLES,
+    change::{ChangeEmitter, document_fingerprint},
     dom,
     handle::EditorHandle,
     media::FileHandler,
@@ -21,7 +22,6 @@ use crate::{
     plugins::EditablePlugins,
     render::render_node,
     renderers::Renderers,
-    EDITOR_STYLES,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -195,10 +195,10 @@ pub fn Editable(
 
             match input_type.as_str() {
                 "insertText" | "insertReplacementText" => {
-                    if let Some(data) = ev.data() {
-                        if !data.is_empty() {
-                            beforeinput_editor.insert_text(&data);
-                        }
+                    if let Some(data) = ev.data()
+                        && !data.is_empty()
+                    {
+                        beforeinput_editor.insert_text(&data);
                     }
                 }
                 "insertParagraph" => beforeinput_editor.insert_break(),
@@ -338,10 +338,10 @@ pub fn Editable(
         {
             ev.prevent_default();
             keydown_editor.update(|state| {
-                if state.selection.is_none() {
-                    if let Some(point) = state.start_point() {
-                        state.select_point(point);
-                    }
+                if state.selection.is_none()
+                    && let Some(point) = state.start_point()
+                {
+                    state.select_point(point);
                 }
             });
             return;
@@ -519,25 +519,19 @@ pub fn Editable(
             return;
         }
 
-        if let Some(window) = web_sys::window() {
-            if let Some(document) = window.document() {
-                if let Some(position) =
-                    document.caret_position_from_point(ev.client_x() as f32, ev.client_y() as f32)
-                {
-                    if let (Some(node), Ok(range)) =
-                        (position.offset_node(), document.create_range())
-                    {
-                        let offset = position.offset();
-                        if range.set_start(&node, offset).is_ok()
-                            && range.set_end(&node, offset).is_ok()
-                        {
-                            if let Ok(Some(selection)) = window.get_selection() {
-                                let _ = selection.remove_all_ranges();
-                                let _ = selection.add_range(&range);
-                            }
-                        }
-                    }
-                }
+        if let Some(window) = web_sys::window()
+            && let Some(document) = window.document()
+            && let Some(position) =
+                document.caret_position_from_point(ev.client_x() as f32, ev.client_y() as f32)
+            && let (Some(node), Ok(range)) = (position.offset_node(), document.create_range())
+        {
+            let offset = position.offset();
+            if range.set_start(&node, offset).is_ok()
+                && range.set_end(&node, offset).is_ok()
+                && let Ok(Some(selection)) = window.get_selection()
+            {
+                let _ = selection.remove_all_ranges();
+                let _ = selection.add_range(&range);
             }
         }
         sync_from_dom(&drop_editor, root.unchecked_ref());
@@ -599,10 +593,10 @@ pub fn Editable(
 
         if !cut_editor.has_node_selection() {
             // Preserve the browser's copied text, then delete through the model.
-            if let Some(document) = web_sys::window().and_then(|window| window.document()) {
-                if let Ok(document) = document.dyn_into::<web_sys::HtmlDocument>() {
-                    let _ = document.exec_command("copy");
-                }
+            if let Some(document) = web_sys::window().and_then(|window| window.document())
+                && let Ok(document) = document.dyn_into::<web_sys::HtmlDocument>()
+            {
+                let _ = document.exec_command("copy");
             }
             ev.prevent_default();
             cut_editor.delete_selection();
@@ -978,13 +972,13 @@ pub fn Editable(
     });
     on_cleanup(move || {
         selection_listener.with_value(|listener| {
-            if let Some(listener) = listener {
-                if let Some(document) = web_sys::window().and_then(|window| window.document()) {
-                    let _ = document.remove_event_listener_with_callback(
-                        "selectionchange",
-                        listener.as_ref().unchecked_ref(),
-                    );
-                }
+            if let Some(listener) = listener
+                && let Some(document) = web_sys::window().and_then(|window| window.document())
+            {
+                let _ = document.remove_event_listener_with_callback(
+                    "selectionchange",
+                    listener.as_ref().unchecked_ref(),
+                );
             }
         });
     });
@@ -1042,10 +1036,10 @@ pub fn Editable(
         let selection = effect_editor
             .state
             .with_untracked(|editor| editor.selection.clone());
-        if let Some(selection) = &selection {
-            if !dom::selection_matches_dom(root, selection) {
-                dom::apply_selection_to_dom(root, selection);
-            }
+        if let Some(selection) = &selection
+            && !dom::selection_matches_dom(root, selection)
+        {
+            dom::apply_selection_to_dom(root, selection);
         }
 
         let expanded = selection
@@ -1278,11 +1272,9 @@ pub fn Editable(
                     if let Some(target) = ev
                         .target()
                         .and_then(|target| target.dyn_into::<Element>().ok())
-                    {
-                        if target.closest(".ls-drag-handle").ok().flatten().is_some() {
+                        && target.closest(".ls-drag-handle").ok().flatten().is_some() {
                             return;
                         }
-                    }
                     ev.prevent_default();
                 }
             >

@@ -5,7 +5,7 @@
 //! hooks that keep Enter and Backspace inside list items.
 
 use crate::TableTransforms;
-use leptoslate::core::{path, Feature};
+use leptoslate::core::{Feature, path};
 use leptoslate::{
     EditablePlugin, Editor, EditorHandle, Element, ElementRule, Node, Operation, Path, Point,
     Range, Schema,
@@ -172,49 +172,49 @@ impl ListTransforms for Editor {
             let top_index = range.start().path.first().copied().unwrap_or(0);
 
             // Unwrap an existing list under the cursor, or switch its type.
-            if let Some(Node::Element(list)) = editor.children.get(top_index) {
-                if editor.schema.is_list(&list.element_type) {
-                    if list.element_type != list_type {
-                        let mut properties = leptoslate::Props::new();
-                        properties.insert("type".into(), serde_json::json!(list.element_type));
-                        let mut new_properties = leptoslate::Props::new();
-                        new_properties.insert("type".into(), serde_json::json!(list_type));
-                        let _ = editor.apply_operation(Operation::SetNode {
-                            path: vec![top_index],
-                            properties,
-                            new_properties,
-                        });
-                        return;
-                    }
-
-                    let list_children = list.children.clone();
-                    let list_path = vec![top_index];
-                    let mut paragraphs = Vec::new();
-                    for child in &list_children {
-                        let children = child.children().to_vec();
-                        paragraphs.push(Node::Element(Element::new("p", children)));
-                    }
-
-                    let _ = editor.apply_operation(Operation::RemoveNode { path: list_path });
-                    for (offset, paragraph) in paragraphs.into_iter().enumerate() {
-                        let _ = editor.apply_operation(Operation::InsertNode {
-                            path: vec![top_index + offset],
-                            node: paragraph,
-                        });
-                    }
-
-                    let map = |point: &Point| {
-                        if point.path.len() >= 2 {
-                            let mut path = vec![top_index + point.path[1]];
-                            path.extend_from_slice(&point.path[2..]);
-                            Point::new(path, point.offset)
-                        } else {
-                            point.clone()
-                        }
-                    };
-                    editor.selection = Some(Range::new(map(&range.anchor), map(&range.focus)));
+            if let Some(Node::Element(list)) = editor.children.get(top_index)
+                && editor.schema.is_list(&list.element_type)
+            {
+                if list.element_type != list_type {
+                    let mut properties = leptoslate::Props::new();
+                    properties.insert("type".into(), serde_json::json!(list.element_type));
+                    let mut new_properties = leptoslate::Props::new();
+                    new_properties.insert("type".into(), serde_json::json!(list_type));
+                    let _ = editor.apply_operation(Operation::SetNode {
+                        path: vec![top_index],
+                        properties,
+                        new_properties,
+                    });
                     return;
                 }
+
+                let list_children = list.children.clone();
+                let list_path = vec![top_index];
+                let mut paragraphs = Vec::new();
+                for child in &list_children {
+                    let children = child.children().to_vec();
+                    paragraphs.push(Node::Element(Element::new("p", children)));
+                }
+
+                let _ = editor.apply_operation(Operation::RemoveNode { path: list_path });
+                for (offset, paragraph) in paragraphs.into_iter().enumerate() {
+                    let _ = editor.apply_operation(Operation::InsertNode {
+                        path: vec![top_index + offset],
+                        node: paragraph,
+                    });
+                }
+
+                let map = |point: &Point| {
+                    if point.path.len() >= 2 {
+                        let mut path = vec![top_index + point.path[1]];
+                        path.extend_from_slice(&point.path[2..]);
+                        Point::new(path, point.offset)
+                    } else {
+                        point.clone()
+                    }
+                };
+                editor.selection = Some(Range::new(map(&range.anchor), map(&range.focus)));
+                return;
             }
 
             // Wrap all selected top-level blocks in a new list.
@@ -367,10 +367,10 @@ impl ListTransforms for Editor {
 fn list_ancestor_type(editor: &Editor, point: &Point) -> Option<String> {
     for depth in (1..point.path.len()).rev() {
         let path = &point.path[..depth];
-        if let Some(element) = editor.element(path) {
-            if editor.schema.is_list(&element.element_type) {
-                return Some(element.element_type.clone());
-            }
+        if let Some(element) = editor.element(path)
+            && editor.schema.is_list(&element.element_type)
+        {
+            return Some(element.element_type.clone());
         }
     }
     None

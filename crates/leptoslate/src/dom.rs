@@ -6,8 +6,8 @@
 //! conversions happen here.
 
 use leptoslate_core::{
-    text::{char_len, char_to_utf16_index, utf16_to_char_index},
     Path, Point, Range,
+    text::{char_len, char_to_utf16_index, utf16_to_char_index},
 };
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{Document, Element, Node, Selection};
@@ -24,11 +24,7 @@ pub fn parse_path(value: &str) -> Option<Path> {
         .split('.')
         .map(|part| part.parse::<usize>().ok())
         .collect::<Option<Vec<_>>>()?;
-    if path.is_empty() {
-        None
-    } else {
-        Some(path)
-    }
+    if path.is_empty() { None } else { Some(path) }
 }
 
 fn document() -> Option<Document> {
@@ -193,10 +189,10 @@ fn point_to_dom(root: &Element, point: &Point) -> Option<(Node, u32)> {
     let char_offset = point.offset.min(char_len(&text));
     let utf16_offset = char_to_utf16_index(&text, char_offset) as u32;
 
-    if let Some(child) = span.first_child() {
-        if child.node_type() == Node::TEXT_NODE {
-            return Some((child, utf16_offset));
-        }
+    if let Some(child) = span.first_child()
+        && child.node_type() == Node::TEXT_NODE
+    {
+        return Some((child, utf16_offset));
     }
 
     let node: Node = span.unchecked_into();
