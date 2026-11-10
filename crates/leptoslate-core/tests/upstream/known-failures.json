@@ -101,24 +101,8 @@
       "reason": "Void/read-only-aware deletion is not implemented."
     },
     {
-      "source": "transforms/insertNodes/range-ending-in-void/inline.ts",
-      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
-    },
-    {
-      "source": "transforms/insertNodes/range-ending-in-void/start-and-end.ts",
-      "reason": "Slate insertNodes' block/inline splitting and selection updates are not fully implemented."
-    },
-    {
       "source": "transforms/insertText/selection/block-hanging.tsx",
       "reason": "Cross-block selection insertion differs from Slate."
-    },
-    {
-      "source": "transforms/liftNodes/selection/block-full.tsx",
-      "reason": "Lifting a multi-block selection differs from Slate."
-    },
-    {
-      "source": "transforms/liftNodes/selection/block-nested.tsx",
-      "reason": "Lifting a multi-block selection differs from Slate."
     },
     {
       "source": "transforms/mergeNodes/depth-block/block-nested-multi-child.tsx",
@@ -131,26 +115,6 @@
     {
       "source": "transforms/mergeNodes/path/non-selectable-ancestor.ts",
       "reason": "Merging nested/non-selectable nodes differs from Slate."
-    },
-    {
-      "source": "transforms/mergeNodes/path/text-across.tsx",
-      "reason": "Merging nested/non-selectable nodes differs from Slate."
-    },
-    {
-      "source": "transforms/moveNodes/selection/block-nested-after.tsx",
-      "reason": "Moving a multi-block selection differs from Slate."
-    },
-    {
-      "source": "transforms/moveNodes/selection/block-nested-before.tsx",
-      "reason": "Moving a multi-block selection differs from Slate."
-    },
-    {
-      "source": "transforms/moveNodes/selection/block-siblings-after.tsx",
-      "reason": "Moving a multi-block selection differs from Slate."
-    },
-    {
-      "source": "transforms/moveNodes/selection/block-siblings-before.tsx",
-      "reason": "Moving a multi-block selection differs from Slate."
     },
     {
       "source": "transforms/splitNodes/selection/block-hanging.tsx",

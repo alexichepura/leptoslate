@@ -252,6 +252,24 @@ impl Editor {
         false
     }
 
+    /// Whether `point` is inside a non-editable *inline* element. Slate
+    /// nudges endpoints out of these before deleting, but keeps block voids
+    /// intact so they are removed as whole blocks.
+    pub fn point_inside_inline_non_editable(&self, point: &Point) -> bool {
+        for depth in (1..point.path.len()).rev() {
+            let Some(element) = self.element(&point.path[..depth]) else {
+                continue;
+            };
+            let non_editable =
+                matches!(element.properties.get("readOnly"), Some(Value::Bool(true)))
+                    || self.is_void_element(element);
+            if non_editable {
+                return self.is_inline_element(element);
+            }
+        }
+        false
+    }
+
     /// Whether `point` is inside a void element.
     pub fn point_has_void_ancestor(&self, point: &Point) -> bool {
         (1..point.path.len()).rev().any(|depth| {
@@ -1280,9 +1298,21 @@ impl Editor {
                 // `path` and `newPath` refer to the same snapshot. After the
                 // removal the destination may have shifted, so transform the
                 // source path to find the real insertion point.
-                let true_path = path::transform_with_affinity(from, op, Affinity::Forward)
+                let mut true_path = path::transform_with_affinity(from, op, Affinity::Forward)
                     .unwrap_or_else(|| new_path.clone());
                 self.remove_node_value(from)?;
+                // Slate's insertion splices at the destination index, which
+                // clamps past-the-end indices to an append. A move can produce
+                // such a path when several nodes are moved to one destination.
+                if let Some(index) = true_path.last().copied() {
+                    let parent = true_path[..true_path.len() - 1].to_vec();
+                    if let Some(length) = self.children_at(&parent).map(<[Node]>::len) {
+                        if index > length {
+                            let last = true_path.len() - 1;
+                            true_path[last] = length;
+                        }
+                    }
+                }
                 self.insert_node_value(&true_path, node)
             }
             Operation::SetNode {

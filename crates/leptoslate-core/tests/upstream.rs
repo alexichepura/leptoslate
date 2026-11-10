@@ -606,6 +606,11 @@ fn replay_remove_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String
 
 fn replay_merge_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
     let options = args.first().and_then(Value::as_object);
+    let text_match = options
+        .and_then(|options| options.get("match"))
+        .and_then(|value| value.get("__fn"))
+        .and_then(Value::as_str)
+        .is_some_and(|source| source.contains("isText"));
     let at = options.and_then(|options| options.get("at"));
     let path = match at {
         Some(at) if at.is_array() => as_path(at)?,
@@ -623,6 +628,31 @@ fn replay_merge_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String>
                 .ok_or_else(|| unsupported("mergeNodes point outside a block"))?
         }
     };
+
+    if text_match {
+        if let Some(current) = editor.text(&path).cloned() {
+            if let Some(previous) = previous_text_path(editor, &path) {
+                if let Some(previous_text) = editor.text(&previous).cloned() {
+                    let merged = format!("{}{}", previous_text.text, current.text);
+                    editor.set_text_at_path(&previous, &merged);
+                    let mut parent = path[..path.len() - 1].to_vec();
+                    editor.remove_nodes(&path, 1);
+                    while !parent.is_empty()
+                        && editor.children_at(&parent).is_some_and(|children| {
+                            children.iter().all(|child| match child {
+                                Node::Text(text) => text.text.is_empty(),
+                                Node::Element(_) => false,
+                            })
+                        })
+                    {
+                        editor.remove_nodes(&parent, 1);
+                        parent.pop();
+                    }
+                    return Ok(());
+                }
+            }
+        }
+    }
 
     editor.merge_nodes(&path);
     Ok(())
@@ -865,23 +895,47 @@ fn replay_move_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> 
     if !to.is_array() {
         return Err(unsupported("moveNodes to a point"));
     }
-    let at = if let Some(at) = options.and_then(|options| options.get("at")) {
+    let mut targets = if let Some(at) = options.and_then(|options| options.get("at")) {
         if !at.is_array() {
             return Err(unsupported("moveNodes at a point"));
         }
-        as_path(at)?
+        vec![as_path(at)?]
     } else {
-        let point = editor
+        let range = editor
             .selection
-            .as_ref()
-            .map(|selection| selection.anchor.clone())
+            .clone()
             .ok_or_else(|| unsupported("moveNodes without a selection"))?;
-        editor
-            .leaf_block_path(&point)
-            .ok_or_else(|| unsupported("moveNodes point outside a block"))?
+        collect_lift_matches(editor, &range, None)
     };
 
-    editor.move_nodes(&at, &as_path(to)?);
+    let mut destination = as_path(to)?;
+    while !targets.is_empty() {
+        let path = targets.remove(0);
+        if path.is_empty() {
+            continue;
+        }
+        let new_path = destination.clone();
+        editor.move_nodes(&path, &new_path);
+        let operation = Operation::MoveNode {
+            path: path.clone(),
+            new_path: new_path.clone(),
+        };
+        for target in &mut targets {
+            if let Some(transformed) =
+                path::transform_with_affinity(target, &operation, path::Affinity::Forward)
+            {
+                *target = transformed;
+            }
+        }
+        if let Some(transformed) =
+            path::transform_with_affinity(&destination, &operation, path::Affinity::Forward)
+        {
+            destination = transformed;
+        }
+        if path::is_sibling(&new_path, &path) && path::is_after(&new_path, &path) {
+            destination = path::next(&destination);
+        }
+    }
     Ok(())
 }
 
@@ -1198,76 +1252,147 @@ fn replay_lift_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> 
             }
         });
 
-    let path = if let Some(at) = options.and_then(|options| options.get("at")) {
+    let paths = if let Some(at) = options.and_then(|options| options.get("at")) {
         if at.is_array() {
-            as_path(at)?
+            vec![as_path(at)?]
         } else {
-            editor
-                .leaf_block_path(&as_point(at)?)
-                .ok_or_else(|| unsupported("liftNodes point outside a block"))?
+            let point = as_point(at)?;
+            if let Some(property) = property {
+                (1..point.path.len())
+                    .rev()
+                    .find_map(|depth| {
+                        let path = point.path[..depth].to_vec();
+                        editor
+                            .element(&path)
+                            .is_some_and(|element| element.properties.get(property).is_some())
+                            .then_some(path)
+                    })
+                    .map(|path| vec![path])
+                    .ok_or_else(|| unsupported("liftNodes match predicate"))?
+            } else {
+                vec![editor
+                    .leaf_block_path(&point)
+                    .ok_or_else(|| unsupported("liftNodes point outside a block"))?]
+            }
         }
     } else {
-        let point = editor
+        let range = editor
             .selection
-            .as_ref()
-            .map(|range| range.anchor.clone())
+            .clone()
             .ok_or_else(|| unsupported("liftNodes without a selection"))?;
-        if let Some(property) = property {
-            (1..point.path.len())
-                .rev()
-                .find_map(|depth| {
-                    let path = point.path[..depth].to_vec();
-                    editor
-                        .element(&path)
-                        .is_some_and(|element| element.properties.get(property).is_some())
-                        .then_some(path)
-                })
-                .ok_or_else(|| unsupported("liftNodes match predicate"))?
-        } else {
-            editor
-                .leaf_block_path(&point)
-                .ok_or_else(|| unsupported("liftNodes point outside a block"))?
-        }
+        collect_lift_matches(editor, &range, property)
     };
-    if path.len() < 2 {
-        return Err(unsupported("liftNodes at a root-level node"));
-    }
-    let parent_path = path[..path.len() - 1].to_vec();
-    let parent_index = *parent_path
-        .last()
-        .ok_or_else(|| unsupported("liftNodes without a parent"))?;
-    let child_index = *path.last().unwrap();
-    let grandparent = parent_path[..parent_path.len() - 1].to_vec();
-    let parent = editor
-        .element(&parent_path)
-        .cloned()
-        .ok_or_else(|| unsupported("liftNodes parent is not an element"))?;
-    if child_index >= parent.children.len() {
-        return Err(unsupported("liftNodes path outside parent"));
-    }
 
-    let lifted = parent.children[child_index].clone();
-    let before = parent.children[..child_index].to_vec();
-    let after = parent.children[child_index + 1..].to_vec();
-    let mut after_parent = parent.clone();
-    after_parent.children = after.clone();
-
-    editor.transaction(|editor| {
-        editor.remove_nodes(&path, 1);
-        if !after.is_empty() {
-            editor.remove_nodes(&child_path(&parent_path, child_index), after.len());
+    for path in paths.into_iter().rev() {
+        if path.len() < 2 {
+            return Err(unsupported("liftNodes at a root-level node"));
         }
+        lift_one(editor, &path);
+    }
+    Ok(())
+}
 
-        if before.is_empty() {
-            editor.remove_nodes(&parent_path, 1);
-            editor.insert_nodes(&child_path(&grandparent, parent_index), vec![lifted]);
-            if !after.is_empty() {
-                editor.insert_nodes(
-                    &child_path(&grandparent, parent_index + 1),
-                    vec![Node::Element(after_parent)],
-                );
+fn collect_lift_matches(editor: &Editor, range: &Range, property: Option<&str>) -> Vec<Vec<usize>> {
+    fn subtree_intersects(editor: &Editor, path: &[usize], range: &Range) -> bool {
+        let Some(start) = editor.first_text_point_in(path) else {
+            return false;
+        };
+        let Some(end) = editor.last_text_point_in(path) else {
+            return false;
+        };
+        start.compare(range.end()) != Ordering::Greater
+            && end.compare(range.start()) != Ordering::Less
+    }
+
+    fn visit(
+        editor: &Editor,
+        path: &[usize],
+        range: &Range,
+        property: Option<&str>,
+        out: &mut Vec<Vec<usize>>,
+    ) {
+        if !path.is_empty() && !subtree_intersects(editor, path, range) {
+            return;
+        }
+        if path.is_empty() {
+            let mut children = Vec::new();
+            if let Some(root) = editor.children_at(path) {
+                for index in 0..root.len() {
+                    visit(
+                        editor,
+                        &child_path(path, index),
+                        range,
+                        property,
+                        &mut children,
+                    );
+                }
+            }
+            out.extend(children);
+            return;
+        }
+        let Some(element) = editor.element(path) else {
+            return;
+        };
+        let matches_self = if let Some(property) = property {
+            element.properties.get(property).is_some()
+        } else {
+            !editor.is_inline_element(element)
+        };
+        let mut children = Vec::new();
+        for index in 0..element.children.len() {
+            visit(
+                editor,
+                &child_path(path, index),
+                range,
+                property,
+                &mut children,
+            );
+        }
+        if children.is_empty() {
+            if matches_self {
+                out.push(path.to_vec());
             }
         } else {
+            out.extend(children);
+        }
+    }
+
+    let mut matches = Vec::new();
+    visit(editor, &[], range, property, &mut matches);
+    matches
+}
+
+fn lift_one(editor: &mut Editor, path: &[usize]) {
+    let parent_path = path[..path.len() - 1].to_vec();
+    let index = *path.last().unwrap();
+    let length = editor
+        .element(&parent_path)
+        .map(|parent| parent.children.len())
+        .unwrap_or(0);
+
+    if length == 1 {
+        let to = path::next(&parent_path);
+        editor.move_nodes(path, &to);
+        editor.remove_nodes(&parent_path, 1);
+    } else if index == 0 {
+        editor.move_nodes(path, &parent_path);
+    } else if index + 1 == length {
+        let to = path::next(&parent_path);
+        editor.move_nodes(path, &to);
+    } else {
+        let Some(parent) = editor.element(&parent_path).cloned() else {
+            return;
+        };
+        let lifted = parent.children[index].clone();
+        let before = parent.children[..index].to_vec();
+        let after = parent.children[index + 1..].to_vec();
+        let parent_index = *parent_path.last().unwrap();
+        let grandparent = parent_path[..parent_path.len() - 1].to_vec();
+        editor.transaction(|editor| {
+            editor.remove_nodes(path, 1);
+            editor.remove_nodes(&child_path(&parent_path, index), after.len());
+            let mut after_parent = parent.clone();
+            after_parent.children = after.clone();
             editor.insert_nodes(&child_path(&grandparent, parent_index + 1), vec![lifted]);
             if !after.is_empty() {
                 editor.insert_nodes(
@@ -1275,9 +1400,9 @@ fn replay_lift_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> 
                     vec![Node::Element(after_parent)],
                 );
             }
-        }
-    });
-    Ok(())
+        });
+        let _ = before;
+    }
 }
 
 fn child_path(parent: &[usize], index: usize) -> Vec<usize> {

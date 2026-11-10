@@ -928,6 +928,20 @@ impl Editor {
         let mut start = self.text_point(&start).unwrap_or(start);
         let mut end = self.text_point(&end).unwrap_or(end);
 
+        // Slate nudges range endpoints out of inline voids and read-only
+        // nodes before deleting, so the non-editable node itself is removed
+        // when it sits fully inside the range.
+        if self.point_inside_inline_non_editable(&start) {
+            if let Some(before) = self.previous_text_point(&start) {
+                start = before;
+            }
+        }
+        if self.point_inside_inline_non_editable(&end) {
+            if let Some(after) = self.next_text_point(&end) {
+                end = after;
+            }
+        }
+
         if start.path == end.path {
             if end.offset > start.offset {
                 let text = self
