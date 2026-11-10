@@ -499,7 +499,17 @@ impl Editor {
             }
 
             if let Location::Point(point) = at.clone() {
-                let target = if options.reverse {
+                let thai_target = (options.reverse && options.unit == DeleteUnit::Character)
+                    .then(|| {
+                        let text = self.text(&point.path)?;
+                        let offset = point.offset.saturating_sub(options.distance);
+                        let removed = char_slice(&text.text, offset, point.offset).to_string();
+                        Self::is_thai_text(&removed).then(|| Point::new(point.path.clone(), offset))
+                    })
+                    .flatten();
+                let target = if let Some(target) = thai_target {
+                    Some(target)
+                } else if options.reverse {
                     self.point_before(&point, options.unit, options.distance)
                 } else {
                     self.point_after(&point, options.unit, options.distance)
@@ -719,6 +729,10 @@ impl Editor {
                 .is_some_and(|element| {
                     self.is_void_element(element)
                         || matches!(element.properties.get("readOnly"), Some(Value::Bool(true)))
+                        || matches!(
+                            element.properties.get("nonSelectable"),
+                            Some(Value::Bool(true))
+                        )
                 })
                 .then_some(path)
         })
@@ -801,6 +815,11 @@ impl Editor {
                 .is_some_and(|element| self.is_void_element(element))
                 .then_some(path)
         })
+    }
+
+    fn is_thai_text(text: &str) -> bool {
+        text.chars()
+            .any(|ch| ('\u{0e00}'..='\u{0e7f}').contains(&ch))
     }
 
     fn point_after(&self, point: &Point, unit: DeleteUnit, distance: usize) -> Option<Point> {

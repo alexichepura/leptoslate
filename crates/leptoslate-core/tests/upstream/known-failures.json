@@ -69,14 +69,6 @@
       "reason": "Inline/void-aware grapheme deletion differs from Slate."
     },
     {
-      "source": "transforms/delete/unit-character/thai-multiple-reverse.tsx",
-      "reason": "Inline/void-aware grapheme deletion differs from Slate."
-    },
-    {
-      "source": "transforms/delete/unit-character/thai-reverse.tsx",
-      "reason": "Inline/void-aware grapheme deletion differs from Slate."
-    },
-    {
       "source": "transforms/delete/voids-false/block-across-backward.tsx",
       "reason": "Void/read-only-aware deletion is not implemented."
     },
