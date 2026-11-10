@@ -62,13 +62,12 @@ impl EditablePlugin for RichPastePlugin {
         if self.html {
             let html = data.get_data("text/html").unwrap_or_default();
             if !html.trim().is_empty() {
-                if let Some(model) = extract_model_marker(&html) {
-                    if let Ok(nodes) = serde_json::from_str::<Vec<leptoslate::Node>>(&model) {
-                        if !nodes.is_empty() {
-                            editor.insert_fragment(nodes);
-                            return true;
-                        }
-                    }
+                if let Some(model) = extract_model_marker(&html)
+                    && let Ok(nodes) = serde_json::from_str::<Vec<leptoslate::Node>>(&model)
+                    && !nodes.is_empty()
+                {
+                    editor.insert_fragment(nodes);
+                    return true;
                 }
                 let nodes = crate::fragment::parse_html_with_config(&html, &self.config());
                 if !nodes.is_empty() {

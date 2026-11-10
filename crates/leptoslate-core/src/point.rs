@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    path::{self, Affinity},
     Operation, Path,
+    path::{self, Affinity},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -5,7 +5,7 @@
 //! structural hooks that keep block transforms out of table cells.
 
 use leptos::prelude::WithUntracked;
-use leptoslate::core::{path, Feature};
+use leptoslate::core::{Feature, path};
 use leptoslate::{
     Editor, EditorHandle, Element, ElementRule, Node, Operation, Path, Point, Range, Schema,
 };
@@ -169,10 +169,10 @@ impl Feature for RichTableFeature {
                 if is_container && element.children.is_empty() {
                     return Some(Operation::RemoveNode { path: at });
                 }
-                if editor.schema.is_table_element(&element.element_type) {
-                    if let Some(operation) = scan(editor, &element.children, &at) {
-                        return Some(operation);
-                    }
+                if editor.schema.is_table_element(&element.element_type)
+                    && let Some(operation) = scan(editor, &element.children, &at)
+                {
+                    return Some(operation);
                 }
             }
             None

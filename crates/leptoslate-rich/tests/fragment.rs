@@ -1,8 +1,8 @@
 //! HTML and Markdown parser tests for the rich preset.
 
 use leptoslate::Node;
-use leptoslate_rich::fragment::{parse_html, parse_markdown};
 use leptoslate_rich::PasteTransforms;
+use leptoslate_rich::fragment::{parse_html, parse_markdown};
 
 #[test]
 fn parses_html_fragments_into_slate_nodes() {
@@ -284,9 +284,11 @@ fn custom_mark_keys_drive_html_and_markdown_imports() {
     assert_eq!(property(3, "del"), Some(serde_json::json!(true)));
     assert_eq!(property(4, "mono"), Some(serde_json::json!(true)));
     for conventional in ["bold", "italic", "underline", "strikethrough", "code"] {
-        assert!(children
-            .iter()
-            .all(|child| child.properties().get(conventional).is_none()));
+        assert!(
+            children
+                .iter()
+                .all(|child| child.properties().get(conventional).is_none())
+        );
     }
 
     // Conventional names in copied span attributes and styles remain valid
@@ -357,7 +359,7 @@ fn additional_mark_aliases_are_accepted_on_import() {
 fn nested_link_property_is_used_by_html_and_markdown_paste() {
     use leptoslate::core::PropertyPath;
     use leptoslate_rich::fragment::{
-        parse_html_with_config, parse_markdown_with_config, FragmentConfig,
+        FragmentConfig, parse_html_with_config, parse_markdown_with_config,
     };
 
     let config = FragmentConfig {

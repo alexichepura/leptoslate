@@ -11,9 +11,10 @@
 //! 5. Inline nodes are surrounded by text.
 
 use crate::{
+    SlateError,
     node::{Element, Node},
     operation::Operation,
-    path, SlateError,
+    path,
 };
 
 use crate::Editor;
@@ -94,22 +95,20 @@ impl Editor {
     }
 
     fn scan_children(&self, children: &[Node], at: &[usize], is_root: bool) -> Option<Fix> {
-        if !is_root {
-            if let Some(element) = self.element(at) {
-                // Remove an empty inline only when it is the sole child, so
-                // an empty inline still surrounded by siblings survives
-                // (Slate keeps these).
-                let sibling_count = self
-                    .children_at(&at[..at.len() - 1])
-                    .map(<[Node]>::len)
-                    .unwrap_or(1);
-                if is_inline(self, element)
-                    && !is_void(self, element)
-                    && element.text_len() == 0
-                    && sibling_count == 1
-                {
-                    return Some(Fix::RemoveNode { path: at.to_vec() });
-                }
+        if !is_root && let Some(element) = self.element(at) {
+            // Remove an empty inline only when it is the sole child, so
+            // an empty inline still surrounded by siblings survives
+            // (Slate keeps these).
+            let sibling_count = self
+                .children_at(&at[..at.len() - 1])
+                .map(<[Node]>::len)
+                .unwrap_or(1);
+            if is_inline(self, element)
+                && !is_void(self, element)
+                && element.text_len() == 0
+                && sibling_count == 1
+            {
+                return Some(Fix::RemoveNode { path: at.to_vec() });
             }
         }
 
@@ -160,26 +159,25 @@ impl Editor {
         if should_have_inlines {
             for (index, child) in children.iter().enumerate() {
                 if child.is_text() {
-                    if index > 0 {
-                        if let Some(previous) = children.get(index - 1) {
-                            if let Some(previous_text) = previous.as_text() {
-                                let text = child.as_text().unwrap();
-                                if text.is_empty() {
-                                    return Some(Fix::RemoveNode {
-                                        path: child_path(at, index),
-                                    });
-                                }
-                                if previous_text.is_empty() {
-                                    return Some(Fix::RemoveNode {
-                                        path: child_path(at, index - 1),
-                                    });
-                                }
-                                if text.properties == previous_text.properties {
-                                    return Some(Fix::MergeNode {
-                                        path: child_path(at, index),
-                                    });
-                                }
-                            }
+                    if index > 0
+                        && let Some(previous) = children.get(index - 1)
+                        && let Some(previous_text) = previous.as_text()
+                    {
+                        let text = child.as_text().unwrap();
+                        if text.is_empty() {
+                            return Some(Fix::RemoveNode {
+                                path: child_path(at, index),
+                            });
+                        }
+                        if previous_text.is_empty() {
+                            return Some(Fix::RemoveNode {
+                                path: child_path(at, index - 1),
+                            });
+                        }
+                        if text.properties == previous_text.properties {
+                            return Some(Fix::MergeNode {
+                                path: child_path(at, index),
+                            });
                         }
                     }
                 } else if let Some(element) = child.as_element() {

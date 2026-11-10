@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
+    Operation, Path,
     path::{self, Affinity},
     point::Point,
     props::Props,
-    Operation, Path,
 };
 
 /// Affinity used by Slate's `Range.transform`.

@@ -8,8 +8,8 @@ use leptoslate::{
 use leptoslate_rich::{
     ListHandle, PasteHandle, RichConfig, RichEditor, TableHandle, TableTransforms,
 };
-use serde_json::{json, Value};
-use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+use serde_json::{Value, json};
+use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use web_sys::{KeyboardEvent, MouseEvent};
 
 struct StarPlugin;
@@ -120,14 +120,14 @@ fn read_image_file(file: web_sys::File, editor: EditorHandle) {
     };
     let loaded = reader.clone();
     let onload = wasm_bindgen::closure::Closure::once_into_js(move || {
-        if let Ok(result) = loaded.result() {
-            if let Some(src) = result.as_string() {
-                focus_editor();
-                let image = image(&src);
-                editor.update(|state| {
-                    state.insert_block_after_selection(image);
-                });
-            }
+        if let Ok(result) = loaded.result()
+            && let Some(src) = result.as_string()
+        {
+            focus_editor();
+            let image = image(&src);
+            editor.update(|state| {
+                state.insert_block_after_selection(image);
+            });
         }
     });
     reader.set_onload(Some(onload.unchecked_ref()));
@@ -317,7 +317,9 @@ fn initial_document() -> Vec<Node> {
             marked("Slate", &[("bold", bold.clone())]),
             text(" for "),
             link("Leptos", "https://leptos.dev"),
-            text(". The document model, operations, normalization engine and undo history are pure Rust; this page is the Leptos view layer."),
+            text(
+                ". The document model, operations, normalization engine and undo history are pure Rust; this page is the Leptos view layer.",
+            ),
         ]),
         paragraph(vec![
             text("Select some text and try the toolbar. The value is plain "),
@@ -358,7 +360,10 @@ fn initial_document() -> Vec<Node> {
             ],
         )),
         todo("Try inserting a custom block from the toolbar", false),
-        todo("Swap the renderer without touching the document model", true),
+        todo(
+            "Swap the renderer without touching the document model",
+            true,
+        ),
         Node::Element(Element::new(
             "table",
             vec![
@@ -407,7 +412,9 @@ fn initial_document() -> Vec<Node> {
             marked("Enter", &[("code", code.clone())]),
             text(" to split a block, or "),
             marked("Shift+Enter", &[("code", code.clone())]),
-            text(" for a soft line break. Images, dividers and inline links are supported by the schema."),
+            text(
+                " for a soft line break. Images, dividers and inline links are supported by the schema.",
+            ),
         ]),
         Node::Element(Element::empty("hr")),
         paragraph(vec![

@@ -27,7 +27,7 @@ mod renderers;
 mod editable;
 
 pub use change::document_fingerprint;
-pub use editable::{keep_selection, select_point, Editable};
+pub use editable::{Editable, keep_selection, select_point};
 pub use handle::EditorHandle;
 pub use media::FileHandler;
 pub use mention::{MentionHandler, MentionTrigger};

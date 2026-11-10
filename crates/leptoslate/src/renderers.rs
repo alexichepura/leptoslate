@@ -7,7 +7,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use leptos::prelude::AnyView;
-use leptoslate_core::{props, Element, Path, Text};
+use leptoslate_core::{Element, Path, Text, props};
 use serde_json::Value;
 
 use crate::handle::EditorHandle;

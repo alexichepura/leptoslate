@@ -1,4 +1,4 @@
-use leptoslate_core::{props, Editor, Element, Node, Point, Range, Text};
+use leptoslate_core::{Editor, Element, Node, Point, Range, Text, props};
 
 fn p(text: &str) -> Node {
     Node::Element(Element::paragraph(vec![Node::Text(Text::new(text))]))
@@ -272,12 +272,14 @@ fn bold_mark_formats_the_selection() {
         Some(&serde_json::Value::Bool(true))
     );
     assert_eq!(element.children[1].as_text().unwrap().text, " world");
-    assert!(element.children[1]
-        .as_text()
-        .unwrap()
-        .properties
-        .get("bold")
-        .is_none());
+    assert!(
+        element.children[1]
+            .as_text()
+            .unwrap()
+            .properties
+            .get("bold")
+            .is_none()
+    );
 }
 
 #[test]
@@ -906,12 +908,14 @@ fn links_wrap_the_selection_and_update_the_href() {
     );
 
     assert!(editor.remove_link());
-    assert!(editor
-        .element(&[0])
-        .unwrap()
-        .children
-        .iter()
-        .all(|node| node.element_type() != Some("a")));
+    assert!(
+        editor
+            .element(&[0])
+            .unwrap()
+            .children
+            .iter()
+            .all(|node| node.element_type() != Some("a"))
+    );
     assert_eq!(editor.children[0].string(), "hello world");
 }
 
@@ -1034,12 +1038,14 @@ fn deleting_across_a_link_removes_the_link_element() {
     editor.delete_selection();
 
     assert_eq!(editor.children[0].string(), "af");
-    assert!(editor
-        .element(&[0])
-        .unwrap()
-        .children
-        .iter()
-        .all(|node| node.element_type() != Some("a")));
+    assert!(
+        editor
+            .element(&[0])
+            .unwrap()
+            .children
+            .iter()
+            .all(|node| node.element_type() != Some("a"))
+    );
 }
 
 #[test]
@@ -1144,12 +1150,14 @@ fn selecting_across_an_inline_void_removes_it() {
     editor.delete_selection();
 
     assert_eq!(editor.children[0].string(), "ab");
-    assert!(editor
-        .element(&[0])
-        .unwrap()
-        .children
-        .iter()
-        .all(|node| node.element_type() != Some("mention")));
+    assert!(
+        editor
+            .element(&[0])
+            .unwrap()
+            .children
+            .iter()
+            .all(|node| node.element_type() != Some("mention"))
+    );
 }
 
 #[test]
@@ -1403,12 +1411,14 @@ fn nested_link_property_round_trips_existing_documents() {
 
     editor.select_all();
     assert!(editor.remove_link());
-    assert!(editor
-        .element(&[0])
-        .unwrap()
-        .children
-        .iter()
-        .all(|node| node.element_type() != Some("a")));
+    assert!(
+        editor
+            .element(&[0])
+            .unwrap()
+            .children
+            .iter()
+            .all(|node| node.element_type() != Some("a"))
+    );
 }
 
 #[test]
@@ -1493,12 +1503,14 @@ fn generic_inline_helpers_wrap_find_and_unwrap_custom_elements() {
 
     assert_eq!(editor.unwrap_inline(&path), Some(()));
     assert_eq!(editor.children[0].string(), "hello world");
-    assert!(editor
-        .element(&[0])
-        .unwrap()
-        .children
-        .iter()
-        .all(|node| node.element_type() != Some("chip")));
+    assert!(
+        editor
+            .element(&[0])
+            .unwrap()
+            .children
+            .iter()
+            .all(|node| node.element_type() != Some("chip"))
+    );
 }
 
 #[test]
