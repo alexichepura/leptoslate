@@ -35,7 +35,7 @@ Current results:
 | Suite | Passing | Known failures | Unsupported | Upstream skip |
 | --- | ---: | ---: | ---: | ---: |
 | interfaces + operations | 232 | 0 | 2 | 0 |
-| transforms | 354 | 35 | 103 | 4 |
+| transforms | 423 | 65 | 4 | 4 |
 | normalization | 16 | 0 | 4 | 0 |
 | history | 10 | 0 | 0 | 6 |
 
@@ -64,16 +64,14 @@ count them as failures.
 
 The largest current gaps are:
 
-- `wrapNodes` / `unwrapNodes` work for path, collapsed and whole-node ranges;
-  the `split` option is still unsupported (44 fixtures).
-- A few void/read-only and cross-block deletion edge cases.
-- Nested empty-ancestor merging in `mergeNodes`.
-- `splitNodes` void/selection edge cases and `insertNodes` ranges ending in a
-  void.
-- `match`/`replace`/`merge`/`split` options on `setNodes`, and `match` on
-  `mergeNodes`, `moveNodes`, `unsetNodes` and `splitNodes`.
-- Arbitrary selection properties (`set_selection` operations) are unsupported
-  rather than emulated.
+- A few void/read-only and cross-block deletion edge cases (24).
+- `wrapNodes`/`unwrapNodes` split-inline edge cases (23).
+- Multi-block selection moves and lifts (6).
+- A couple of nested `mergeNodes` cases.
+- `splitNodes` void/selection edges and `insertNodes` ranges ending in a void.
+- Custom `match`/`merge` functions and schema fallback normalizers are
+  reported as unsupported rather than emulated.
+- Arbitrary selection properties (`set_selection` operations) are unsupported.
 
 ## Regenerating
 

@@ -18,8 +18,8 @@ use leptoslate_core::{
     path,
     text::{grapheme_end_after, grapheme_start_before, word_end_after, word_start_before},
     DeleteTextOptions, DeleteUnit, Editor, Element, InsertNodesOptions, Location, MatchMode, Node,
-    NodeMatch, Operation, Point, Props, Range, RangeAffinity, RangeDirection, SplitNodesOptions,
-    UnwrapNodesOptions, WrapNodesOptions,
+    NodeMatch, Operation, Point, Props, Range, RangeAffinity, RangeDirection, SetNodesOptions,
+    SplitNodesOptions, UnwrapNodesOptions, WrapNodesOptions,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -438,17 +438,41 @@ fn replay_insert_text(editor: &mut Editor, args: &[Value]) -> Result<(), String>
         .and_then(Value::as_str)
         .ok_or_else(|| "insertText is missing text".to_string())?;
     let options = args.get(1).and_then(Value::as_object);
-
-    if options
+    let voids = options
         .and_then(|options| options.get("voids"))
         .and_then(Value::as_bool)
-        == Some(true)
-    {
-        return Err(unsupported("insertText voids option"));
-    }
+        .unwrap_or(false);
 
     match options.and_then(|options| options.get("at")) {
-        Some(at) if at.is_array() => Err(unsupported("insertText at a path")),
+        Some(at) if at.is_array() => {
+            let path = as_path(at)?;
+            if !voids {
+                let mut blocked = editor
+                    .element(&path)
+                    .is_some_and(|element| editor.is_void_element(element));
+                for depth in (1..path.len()).rev() {
+                    if editor
+                        .element(&path[..depth])
+                        .is_some_and(|element| editor.is_void_element(element))
+                    {
+                        blocked = true;
+                        break;
+                    }
+                }
+                if blocked {
+                    return Ok(());
+                }
+            }
+            let text_path = if editor.text(&path).is_some() {
+                Some(path.clone())
+            } else {
+                editor.first_text_point_in(&path).map(|point| point.path)
+            };
+            if let Some(text_path) = text_path {
+                editor.set_text_at_path(&text_path, text);
+            }
+            Ok(())
+        }
         Some(at) => {
             editor.insert_text_at(&as_point(at)?, text);
             Ok(())
@@ -557,14 +581,6 @@ fn replay_insert_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String
 
 fn replay_remove_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
     let options = args.first().and_then(Value::as_object);
-    if options
-        .and_then(|options| options.get("voids"))
-        .and_then(Value::as_bool)
-        == Some(true)
-    {
-        return Err(unsupported("removeNodes voids option"));
-    }
-
     match options.and_then(|options| options.get("at")) {
         Some(at) if at.is_array() => {
             editor.remove_nodes(&as_path(at)?, 1);
@@ -572,32 +588,24 @@ fn replay_remove_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String
         }
         Some(_) => Err(unsupported("removeNodes at a point/range")),
         None => {
-            if editor
-                .selection
-                .as_ref()
-                .is_some_and(|selection| selection.is_expanded())
-            {
-                Err(unsupported("removeNodes selection range"))
-            } else {
-                Ok(())
+            let Some(selection) = editor.selection.clone() else {
+                return Ok(());
+            };
+            if selection.is_collapsed() {
+                return Ok(());
             }
+            let start = selection.start().path.first().copied().unwrap_or(0);
+            let end = selection.end().path.first().copied().unwrap_or(start);
+            for index in (start..=end).rev() {
+                editor.remove_nodes(&[index], 1);
+            }
+            Ok(())
         }
     }
 }
 
 fn replay_merge_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
     let options = args.first().and_then(Value::as_object);
-    if options.is_some_and(|options| options.contains_key("match")) {
-        return Err(unsupported("mergeNodes match predicate"));
-    }
-    if options
-        .and_then(|options| options.get("voids"))
-        .and_then(Value::as_bool)
-        == Some(true)
-    {
-        return Err(unsupported("mergeNodes voids option"));
-    }
-
     let at = options.and_then(|options| options.get("at"));
     let path = match at {
         Some(at) if at.is_array() => as_path(at)?,
@@ -688,35 +696,35 @@ fn match_kind(value: &Value) -> Result<NodeMatch, String> {
 }
 
 fn replay_set_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
-    let properties: Props = serde_json::from_value(
-        args.first()
-            .cloned()
-            .ok_or_else(|| "setNodes is missing properties".to_string())?,
-    )
-    .map_err(|error| format!("invalid setNodes properties: {error}"))?;
+    let property_value = args
+        .first()
+        .cloned()
+        .ok_or_else(|| "setNodes is missing properties".to_string())?;
+    if property_value.get("__fn").is_some() {
+        return Err(unsupported("setNodes with a properties function"));
+    }
+    let properties: Props = serde_json::from_value(property_value)
+        .map_err(|error| format!("invalid setNodes properties: {error}"))?;
     let options = args.get(1).and_then(Value::as_object);
+    let mut set = SetNodesOptions::default();
 
-    if options.is_some_and(|options| {
-        options.contains_key("match")
-            || options.contains_key("replace")
-            || options.contains_key("split")
-            || options.contains_key("merge")
-            || options.contains_key("voids")
-    }) {
-        return Err(unsupported(
-            "setNodes match/replace/split/merge/voids option",
-        ));
+    if options.is_some_and(|options| options.contains_key("merge")) {
+        return Err(unsupported("setNodes merge function"));
     }
+    if let Some(at) = options.and_then(|options| options.get("at")) {
+        set.at = Some(as_location(at)?);
+    }
+    if let Some(match_value) = options.and_then(|options| options.get("match")) {
+        set.match_kind = Some(match_kind(match_value)?);
+    }
+    set.mode = parse_match_mode(options.and_then(|options| options.get("mode")));
+    set.replace = option_flag(options, "replace");
+    set.split = option_flag(options, "split");
+    set.hanging = option_flag(options, "hanging");
+    set.voids = option_flag(options, "voids");
 
-    match options.and_then(|options| options.get("at")) {
-        Some(at) if at.is_array() => {
-            let path = as_path(at)?;
-            editor.set_nodes(&[&path], properties);
-            Ok(())
-        }
-        Some(_) => Err(unsupported("setNodes at a point/range")),
-        None => Err(unsupported("setNodes without an explicit path")),
-    }
+    editor.set_nodes_with(properties, set);
+    Ok(())
 }
 
 fn replay_unset_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
@@ -733,8 +741,31 @@ fn replay_unset_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String>
     };
     let options = args.get(1).and_then(Value::as_object);
 
-    if options.is_some_and(|options| options.contains_key("match")) {
-        return Err(unsupported("unsetNodes match predicate"));
+    let match_value = options.and_then(|options| options.get("match"));
+    if let Some(match_value) = match_value {
+        let source = match_value
+            .get("__fn")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        if !source.contains("isText") {
+            return Err(unsupported("unsetNodes custom match predicate"));
+        }
+        let Some(selection) = editor.selection.clone() else {
+            return Ok(());
+        };
+        let paths = if selection.is_collapsed() {
+            if editor.text(&selection.anchor.path).is_some() {
+                vec![selection.anchor.path.clone()]
+            } else {
+                Vec::new()
+            }
+        } else {
+            editor.text_paths_in_range(&selection)
+        };
+        let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
+        let refs: Vec<&[usize]> = paths.iter().map(Vec::as_slice).collect();
+        editor.unset_nodes(&refs, &keys);
+        return Ok(());
     }
 
     match options.and_then(|options| options.get("at")) {
@@ -775,11 +806,8 @@ fn replay_wrap_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> 
             return Err(unsupported("wrapNodes custom match predicate"));
         }
     }
-    if option_flag(options, "split") {
-        return Err(unsupported("wrapNodes split option"));
-    }
     wrap.mode = parse_match_mode(options.and_then(|options| options.get("mode")));
-    wrap.split = false;
+    wrap.split = option_flag(options, "split");
     wrap.hanging = option_flag(options, "hanging");
     wrap.voids = option_flag(options, "voids");
 
@@ -805,11 +833,8 @@ fn replay_unwrap_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String
             return Err(unsupported("unwrapNodes custom match predicate"));
         }
     }
-    if option_flag(options, "split") {
-        return Err(unsupported("unwrapNodes split option"));
-    }
     unwrap.mode = parse_match_mode(options.and_then(|options| options.get("mode")));
-    unwrap.split = false;
+    unwrap.split = option_flag(options, "split");
     unwrap.hanging = option_flag(options, "hanging");
     unwrap.voids = option_flag(options, "voids");
 
@@ -834,23 +859,29 @@ fn parse_match_mode(mode: Option<&Value>) -> MatchMode {
 
 fn replay_move_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
     let options = args.first().and_then(Value::as_object);
-    if options.is_some_and(|options| {
-        options.contains_key("match") || options.get("voids").and_then(Value::as_bool) == Some(true)
-    }) {
-        return Err(unsupported("moveNodes match/voids option"));
-    }
-
-    let Some(at) = options.and_then(|options| options.get("at")) else {
-        return Err(unsupported("moveNodes without at"));
-    };
     let Some(to) = options.and_then(|options| options.get("to")) else {
         return Err(unsupported("moveNodes without to"));
     };
-    if !at.is_array() || !to.is_array() {
-        return Err(unsupported("moveNodes at/to point"));
+    if !to.is_array() {
+        return Err(unsupported("moveNodes to a point"));
     }
+    let at = if let Some(at) = options.and_then(|options| options.get("at")) {
+        if !at.is_array() {
+            return Err(unsupported("moveNodes at a point"));
+        }
+        as_path(at)?
+    } else {
+        let point = editor
+            .selection
+            .as_ref()
+            .map(|selection| selection.anchor.clone())
+            .ok_or_else(|| unsupported("moveNodes without a selection"))?;
+        editor
+            .leaf_block_path(&point)
+            .ok_or_else(|| unsupported("moveNodes point outside a block"))?
+    };
 
-    editor.move_nodes(&as_path(at)?, &as_path(to)?);
+    editor.move_nodes(&at, &as_path(to)?);
     Ok(())
 }
 
@@ -864,18 +895,37 @@ fn replay_insert_fragment(editor: &mut Editor, args: &[Value]) -> Result<(), Str
             .map_err(|error| format!("invalid insertFragment node: {error}"))?]
     };
     let options = args.get(1).and_then(Value::as_object);
-
-    if options
-        .is_some_and(|options| options.contains_key("voids") || options.contains_key("filter"))
-    {
-        return Err(unsupported("insertFragment voids/filter option"));
-    }
     if options.is_some_and(|options| options.contains_key("at")) {
         return Err(unsupported("insertFragment at option"));
     }
+    let voids = option_flag(options, "voids");
+    let nodes = if options.is_some_and(|options| options.contains_key("filter")) {
+        filter_void_blocks(nodes)
+    } else {
+        nodes
+    };
 
-    editor.insert_fragment(nodes);
+    editor.insert_fragment_with_options(nodes, voids);
     Ok(())
+}
+
+fn filter_void_blocks(nodes: Vec<Node>) -> Vec<Node> {
+    nodes
+        .into_iter()
+        .filter_map(|node| match node {
+            Node::Element(mut element) => {
+                let is_void_block = element.properties.get("void") == Some(&Value::Bool(true))
+                    && element.properties.get("inline") != Some(&Value::Bool(true));
+                if is_void_block {
+                    None
+                } else {
+                    element.children = filter_void_blocks(element.children);
+                    Some(Node::Element(element))
+                }
+            }
+            text => Some(text),
+        })
+        .collect()
 }
 
 fn replay_editor_instance(editor: &mut Editor, method: &str, args: &[Value]) -> Result<(), String> {
@@ -1136,19 +1186,49 @@ fn is_path_selectable(editor: &Editor, path: &[usize]) -> bool {
 
 fn replay_lift_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
     let options = args.first().and_then(Value::as_object);
-    if options.is_some_and(|options| {
-        options.contains_key("match") || options.get("voids").and_then(Value::as_bool) == Some(true)
-    }) {
-        return Err(unsupported("liftNodes match/voids option"));
-    }
-    let Some(at) = options.and_then(|options| options.get("at")) else {
-        return Err(unsupported("liftNodes without at"));
-    };
-    if !at.is_array() {
-        return Err(unsupported("liftNodes at a point/range"));
-    }
+    let property = options
+        .and_then(|options| options.get("match"))
+        .and_then(|value| value.get("__fn"))
+        .and_then(Value::as_str)
+        .and_then(|source| {
+            if source.contains("n.c") || source.contains("node.c") {
+                Some("c")
+            } else {
+                None
+            }
+        });
 
-    let path = as_path(at)?;
+    let path = if let Some(at) = options.and_then(|options| options.get("at")) {
+        if at.is_array() {
+            as_path(at)?
+        } else {
+            editor
+                .leaf_block_path(&as_point(at)?)
+                .ok_or_else(|| unsupported("liftNodes point outside a block"))?
+        }
+    } else {
+        let point = editor
+            .selection
+            .as_ref()
+            .map(|range| range.anchor.clone())
+            .ok_or_else(|| unsupported("liftNodes without a selection"))?;
+        if let Some(property) = property {
+            (1..point.path.len())
+                .rev()
+                .find_map(|depth| {
+                    let path = point.path[..depth].to_vec();
+                    editor
+                        .element(&path)
+                        .is_some_and(|element| element.properties.get(property).is_some())
+                        .then_some(path)
+                })
+                .ok_or_else(|| unsupported("liftNodes match predicate"))?
+        } else {
+            editor
+                .leaf_block_path(&point)
+                .ok_or_else(|| unsupported("liftNodes point outside a block"))?
+        }
+    };
     if path.len() < 2 {
         return Err(unsupported("liftNodes at a root-level node"));
     }

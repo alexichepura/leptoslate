@@ -113,12 +113,44 @@
       "reason": "Cross-block selection insertion differs from Slate."
     },
     {
+      "source": "transforms/liftNodes/selection/block-full.tsx",
+      "reason": "Lifting a multi-block selection differs from Slate."
+    },
+    {
+      "source": "transforms/liftNodes/selection/block-nested.tsx",
+      "reason": "Lifting a multi-block selection differs from Slate."
+    },
+    {
       "source": "transforms/mergeNodes/depth-block/block-nested-multi-child.tsx",
       "reason": "Merging nested empty ancestors is not implemented."
     },
     {
       "source": "transforms/mergeNodes/depth-block/block-nested-only-child.tsx",
       "reason": "Merging nested empty ancestors is not implemented."
+    },
+    {
+      "source": "transforms/mergeNodes/path/non-selectable-ancestor.ts",
+      "reason": "Merging nested/non-selectable nodes differs from Slate."
+    },
+    {
+      "source": "transforms/mergeNodes/path/text-across.tsx",
+      "reason": "Merging nested/non-selectable nodes differs from Slate."
+    },
+    {
+      "source": "transforms/moveNodes/selection/block-nested-after.tsx",
+      "reason": "Moving a multi-block selection differs from Slate."
+    },
+    {
+      "source": "transforms/moveNodes/selection/block-nested-before.tsx",
+      "reason": "Moving a multi-block selection differs from Slate."
+    },
+    {
+      "source": "transforms/moveNodes/selection/block-siblings-after.tsx",
+      "reason": "Moving a multi-block selection differs from Slate."
+    },
+    {
+      "source": "transforms/moveNodes/selection/block-siblings-before.tsx",
+      "reason": "Moving a multi-block selection differs from Slate."
     },
     {
       "source": "transforms/splitNodes/selection/block-hanging.tsx",
@@ -141,8 +173,96 @@
       "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
     },
     {
+      "source": "transforms/unwrapNodes/mode-all/match-some-siblings-and-parent-split.tsx",
+      "reason": "unwrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/unwrapNodes/split-block/block-all-nested.tsx",
+      "reason": "unwrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/unwrapNodes/split-block/block-hanging.tsx",
+      "reason": "unwrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/unwrapNodes/split-inline/backward.tsx",
+      "reason": "unwrapNodes split/inline edge case differs from Slate."
+    },
+    {
       "source": "transforms/wrapNodes/inline/inline-across-nested.tsx",
       "reason": "Nested inline wrap across blocks differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-block/block-mark.tsx",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/default-out-of-inline.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/inline-mark.tsx",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/nested-end-edge-backward.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/nested-end-edge.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/nested-following-text-start-backward.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/nested-following-text-start.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/nested-unselected-end-backward.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/nested-unselected-end.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/only-inline-void.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/text-into-inline.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/text-out-of-inline-backward.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/text-out-of-inline-forward.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/text-out-of-nested-inline.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/unselected-inline-at-end-backward.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/unselected-inline-at-start-backward.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/unselected-inline-at-start.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
+    },
+    {
+      "source": "transforms/wrapNodes/split-inline/whole-inline-at-start-backward.ts",
+      "reason": "wrapNodes split/inline edge case differs from Slate."
     }
   ]
 }

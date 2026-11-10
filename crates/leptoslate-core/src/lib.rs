@@ -56,8 +56,8 @@ pub use props::Props;
 pub use range::{Location, Range, RangeAffinity, RangeDirection};
 pub use schema::{ElementRule, Schema};
 pub use transforms::{
-    DeleteTextOptions, DeleteUnit, InsertNodesOptions, MatchMode, NodeMatch, SplitNodesOptions,
-    UnwrapNodesOptions, WrapNodesOptions,
+    DeleteTextOptions, DeleteUnit, InsertNodesOptions, MatchMode, NodeMatch, SetNodesOptions,
+    SplitNodesOptions, UnwrapNodesOptions, WrapNodesOptions,
 };
 pub use url::{is_safe_href, is_safe_image_src};
 
