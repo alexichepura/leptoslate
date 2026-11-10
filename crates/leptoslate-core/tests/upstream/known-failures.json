@@ -5,24 +5,8 @@
   },
   "fixtures": [
     {
-      "source": "transforms/delete/point/empty-list-item-before-reverse.tsx",
-      "reason": "Cross-block and inline point deletion differs from Slate."
-    },
-    {
-      "source": "transforms/delete/point/empty-sibling-before-reverse.tsx",
-      "reason": "Cross-block and inline point deletion differs from Slate."
-    },
-    {
       "source": "transforms/delete/point/empty-table-cell-before-reverse.tsx",
       "reason": "Cross-block and inline point deletion differs from Slate."
-    },
-    {
-      "source": "transforms/delete/point/inline-end.tsx",
-      "reason": "Cross-block and inline point deletion differs from Slate."
-    },
-    {
-      "source": "transforms/delete/point/inline-inside-reverse.tsx",
-      "reason": "Cross-block/empty sibling point deletion differs from Slate."
     },
     {
       "source": "transforms/delete/point/inline-void-reverse.tsx",
@@ -41,32 +25,8 @@
       "reason": "Cross-block selection deletion differs from Slate."
     },
     {
-      "source": "transforms/delete/selection/block-inline-across.tsx",
-      "reason": "Cross-block selection deletion differs from Slate."
-    },
-    {
       "source": "transforms/delete/selection/block-void-end.tsx",
       "reason": "Deletion edge case differs from Slate."
-    },
-    {
-      "source": "transforms/delete/unit-character/inline-before.tsx",
-      "reason": "Inline/void-aware grapheme deletion differs from Slate."
-    },
-    {
-      "source": "transforms/delete/unit-character/inline-end-reverse.tsx",
-      "reason": "Inline/non-selectable grapheme deletion differs from Slate."
-    },
-    {
-      "source": "transforms/delete/unit-character/non-selectable-blocks-reverse.tsx",
-      "reason": "Inline/void-aware grapheme deletion differs from Slate."
-    },
-    {
-      "source": "transforms/delete/unit-character/non-selectable-blocks.tsx",
-      "reason": "Inline/void-aware grapheme deletion differs from Slate."
-    },
-    {
-      "source": "transforms/delete/unit-character/read-only-non-selectable-child.tsx",
-      "reason": "Inline/void-aware grapheme deletion differs from Slate."
     },
     {
       "source": "transforms/delete/voids-false/block-across-backward.tsx",
@@ -79,10 +39,6 @@
     {
       "source": "transforms/delete/voids-false/block-hanging-into.tsx",
       "reason": "Deletion edge case differs from Slate."
-    },
-    {
-      "source": "transforms/delete/voids-false/inline-into.tsx",
-      "reason": "Void/read-only-aware deletion is not implemented."
     },
     {
       "source": "transforms/unwrapNodes/mode-all/match-some-siblings-and-parent-split.tsx",

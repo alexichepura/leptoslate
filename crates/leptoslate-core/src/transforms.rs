@@ -4,6 +4,8 @@
 //! All public methods group their work in one undoable transaction and
 //! normalize the document afterwards.
 
+use std::cmp::Ordering;
+
 use serde_json::Value;
 
 use crate::{
@@ -581,10 +583,63 @@ impl Editor {
         };
         self.selection = Some(range);
         let previous_collapse = self.collapse_to_end;
-        self.collapse_to_end = from_point && !options.reverse;
+        self.collapse_to_end = if from_point {
+            !options.reverse
+        } else {
+            options.at.is_none()
+        };
         self.delete_selection_inner();
         self.collapse_to_end = previous_collapse;
         self.selection.as_ref().map(|range| range.anchor.clone())
+    }
+
+    fn collect_leaf_blocks(&self, path: &[usize], out: &mut Vec<Path>) {
+        let Some(element) = self.element(path) else {
+            return;
+        };
+        let mut has_block_child = false;
+        if let Some(children) = self.children_at(path) {
+            for index in 0..children.len() {
+                let child = child_path(path, index);
+                if self
+                    .element(&child)
+                    .is_some_and(|element| !self.is_inline_element(element))
+                {
+                    has_block_child = true;
+                    self.collect_leaf_blocks(&child, out);
+                }
+            }
+        }
+        if !has_block_child && !path.is_empty() && !self.is_inline_element(element) {
+            out.push(path.to_vec());
+        }
+    }
+
+    fn collect_block_paths(&self, path: &[usize], out: &mut Vec<Path>) {
+        let Some(element) = self.element(path) else {
+            return;
+        };
+        if !path.is_empty() && !self.is_inline_element(element) {
+            out.push(path.to_vec());
+        }
+        if let Some(children) = self.children_at(path) {
+            for index in 0..children.len() {
+                let child = child_path(path, index);
+                if self
+                    .element(&child)
+                    .is_some_and(|element| !self.is_inline_element(element))
+                {
+                    self.collect_block_paths(&child, out);
+                }
+            }
+        }
+    }
+
+    fn previous_leaf_block(&self, path: &[usize]) -> Option<Path> {
+        let mut blocks = Vec::new();
+        self.collect_leaf_blocks(&[], &mut blocks);
+        let position = blocks.iter().position(|block| block == path)?;
+        blocks.get(position.checked_sub(1)?).cloned()
     }
 
     fn merge_at_block_boundary(&mut self, point: &Point, reverse: bool) -> Option<Point> {
@@ -592,6 +647,46 @@ impl Editor {
         let block_is_empty = self
             .element(&block)
             .is_some_and(|element| element.text_len() == 0);
+
+        if reverse {
+            if let Some(previous_sibling) = path::previous(&block) {
+                let nested = self.element(&previous_sibling).is_some_and(|element| {
+                    !self.is_inline_element(element)
+                        && element.children.iter().any(|child| {
+                            child
+                                .as_element()
+                                .is_some_and(|child| !self.is_inline_element(child))
+                        })
+                });
+                if nested {
+                    if let Some(previous_leaf) = self.previous_leaf_block(&block) {
+                        let new_path = path::next(&previous_leaf);
+                        let position = match self.node(&previous_leaf) {
+                            Some(Node::Text(text)) => text.len(),
+                            Some(Node::Element(element)) => element.children.len(),
+                            None => 0,
+                        };
+                        let move_op = Operation::MoveNode {
+                            path: block.clone(),
+                            new_path: new_path.clone(),
+                        };
+                        let _ = self.apply(move_op);
+                        let merge_op = Operation::MergeNode {
+                            path: new_path,
+                            position,
+                        };
+                        let _ = self.apply(merge_op);
+                        let target = self
+                            .first_text_point_in(&previous_leaf)
+                            .or_else(|| self.first_text_point_in(&[]));
+                        if let Some(target) = &target {
+                            self.selection = Some(Range::collapsed(target.clone()));
+                        }
+                        return target;
+                    }
+                }
+            }
+        }
 
         if reverse && block_is_empty {
             let previous = path::previous(&block)?;
@@ -609,8 +704,13 @@ impl Editor {
                     .is_some_and(|element| element.text_len() == 0);
                 if previous_is_empty {
                     self.remove_nodes(previous, 1);
+                    let mut shifted = block.clone();
+                    if let Some(last) = shifted.last_mut() {
+                        *last = last.saturating_sub(1);
+                    }
                     let target = self
-                        .first_text_point_in(&block)
+                        .first_text_point_in(&shifted)
+                        .or_else(|| self.first_text_point_in(&block))
                         .unwrap_or_else(|| point.clone());
                     self.selection = Some(Range::collapsed(target.clone()));
                     return Some(target);
@@ -736,6 +836,17 @@ impl Editor {
             };
         }
         range
+    }
+
+    fn point_inside_non_selectable(&self, point: &Point) -> bool {
+        (1..point.path.len()).any(|depth| {
+            self.element(&point.path[..depth]).is_some_and(|element| {
+                matches!(
+                    element.properties.get("nonSelectable"),
+                    Some(Value::Bool(true))
+                )
+            })
+        })
     }
 
     fn non_editable_ancestor(&self, point: &Point) -> Option<Path> {
@@ -866,7 +977,21 @@ impl Editor {
 
     fn step_character(&self, point: &Point, forward: bool) -> Option<Point> {
         let mut point = point.clone();
+        let origin_block = self.leaf_block_path(&point);
+        let mut skipped_non_selectable = false;
         loop {
+            if self.point_inside_non_selectable(&point) {
+                point = if forward {
+                    self.next_text_point(&point)?
+                } else {
+                    self.previous_text_point(&point)?
+                };
+                skipped_non_selectable = true;
+                continue;
+            }
+            if skipped_non_selectable {
+                return Some(point);
+            }
             let text = self.text(&point.path)?;
             let len = text.len();
             if forward {
@@ -876,22 +1001,65 @@ impl Editor {
                         grapheme_end_after(&text.text, point.offset),
                     ));
                 }
-                point = self.next_text_point(&point)?;
-                if self.text(&point.path).is_some_and(|text| text.is_empty()) {
+                let next = self.next_text_point(&point)?;
+                let same_block = self.leaf_block_path(&next) == origin_block;
+                if self.text(&next.path).is_some_and(|text| text.is_empty()) {
+                    if same_block {
+                        point = next;
+                        continue;
+                    }
+                    return Some(next);
+                }
+                if self.point_inside_non_selectable(&next) {
+                    skipped_non_selectable = true;
+                    point = next;
                     continue;
                 }
-                return Some(point);
+                if same_block {
+                    if let Some(text) = self.text(&next.path) {
+                        return Some(Point::new(
+                            next.path.clone(),
+                            grapheme_end_after(&text.text, 0),
+                        ));
+                    }
+                }
+                return Some(next);
             } else if point.offset > 0 {
                 return Some(Point::new(
                     point.path.clone(),
                     grapheme_start_before(&text.text, point.offset),
                 ));
             } else {
-                point = self.previous_text_point(&point)?;
-                if self.text(&point.path).is_some_and(|text| text.is_empty()) {
+                let previous = self.previous_text_point(&point)?;
+                let same_block = self.leaf_block_path(&previous) == origin_block;
+                if self
+                    .text(&previous.path)
+                    .is_some_and(|text| text.is_empty())
+                {
+                    if same_block {
+                        point = previous;
+                        continue;
+                    }
+                    let empty_block = self
+                        .leaf_block_path(&previous)
+                        .and_then(|block| self.element(&block))
+                        .is_some_and(|element| element.text_len() == 0);
+                    return if empty_block { None } else { Some(previous) };
+                }
+                if self.point_inside_non_selectable(&previous) {
+                    skipped_non_selectable = true;
+                    point = previous;
                     continue;
                 }
-                return Some(point);
+                if same_block {
+                    if let Some(text) = self.text(&previous.path) {
+                        return Some(Point::new(
+                            previous.path.clone(),
+                            grapheme_start_before(&text.text, text.len()),
+                        ));
+                    }
+                }
+                return Some(previous);
             }
         }
     }
@@ -1030,6 +1198,49 @@ impl Editor {
                     text: removed,
                 });
                 end.offset = 0;
+            }
+        }
+
+        // Remove any non-editable blocks that sit wholly inside the range.
+        let mut blocks = Vec::new();
+        self.collect_block_paths(&[], &mut blocks);
+        let mut removals: Vec<Path> = blocks
+            .into_iter()
+            .filter(|block| {
+                let non_editable = self.element(block).is_some_and(|element| {
+                    self.is_void_element(element)
+                        || matches!(element.properties.get("readOnly"), Some(Value::Bool(true)))
+                        || matches!(
+                            element.properties.get("nonSelectable"),
+                            Some(Value::Bool(true))
+                        )
+                });
+                non_editable
+                    && !path::is_ancestor(block, &start.path)
+                    && !path::is_ancestor(block, &end.path)
+                    && block != &start.path
+                    && block != &end.path
+                    && self
+                        .first_text_point_in(block)
+                        .as_ref()
+                        .is_some_and(|point| point.compare(&start) != Ordering::Less)
+                    && self
+                        .last_text_point_in(block)
+                        .as_ref()
+                        .is_some_and(|point| point.compare(&end) != Ordering::Greater)
+            })
+            .collect();
+        removals.sort();
+        for block in removals.into_iter().rev() {
+            let operation = Operation::RemoveNode { path: block };
+            if self.apply(operation.clone()).is_err() {
+                break;
+            }
+            if let Some(next) = start.transform(&operation, Affinity::Forward) {
+                start = next;
+            }
+            if let Some(next) = end.transform(&operation, Affinity::Forward) {
+                end = next;
             }
         }
 
