@@ -113,10 +113,6 @@
       "reason": "unwrapNodes split/inline edge case differs from Slate."
     },
     {
-      "source": "transforms/unwrapNodes/split-inline/backward.tsx",
-      "reason": "unwrapNodes split/inline edge case differs from Slate."
-    },
-    {
       "source": "transforms/wrapNodes/split-inline/nested-unselected-end-backward.ts",
       "reason": "wrapNodes split/inline edge case differs from Slate."
     },

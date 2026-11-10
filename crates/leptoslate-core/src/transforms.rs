@@ -2219,7 +2219,15 @@ impl Editor {
                 .and_then(|block| self.first_text_point_in(&block))
                 .as_ref()
                 == Some(range.end());
+            let backward = range.is_backward();
+            let affinities = if backward {
+                (Affinity::Backward, Affinity::Forward)
+            } else {
+                (Affinity::Forward, Affinity::Backward)
+            };
             self.selection = Some(range.clone());
+            let previous_affinities = self.selection_affinities;
+            self.selection_affinities = Some(affinities);
             let end = self.selection.clone()?.end().clone();
             self.split_nodes_with_inner(SplitNodesOptions {
                 at: Some(Location::Point(end)),
@@ -2247,6 +2255,7 @@ impl Editor {
                 preserve_selection: false,
                 keep_selection: true,
             })?;
+            self.selection_affinities = previous_affinities;
             range = self.selection.clone()?;
         }
 
