@@ -88,6 +88,14 @@ type TraceCall = {
 
 const trace: TraceCall[] = []
 let depth = 0
+// Some fixtures configure the editor inside `run` (for example by assigning
+// `editor.children` or overriding `isSelectable`). Capture the document at the
+// first instrumented call so the replay starts from the state the transform
+// actually saw.
+let callInputSnapshot: {
+  children: unknown
+  selection: unknown
+} | null = null
 
 /**
  * Values inside fixtures are plain JSON plus `undefined` (from optional
@@ -302,6 +310,20 @@ function installInstrumentation(slate: any) {
       if (typeof original !== 'function') continue
       object[method] = function (...args: unknown[]) {
         if (depth > 0) return original.apply(this, args)
+
+        if (
+          callInputSnapshot == null &&
+          (target === 'Transforms' || target === 'Editor') &&
+          args[0] &&
+          typeof args[0] === 'object' &&
+          'children' in (args[0] as object)
+        ) {
+          const editorArg = args[0] as any
+          callInputSnapshot = convertSnapshot({
+            children: toJson(editorArg.children),
+            selection: toJson(editorArg.selection ?? null),
+          })
+        }
 
         depth += 1
         try {
@@ -577,7 +599,10 @@ async function main() {
           })
 
           trace.length = 0
+          callInputSnapshot = null
           module.run(module.input)
+          // Prefer the document state observed at the first transform call.
+          const replayInput = callInputSnapshot ?? inputSnapshot
           assert.deepEqual(
             {
               children: module.input.children,
@@ -606,11 +631,11 @@ async function main() {
               source: relative,
             },
             kind: 'transform',
-            input: inputSnapshot,
+            input: replayInput,
             calls: transformCalls.map(call => ({
               target: call.target,
               method: call.method,
-              args: convertArguments(call.args, inputSnapshot.children),
+              args: convertArguments(call.args, replayInput.children),
             })),
             output: convertSnapshot({
               children: toJson(module.output.children),

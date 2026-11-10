@@ -6,7 +6,45 @@
   },
   "kind": "transform",
   "input": {
-    "children": [],
+    "children": [
+      {
+        "type": "paragraph",
+        "children": [
+          {
+            "text": "Before the collapsible."
+          }
+        ]
+      },
+      {
+        "type": "collapsible",
+        "children": [
+          {
+            "type": "collapsible-summary",
+            "children": [
+              {
+                "text": "Summary"
+              }
+            ]
+          },
+          {
+            "type": "collapsible-content",
+            "children": [
+              {
+                "type": "paragraph",
+                "children": [
+                  {
+                    "text": "is"
+                  },
+                  {
+                    "text": " here"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
     "selection": null
   },
   "calls": [

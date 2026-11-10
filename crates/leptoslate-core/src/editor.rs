@@ -57,6 +57,9 @@ pub struct Editor {
     pub history: History,
     batch: Option<PendingBatch>,
     pub(crate) is_normalizing: bool,
+    /// Per-endpoint affinities used while a transform is tracking a range with
+    /// Slate's `inward` affinity (for example during `wrapNodes` splits).
+    pub(crate) selection_affinities: Option<(Affinity, Affinity)>,
 }
 
 impl Default for Editor {
@@ -93,6 +96,7 @@ impl Editor {
             history: History::default(),
             batch: None,
             is_normalizing: false,
+            selection_affinities: None,
         };
 
         if editor.children.is_empty() {
@@ -958,7 +962,16 @@ impl Editor {
         };
 
         let Operation::RemoveNode { path: removed } = op else {
-            self.selection = selection.transform(op, Affinity::Forward);
+            if let Some((anchor_affinity, focus_affinity)) = self.selection_affinities {
+                let anchor = selection.anchor.transform(op, anchor_affinity);
+                let focus = selection.focus.transform(op, focus_affinity);
+                self.selection = match (anchor, focus) {
+                    (Some(anchor), Some(focus)) => Some(Range::new(anchor, focus)),
+                    _ => None,
+                };
+            } else {
+                self.selection = selection.transform(op, Affinity::Forward);
+            }
             return;
         };
 

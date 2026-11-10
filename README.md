@@ -703,7 +703,7 @@ It also replays upstream Slate fixtures:
 cargo test -p leptoslate-core --test upstream
 ```
 
-The generated suite in `crates/leptoslate-core/tests/upstream/` replays 756 fixtures from a pinned Slate commit: `Path` (117), `Point` (50), `Range` (36), operations (31), transforms (492), normalization (20) and history (10). 690 pass today; the remaining cases are tracked as grouped unsupported call options or individual known failures with written reasons. Tests are generated JSON, not hand-written; regenerate them with `cd scripts/upstream-fixtures && npm ci && npm run extract`. See [`tests/upstream/README.md`](crates/leptoslate-core/tests/upstream/README.md) for provenance, licensing, current gaps and the known-failure policy.
+The generated suite in `crates/leptoslate-core/tests/upstream/` replays 756 fixtures from a pinned Slate commit: `Path` (117), `Point` (50), `Range` (36), operations (31), transforms (492), normalization (20) and history (10). 715 pass today; the remaining cases are tracked as grouped unsupported call options or individual known failures with written reasons. Tests are generated JSON, not hand-written; regenerate them with `cd scripts/upstream-fixtures && npm ci && npm run extract`. See [`tests/upstream/README.md`](crates/leptoslate-core/tests/upstream/README.md) for provenance, licensing, current gaps and the known-failure policy.
 
 Browser tests use Playwright against the real Trunk build:
 

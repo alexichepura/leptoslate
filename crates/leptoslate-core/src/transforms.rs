@@ -240,6 +240,9 @@ impl Editor {
             .map(|range| !range.is_collapsed())
             .unwrap_or(false)
         {
+            if let Some(range) = self.selection.clone() {
+                self.selection = Some(self.unhang_range_end(&range));
+            }
             self.delete_selection_inner();
         }
 
@@ -415,6 +418,9 @@ impl Editor {
         if let Location::Range(range) = &at {
             if range.is_collapsed() {
                 at = Location::Point(range.anchor.clone());
+            } else if !options.hanging {
+                let unhung = self.unhang_range_end(range);
+                at = Location::Range(unhung);
             }
         }
 
@@ -1013,6 +1019,18 @@ impl Editor {
 
             let previous = child_path(&common, start_branch);
             let merge_at = child_path(&common, start_branch + 1);
+            // Inline elements are atomic containers. Slate merges one block
+            // level and lets normalization join text, so do not fuse two
+            // inline elements into one.
+            let both_inline = self.element(&previous).is_some_and(|element| {
+                self.is_inline_element(element)
+                    && self
+                        .element(&merge_at)
+                        .is_some_and(|element| self.is_inline_element(element))
+            });
+            if both_inline {
+                break;
+            }
             let position = match self.node(&previous) {
                 Some(Node::Text(text)) => text.len(),
                 Some(Node::Element(element)) => element.children.len(),
@@ -1975,39 +1993,63 @@ impl Editor {
         if options.split {
             if let Location::Range(range) = at.clone() {
                 if range.is_expanded() {
-                    let end_at_block_start = self
-                        .leaf_block_path(range.end())
-                        .and_then(|block| self.first_text_point_in(&block))
-                        .as_ref()
-                        == Some(range.end());
+                    let start_point = range.start().clone();
+                    let end_point = range.end().clone();
+                    let common_len = if start_point.path == end_point.path {
+                        start_point.path.len().saturating_sub(1)
+                    } else {
+                        path::common(&start_point.path, &end_point.path).len()
+                    };
+                    let backward = range.is_backward();
+                    let affinities = if backward {
+                        (Affinity::Backward, Affinity::Forward)
+                    } else {
+                        (Affinity::Forward, Affinity::Backward)
+                    };
                     self.selection = Some(range);
+                    let previous_affinities = self.selection_affinities;
+                    self.selection_affinities = Some(affinities);
                     let end = self.selection.clone()?.end().clone();
                     self.split_nodes_with_inner(SplitNodesOptions {
-                        at: Some(Location::Point(end)),
+                        at: Some(Location::Point(end.clone())),
                         match_kind,
                         mode: options.mode,
                         height: 0,
-                        always: false,
+                        always: !self.point_is_block_edge(&end),
                         voids: options.voids,
                         select: Some(false),
                         preserve_selection: false,
                         keep_selection: true,
                     })?;
-                    if !end_at_block_start {
-                        self.adjust_range_end_before_split();
+                    if inline_wrapper {
+                        self.split_wrap_inline_edge(
+                            end_point.path.len(),
+                            common_len,
+                            false,
+                            backward,
+                        );
                     }
                     let start = self.selection.clone()?.start().clone();
                     self.split_nodes_with_inner(SplitNodesOptions {
-                        at: Some(Location::Point(start)),
+                        at: Some(Location::Point(start.clone())),
                         match_kind,
                         mode: options.mode,
                         height: 0,
-                        always: false,
+                        always: !self.point_is_block_edge(&start),
                         voids: options.voids,
                         select: Some(false),
                         preserve_selection: false,
                         keep_selection: true,
                     })?;
+                    if inline_wrapper {
+                        self.split_wrap_inline_edge(
+                            start_point.path.len(),
+                            common_len,
+                            true,
+                            !backward,
+                        );
+                    }
+                    self.selection_affinities = previous_affinities;
                     at = Location::Range(self.selection.clone()?);
                 }
             }
@@ -2042,25 +2084,37 @@ impl Editor {
             return self.wrap_match_group(matches, element);
         }
 
-        let mut groups: Vec<Vec<Path>> = Vec::new();
+        let mut groups: Vec<(Path, Vec<Path>)> = Vec::new();
         for path in matches {
-            let root = path[0];
+            let root = self.lowest_block_ancestor(&path).unwrap_or_default();
             if groups
                 .last()
-                .and_then(|group| group.first())
-                .is_some_and(|first| first[0] == root)
+                .is_some_and(|(group_root, _)| *group_root == root)
             {
-                groups.last_mut().unwrap().push(path);
+                groups.last_mut().unwrap().1.push(path);
             } else {
-                groups.push(vec![path]);
+                groups.push((root, vec![path]));
             }
         }
 
         let mut inserted = None;
-        for group in groups {
+        for (_, group) in groups {
             inserted = self.wrap_match_group(group, element.clone());
         }
         inserted
+    }
+
+    fn lowest_block_ancestor(&self, path: &[usize]) -> Option<Path> {
+        for depth in (1..path.len()).rev() {
+            let candidate = &path[..depth];
+            if self
+                .element(candidate)
+                .is_some_and(|element| !self.is_inline_element(element))
+            {
+                return Some(candidate.to_vec());
+            }
+        }
+        None
     }
 
     fn wrap_match_group(&mut self, matches: Vec<Path>, element: Element) -> Option<Path> {
@@ -2285,6 +2339,84 @@ impl Editor {
         Some(())
     }
 
+    fn point_is_block_edge(&self, point: &Point) -> bool {
+        let Some(block) = self.leaf_block_path(point) else {
+            return false;
+        };
+        self.first_text_point_in(&block).as_ref() == Some(point)
+            || self.last_text_point_in(&block).as_ref() == Some(point)
+    }
+
+    /// Slate's inline-specific pass in `wrapNodes` with `split`: split inline
+    /// ancestors of the range edge and, when the edge sits at the very end of
+    /// an inline, move it outside so the wrapper starts or stops at the inline
+    /// boundary.
+    fn split_wrap_inline_edge(
+        &mut self,
+        point_path_len: usize,
+        common_len: usize,
+        edge_start: bool,
+        use_anchor: bool,
+    ) {
+        let min_depth = (common_len + 1).min(point_path_len);
+        let mut depth = point_path_len.saturating_sub(1);
+        while depth >= min_depth && depth > 0 {
+            let endpoint = if use_anchor {
+                self.selection.as_ref().map(|range| range.anchor.clone())
+            } else {
+                self.selection.as_ref().map(|range| range.focus.clone())
+            };
+            let Some(endpoint) = endpoint else {
+                break;
+            };
+            if depth >= endpoint.path.len() {
+                depth -= 1;
+                continue;
+            }
+            let path = endpoint.path[..depth].to_vec();
+            let Some(element) = self.element(&path).cloned() else {
+                depth -= 1;
+                continue;
+            };
+            if !self.is_inline_element(&element) {
+                depth -= 1;
+                continue;
+            }
+            let child_index = endpoint.path.get(depth).copied().unwrap_or(0);
+            let position = child_index + usize::from(!edge_start);
+            let has_content = |node: &Node| match node {
+                Node::Text(text) => !text.text.is_empty(),
+                Node::Element(_) => true,
+            };
+            let before = element.children[..position.min(element.children.len())]
+                .iter()
+                .any(has_content);
+            let after = element.children[position.min(element.children.len())..]
+                .iter()
+                .any(has_content);
+
+            if before && after {
+                let operation = self.split_operation_at(&path, position);
+                let _ = self.apply(operation);
+            } else if (edge_start && before) || (!edge_start && after) {
+                let probe = Point::new(path.clone(), 0);
+                let outside = if edge_start {
+                    self.next_text_point(&probe)
+                } else {
+                    self.previous_text_point(&probe)
+                };
+                if let (Some(outside), Some(selection)) = (outside, self.selection.clone()) {
+                    self.selection = Some(if edge_start {
+                        Range::new(outside, selection.focus)
+                    } else {
+                        Range::new(selection.anchor, outside)
+                    });
+                }
+            }
+            depth -= 1;
+        }
+    }
+
     fn adjust_range_end_before_split(&mut self) {
         let Some(selection) = self.selection.clone() else {
             return;
@@ -2318,6 +2450,14 @@ impl Editor {
         let start = self
             .text_point(range.start())
             .unwrap_or_else(|| range.start().clone());
+        // Slate only unhangs ranges that start and end exactly at the start of
+        // a text node, and leaves ranges touching non-editable nodes alone.
+        if start.offset != 0
+            || self.non_editable_ancestor(&start).is_some()
+            || self.non_editable_ancestor(&end).is_some()
+        {
+            return range.clone();
+        }
         let Some(end_block) = self.leaf_block_path(&end) else {
             return range.clone();
         };
@@ -2666,8 +2806,22 @@ impl Editor {
                 } else {
                     let start_path = range.start().path.clone();
                     let end_path = range.end().path.clone();
-                    self.delete_selection_inner();
-                    let mut point = self.selection.as_ref()?.anchor.clone();
+                    let both_non_editable = self.non_editable_ancestor(&range.anchor).is_some()
+                        && self.non_editable_ancestor(&range.focus).is_some();
+                    // Slate's `splitNodes` converts a range to a point by
+                    // deleting it with the normal delete semantics (unhanging
+                    // and removing non-editable nodes at the edges).
+                    let mut delete = DeleteTextOptions {
+                        at: Some(Location::Range(range)),
+                        voids: options.voids,
+                        ..DeleteTextOptions::default()
+                    };
+                    delete.hanging = false;
+                    let mut point = self.delete_text_with_inner(delete)?;
+                    if both_non_editable {
+                        self.selection = None;
+                        return None;
+                    }
                     if start_path != end_path {
                         if let Some(next) = self.next_text_point(&point) {
                             point = next;

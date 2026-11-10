@@ -35,7 +35,7 @@ Current results:
 | Suite | Passing | Known failures | Unsupported | Upstream skip |
 | --- | ---: | ---: | ---: | ---: |
 | interfaces + operations | 232 | 0 | 2 | 0 |
-| transforms | 432 | 56 | 4 | 4 |
+| transforms | 457 | 31 | 4 | 4 |
 | normalization | 16 | 0 | 4 | 0 |
 | history | 10 | 0 | 0 | 6 |
 
@@ -64,11 +64,8 @@ count them as failures.
 
 The largest current gaps are:
 
-- A few void/read-only and cross-block deletion edge cases (24).
-- `wrapNodes`/`unwrapNodes` split-inline edge cases (23).
-- `splitNodes` void/selection edges (5).
-- Nested `mergeNodes` and a fixture that configures its editor in `run` (3).
-- One cross-block `insertText` case.
+- Void/read-only, non-selectable and cross-block deletion edge cases (24).
+- A handful of backward `wrapNodes`/`unwrapNodes` split-inline cases (7).
 - Custom `match`/`merge` functions and schema fallback normalizers are
   reported as unsupported rather than emulated.
 - Arbitrary selection properties (`set_selection` operations) are unsupported.

@@ -654,8 +654,68 @@ fn replay_merge_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String>
         }
     }
 
+    let path_at = matches!(at, Some(value) if value.is_array());
+    if !path_at {
+        if let Some(previous) = previous_block_path(editor, &path) {
+            let new_path = path::next(&previous);
+            if new_path != path {
+                editor.move_nodes(&path, &new_path);
+            }
+            editor.merge_nodes(&new_path);
+            if editor.node(&new_path).is_some() && subtree_is_empty(editor, &new_path) {
+                editor.remove_nodes(&new_path, 1);
+            }
+            return Ok(());
+        }
+    }
+
     editor.merge_nodes(&path);
     Ok(())
+}
+
+fn subtree_is_empty(editor: &Editor, path: &[usize]) -> bool {
+    if let Some(text) = editor.text(path) {
+        return text.text.is_empty();
+    }
+    editor.children_at(path).is_some_and(|children| {
+        children
+            .iter()
+            .enumerate()
+            .all(|(index, _)| subtree_is_empty(editor, &child_path(path, index)))
+    })
+}
+
+fn previous_block_path(editor: &Editor, path: &[usize]) -> Option<Vec<usize>> {
+    fn collect(editor: &Editor, path: &[usize], out: &mut Vec<Vec<usize>>) {
+        let Some(element) = editor.element(path) else {
+            return;
+        };
+        let mut has_block_child = false;
+        if let Some(children) = editor.children_at(path) {
+            for index in 0..children.len() {
+                let child = child_path(path, index);
+                if editor
+                    .element(&child)
+                    .is_some_and(|element| !editor.is_inline_element(element))
+                {
+                    has_block_child = true;
+                    collect(editor, &child, out);
+                }
+            }
+        }
+        if !has_block_child && !editor.is_inline_element(element) {
+            out.push(path.to_vec());
+        }
+    }
+
+    let mut blocks = Vec::new();
+    if let Some(children) = editor.children_at(&[]) {
+        for index in 0..children.len() {
+            collect(editor, &child_path(&[], index), &mut blocks);
+        }
+    }
+    let position = blocks.iter().position(|block| block == path)?;
+    blocks.get(position.checked_sub(1)?).cloned()
 }
 
 fn replay_split_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
