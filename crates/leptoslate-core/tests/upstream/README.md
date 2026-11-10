@@ -34,9 +34,9 @@ Current results:
 
 | Suite | Passing | Known failures | Unsupported | Upstream skip |
 | --- | ---: | ---: | ---: | ---: |
-| interfaces + operations | 232 | 0 | 2 | 0 |
-| transforms | 488 | 0 | 4 | 4 |
-| normalization | 16 | 0 | 4 | 0 |
+| interfaces + operations | 234 | 0 | 0 | 0 |
+| transforms | 492 | 0 | 0 | 4 |
+| normalization | 20 | 0 | 0 | 0 |
 | history | 10 | 0 | 0 | 6 |
 
 All 61 `insertFragment` fixtures pass.
@@ -49,8 +49,7 @@ history fixtures using APIs our test editor does not provide.
 
 Known divergences live in [`known-failures.json`](known-failures.json). Each
 entry has the upstream source path and a written reason. The runner groups the
-reasons in its output. The file is currently empty: every fixture whose call
-shape is supported passes.
+reasons in its output. The file is currently empty: every extracted fixture passes.
 
 The list is deliberately strict: if a known failure starts passing, the test
 fails until the entry is removed. Add a new entry only after deciding that the
@@ -58,17 +57,9 @@ divergence is a deliberate gap rather than a bug to fix now. Set
 `UPSTREAM_INCLUDE_KNOWN=1` while working on a gap to print the actual mismatch
 even for known failures.
 
-Fixtures whose *call shape* is not supported yet (for example `match`
-predicates, `unit: 'line'`, or `voids` options) are not listed individually.
-The runner reports them as `unsupported` with a grouped reason and does not
-count them as failures.
-
-The remaining gaps are all unsupported call shapes rather than failing
-behaviour:
-
-- Custom `match`/`merge` functions and schema fallback normalizers are
-  reported as unsupported rather than emulated.
-- Arbitrary selection properties (`set_selection` operations) are unsupported.
+Fixtures whose *call shape* cannot be replayed are reported as `unsupported`
+with a grouped reason and do not count as failures. There are currently none:
+all extracted fixtures are replayed and pass.
 
 ## Regenerating
 

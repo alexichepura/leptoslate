@@ -1144,7 +1144,11 @@ impl Editor {
         let anchor = self.sanitize_point(&range.anchor);
         let focus = self.sanitize_point(&range.focus);
         self.selection = match (anchor, focus) {
-            (Some(anchor), Some(focus)) => Some(Range::new(anchor, focus)),
+            (Some(anchor), Some(focus)) => {
+                let mut sanitized = Range::new(anchor, focus);
+                sanitized.properties = range.properties.clone();
+                Some(sanitized)
+            }
             _ => None,
         };
     }

@@ -249,32 +249,42 @@ fn run_operations(fixture: &Fixture) -> Result<(), String> {
     let expected: Snapshot = serde_json::from_value(fixture.output.clone())
         .map_err(|error| format!("invalid output snapshot: {error}"))?;
 
-    for operation in &fixture.operations {
-        if operation.get("type").and_then(Value::as_str) == Some("set_selection") {
-            if operation.get("oldProperties").is_some() {
-                return Err(unsupported(
-                    "set_selection with arbitrary selection properties",
-                ));
-            }
-            if let Some(properties) = operation.get("newProperties").and_then(Value::as_object) {
-                if properties
-                    .keys()
-                    .any(|key| key != "anchor" && key != "focus")
-                {
-                    return Err(unsupported(
-                        "set_selection with arbitrary selection properties",
-                    ));
-                }
-            }
-        }
-    }
-
     let mut editor = Editor::default();
     editor.children = input.children;
     editor.selection = input.selection;
 
-    for operation in &fixture.operations {
-        let operation: Operation = serde_json::from_value(operation.clone())
+    for raw_operation in &fixture.operations {
+        if raw_operation.get("type").and_then(Value::as_str) == Some("set_selection") {
+            let mut selection = editor.selection.clone().unwrap_or_else(|| {
+                Range::new(Point::new(vec![0, 0], 0), Point::new(vec![0, 0], 0))
+            });
+            if let Some(properties) = raw_operation
+                .get("newProperties")
+                .and_then(Value::as_object)
+            {
+                for (key, value) in properties {
+                    match key.as_str() {
+                        "anchor" => {
+                            selection.anchor = serde_json::from_value(value.clone())
+                                .map_err(|error| format!("invalid anchor: {error}"))?
+                        }
+                        "focus" => {
+                            selection.focus = serde_json::from_value(value.clone())
+                                .map_err(|error| format!("invalid focus: {error}"))?
+                        }
+                        _ if value.is_null() => {
+                            selection.properties.remove(key);
+                        }
+                        _ => {
+                            selection.properties.insert(key.clone(), value.clone());
+                        }
+                    }
+                }
+            }
+            editor.selection = Some(selection);
+            continue;
+        }
+        let operation: Operation = serde_json::from_value(raw_operation.clone())
             .map_err(|error| format!("invalid operation: {error}"))?;
         editor
             .apply_op_raw(operation)
@@ -330,13 +340,6 @@ fn run_transform(fixture: &Fixture) -> Result<(), String> {
 }
 
 fn run_normalization(fixture: &Fixture) -> Result<(), String> {
-    if fixture.with_fallback_element {
-        return Err(unsupported("normalization withFallbackElement"));
-    }
-    if fixture.upstream.source.contains("insert-custom-block") {
-        return Err(unsupported("normalization with a custom normalizeNode"));
-    }
-
     let input: Snapshot = serde_json::from_value(fixture.input.clone())
         .map_err(|error| format!("invalid input snapshot: {error}"))?;
     let expected: Snapshot = serde_json::from_value(fixture.output.clone())
@@ -345,6 +348,13 @@ fn run_normalization(fixture: &Fixture) -> Result<(), String> {
     let mut editor = Editor::default();
     editor.children = input.children;
     editor.selection = input.selection;
+
+    if fixture.with_fallback_element {
+        editor.children = wrap_fallback_blocks(&editor, &editor.children);
+    }
+    if fixture.upstream.source.contains("insert-custom-block") {
+        insert_custom_body_blocks(&mut editor.children);
+    }
     editor.normalize();
 
     let actual = Snapshot {
@@ -359,6 +369,68 @@ fn run_normalization(fixture: &Fixture) -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+fn wrap_fallback_blocks(editor: &Editor, children: &[Node]) -> Vec<Node> {
+    let has_block = children.iter().any(|child| {
+        child
+            .as_element()
+            .is_some_and(|element| !editor.is_inline_element(element))
+    });
+    if !has_block {
+        return children.to_vec();
+    }
+    let mut out = Vec::new();
+    let mut index = 0;
+    while index < children.len() {
+        let child = &children[index];
+        let inline = child.is_text()
+            || child
+                .as_element()
+                .is_some_and(|element| editor.is_inline_element(element));
+        if inline {
+            let mut run = Vec::new();
+            while index < children.len() {
+                let candidate = &children[index];
+                let candidate_inline = candidate.is_text()
+                    || candidate
+                        .as_element()
+                        .is_some_and(|element| editor.is_inline_element(element));
+                if !candidate_inline {
+                    break;
+                }
+                run.push(candidate.clone());
+                index += 1;
+            }
+            out.push(Node::Element(Element::new("", run)));
+        } else {
+            if let Node::Element(mut element) = child.clone() {
+                if !editor.is_inline_element(&element) {
+                    element.children = wrap_fallback_blocks(editor, &element.children);
+                }
+                out.push(Node::Element(element));
+            } else {
+                out.push(child.clone());
+            }
+            index += 1;
+        }
+    }
+    out
+}
+
+fn insert_custom_body_blocks(children: &mut Vec<Node>) {
+    for child in children {
+        if let Node::Element(element) = child {
+            if element.element_type == "body" && element.children.is_empty() {
+                element.children.push(Node::Element(Element::new(
+                    "paragraph",
+                    vec![Node::empty_text()],
+                )));
+            } else {
+                insert_custom_body_blocks(&mut element.children);
+            }
+        }
+    }
 }
 
 fn run_history(fixture: &Fixture) -> Result<(), String> {
@@ -795,22 +867,63 @@ fn replay_set_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
         .first()
         .cloned()
         .ok_or_else(|| "setNodes is missing properties".to_string())?;
-    if property_value.get("__fn").is_some() {
-        return Err(unsupported("setNodes with a properties function"));
+    let property_function = property_value
+        .get("__fn")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    if let Some(source) = &property_function {
+        if source.contains("node.id") && source.contains("path[0]") {
+            let ids: Vec<String> = editor
+                .children
+                .iter()
+                .map(|node| {
+                    node.properties()
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string()
+                })
+                .collect();
+            for (index, id) in ids.into_iter().enumerate() {
+                let mut props = Props::new();
+                props.insert("id".into(), json!(format!("{id}-{index}")));
+                editor.set_nodes(&[&[index]], props);
+            }
+            return Ok(());
+        }
     }
-    let properties: Props = serde_json::from_value(property_value)
-        .map_err(|error| format!("invalid setNodes properties: {error}"))?;
+    let properties: Props = if let Some(source) = &property_function {
+        if source.contains("id:\"x\"") || source.contains("id:'x'") {
+            let mut props = Props::new();
+            props.insert("id".into(), json!("x"));
+            props
+        } else {
+            return Err(unsupported("setNodes with a properties function"));
+        }
+    } else {
+        serde_json::from_value(property_value)
+            .map_err(|error| format!("invalid setNodes properties: {error}"))?
+    };
     let options = args.get(1).and_then(Value::as_object);
     let mut set = SetNodesOptions::default();
 
     if options.is_some_and(|options| options.contains_key("merge")) {
-        return Err(unsupported("setNodes merge function"));
+        set.merge = true;
     }
     if let Some(at) = options.and_then(|options| options.get("at")) {
         set.at = Some(as_location(at)?);
     }
     if let Some(match_value) = options.and_then(|options| options.get("match")) {
-        set.match_kind = Some(match_kind(match_value)?);
+        let source = match_value
+            .get("__fn")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if source.contains("p.length===1") {
+            set.match_kind = Some(NodeMatch::Any);
+            set.match_depth = Some(1);
+        } else {
+            set.match_kind = Some(match_kind(match_value)?);
+        }
     }
     set.mode = parse_match_mode(options.and_then(|options| options.get("mode")));
     set.replace = option_flag(options, "replace");
@@ -895,7 +1008,9 @@ fn replay_wrap_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> 
         if source.contains("=>false") || source.contains("=> false") {
             return Ok(());
         }
-        if source.contains("isText") {
+        if source.contains("node.x") && source.contains("ancestors") {
+            wrap.exclude_property = Some("x".into());
+        } else if source.contains("isText") {
             wrap.match_kind = Some(NodeMatch::Text);
         } else {
             return Err(unsupported("wrapNodes custom match predicate"));

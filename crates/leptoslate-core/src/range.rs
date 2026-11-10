@@ -8,6 +8,7 @@ use serde_json::Value;
 use crate::{
     path::{self, Affinity},
     point::Point,
+    props::Props,
     Operation, Path,
 };
 
@@ -41,17 +42,24 @@ pub enum Location {
 pub struct Range {
     pub anchor: Point,
     pub focus: Point,
+    #[serde(flatten, default)]
+    pub properties: Props,
 }
 
 impl Range {
     pub fn new(anchor: Point, focus: Point) -> Self {
-        Self { anchor, focus }
+        Self {
+            anchor,
+            focus,
+            properties: Props::new(),
+        }
     }
 
     pub fn collapsed(point: Point) -> Self {
         Self {
             anchor: point.clone(),
             focus: point,
+            properties: Props::new(),
         }
     }
 
@@ -165,7 +173,11 @@ impl Range {
     pub fn transform(&self, op: &Operation, affinity: Affinity) -> Option<Range> {
         let anchor = self.anchor.transform(op, affinity)?;
         let focus = self.focus.transform(op, affinity)?;
-        Some(Range { anchor, focus })
+        Some(Range {
+            anchor,
+            focus,
+            properties: Props::new(),
+        })
     }
 
     /// Slate's `Range.transform` with inward (default), outward, forward or
@@ -208,6 +220,10 @@ impl Range {
 
         let anchor = self.anchor.transform(op, anchor_affinity)?;
         let focus = self.focus.transform(op, focus_affinity)?;
-        Some(Range { anchor, focus })
+        Some(Range {
+            anchor,
+            focus,
+            properties: Props::new(),
+        })
     }
 }

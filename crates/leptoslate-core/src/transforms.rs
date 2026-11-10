@@ -76,6 +76,7 @@ pub struct WrapNodesOptions {
     pub split: bool,
     pub hanging: bool,
     pub voids: bool,
+    pub exclude_property: Option<String>,
 }
 
 impl Default for WrapNodesOptions {
@@ -88,6 +89,7 @@ impl Default for WrapNodesOptions {
             split: false,
             hanging: false,
             voids: false,
+            exclude_property: None,
         }
     }
 }
@@ -127,6 +129,8 @@ pub struct SetNodesOptions {
     pub split: bool,
     pub hanging: bool,
     pub voids: bool,
+    pub merge: bool,
+    pub match_depth: Option<usize>,
 }
 
 impl Default for SetNodesOptions {
@@ -140,6 +144,8 @@ impl Default for SetNodesOptions {
             split: false,
             hanging: false,
             voids: false,
+            merge: false,
+            match_depth: None,
         }
     }
 }
@@ -2362,6 +2368,15 @@ impl Editor {
             } else {
                 self.leaf_block_path(&point)?
             };
+            if let Some(property) = &options.exclude_property {
+                let excluded = (1..=target.len()).any(|depth| {
+                    self.element(&target[..depth])
+                        .is_some_and(|element| element.properties.get(property).is_some())
+                });
+                if excluded {
+                    return None;
+                }
+            }
             return self.wrap_node_at_path(&target, element);
         }
 
@@ -2456,6 +2471,14 @@ impl Editor {
             &mut matches,
         );
         filter_match_mode(&mut matches, options.mode);
+        if let Some(property) = &options.exclude_property {
+            matches.retain(|path| {
+                !(1..=path.len()).any(|depth| {
+                    self.element(&path[..depth])
+                        .is_some_and(|element| element.properties.get(property).is_some())
+                })
+            });
+        }
         if matches.is_empty() {
             return None;
         }
@@ -3548,6 +3571,9 @@ impl Editor {
                 &mut matches,
             );
             filter_match_mode(&mut matches, options.mode);
+            if let Some(depth) = options.match_depth {
+                matches.retain(|path| path.len() == depth);
+            }
             if range.is_expanded() {
                 matches.retain(|path| {
                     let start = if self.text(path).is_some() {
@@ -3569,7 +3595,7 @@ impl Editor {
             let Some(node) = self.node(&path).cloned() else {
                 continue;
             };
-            let old_properties = if options.replace {
+            let old_properties = if options.replace || options.merge {
                 let mut old = node.properties().clone();
                 if let Node::Element(element) = &node {
                     old.insert("type".into(), Value::String(element.element_type.clone()));
@@ -3578,10 +3604,15 @@ impl Editor {
             } else {
                 Props::new()
             };
+            let new_properties = if options.merge {
+                deep_merge_props(&old_properties, &properties)
+            } else {
+                properties.clone()
+            };
             let _ = self.apply(Operation::SetNode {
                 path,
                 properties: old_properties,
-                new_properties: properties.clone(),
+                new_properties,
             });
         }
 
@@ -4668,6 +4699,24 @@ fn range_intersection(a: &Range, b: &Range) -> Option<Range> {
         a.end().clone()
     };
     (start.compare(&end) != Ordering::Greater).then(|| Range::new(start, end))
+}
+
+fn deep_merge_props(old: &Props, new: &Props) -> Props {
+    let mut merged = old.clone();
+    for (key, value) in new {
+        let next = match (merged.get(key), value) {
+            (Some(Value::Object(old)), Value::Object(new)) => {
+                let mut object = old.clone();
+                for (child_key, child_value) in new {
+                    object.insert(child_key.clone(), child_value.clone());
+                }
+                Value::Object(object)
+            }
+            _ => value.clone(),
+        };
+        merged.insert(key.clone(), next);
+    }
+    merged
 }
 
 fn node_matches(editor: &Editor, node: &Node, kind: NodeMatch) -> bool {
