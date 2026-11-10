@@ -35,7 +35,7 @@ Current results:
 | Suite | Passing | Known failures | Unsupported | Upstream skip |
 | --- | ---: | ---: | ---: | ---: |
 | interfaces + operations | 232 | 0 | 2 | 0 |
-| transforms | 320 | 34 | 138 | 4 |
+| transforms | 354 | 35 | 103 | 4 |
 | normalization | 16 | 0 | 4 | 0 |
 | history | 10 | 0 | 0 | 6 |
 
@@ -64,8 +64,8 @@ count them as failures.
 
 The largest current gaps are:
 
-- Generic `wrapNodes` / `unwrapNodes` are not implemented (83 unsupported
-  fixtures in P2).
+- `wrapNodes` / `unwrapNodes` work for path, collapsed and whole-node ranges;
+  the `split` option is still unsupported (44 fixtures).
 - A few void/read-only and cross-block deletion edge cases.
 - Nested empty-ancestor merging in `mergeNodes`.
 - `splitNodes` void/selection edge cases and `insertNodes` ranges ending in a

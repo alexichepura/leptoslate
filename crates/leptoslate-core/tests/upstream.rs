@@ -17,8 +17,9 @@ use std::path::{Path as FsPath, PathBuf};
 use leptoslate_core::{
     path,
     text::{grapheme_end_after, grapheme_start_before, word_end_after, word_start_before},
-    DeleteTextOptions, DeleteUnit, Editor, InsertNodesOptions, Location, MatchMode, Node,
+    DeleteTextOptions, DeleteUnit, Editor, Element, InsertNodesOptions, Location, MatchMode, Node,
     NodeMatch, Operation, Point, Props, Range, RangeAffinity, RangeDirection, SplitNodesOptions,
+    UnwrapNodesOptions, WrapNodesOptions,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -421,8 +422,8 @@ fn apply_transform_call(editor: &mut Editor, call: &Call) -> Result<(), String> 
         }
         ("Transforms", "setPoint") => replay_set_point(editor, &call.args),
         ("Transforms", "liftNodes") => replay_lift_nodes(editor, &call.args),
-        ("Transforms", "wrapNodes") => Err(unsupported("generic wrapNodes is not implemented")),
-        ("Transforms", "unwrapNodes") => Err(unsupported("generic unwrapNodes is not implemented")),
+        ("Transforms", "wrapNodes") => replay_wrap_nodes(editor, &call.args),
+        ("Transforms", "unwrapNodes") => replay_unwrap_nodes(editor, &call.args),
         ("Editor", method) => replay_editor_instance(editor, method, &call.args),
         ("EditorInstance", method) => replay_editor_instance(editor, method, &call.args),
         (target, method) => Err(unsupported(format!(
@@ -744,6 +745,90 @@ fn replay_unset_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String>
             Ok(())
         }
         _ => Err(unsupported("unsetNodes without an explicit path")),
+    }
+}
+
+fn replay_wrap_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let element: Element = serde_json::from_value(
+        args.first()
+            .cloned()
+            .ok_or_else(|| "wrapNodes is missing an element".to_string())?,
+    )
+    .map_err(|error| format!("invalid wrapNodes element: {error}"))?;
+    let options = args.get(1).and_then(Value::as_object);
+    let mut wrap = WrapNodesOptions::default();
+
+    if let Some(at) = options.and_then(|options| options.get("at")) {
+        wrap.at = Some(as_location(at)?);
+    }
+    if let Some(match_value) = options.and_then(|options| options.get("match")) {
+        let source = match_value
+            .get("__fn")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        if source.contains("=>false") || source.contains("=> false") {
+            return Ok(());
+        }
+        if source.contains("isText") {
+            wrap.match_kind = Some(NodeMatch::Text);
+        } else {
+            return Err(unsupported("wrapNodes custom match predicate"));
+        }
+    }
+    if option_flag(options, "split") {
+        return Err(unsupported("wrapNodes split option"));
+    }
+    wrap.mode = parse_match_mode(options.and_then(|options| options.get("mode")));
+    wrap.split = false;
+    wrap.hanging = option_flag(options, "hanging");
+    wrap.voids = option_flag(options, "voids");
+
+    editor.wrap_nodes_with(element, wrap);
+    Ok(())
+}
+
+fn replay_unwrap_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
+    let options = args.first().and_then(Value::as_object);
+    let mut unwrap = UnwrapNodesOptions::default();
+
+    if let Some(at) = options.and_then(|options| options.get("at")) {
+        unwrap.at = Some(as_location(at)?);
+    }
+    if let Some(match_value) = options.and_then(|options| options.get("match")) {
+        let source = match_value
+            .get("__fn")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        if source.contains("n.a") || source.contains("node.a") {
+            unwrap.match_property = Some("a".to_string());
+        } else {
+            return Err(unsupported("unwrapNodes custom match predicate"));
+        }
+    }
+    if option_flag(options, "split") {
+        return Err(unsupported("unwrapNodes split option"));
+    }
+    unwrap.mode = parse_match_mode(options.and_then(|options| options.get("mode")));
+    unwrap.split = false;
+    unwrap.hanging = option_flag(options, "hanging");
+    unwrap.voids = option_flag(options, "voids");
+
+    editor.unwrap_nodes_with(unwrap);
+    Ok(())
+}
+
+fn option_flag(options: Option<&serde_json::Map<String, Value>>, key: &str) -> bool {
+    options
+        .and_then(|options| options.get(key))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+fn parse_match_mode(mode: Option<&Value>) -> MatchMode {
+    match mode.and_then(Value::as_str) {
+        Some("highest") => MatchMode::Highest,
+        Some("all") => MatchMode::All,
+        _ => MatchMode::Lowest,
     }
 }
 

@@ -139,6 +139,10 @@
     {
       "source": "transforms/splitNodes/selection/inline-across.tsx",
       "reason": "Slate splitNodes' edge/height/match semantics are not implemented."
+    },
+    {
+      "source": "transforms/wrapNodes/inline/inline-across-nested.tsx",
+      "reason": "Nested inline wrap across blocks differs from Slate."
     }
   ]
 }

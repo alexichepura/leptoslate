@@ -36,6 +36,7 @@ pub enum NodeMatch {
 pub enum MatchMode {
     Lowest,
     Highest,
+    All,
 }
 
 #[derive(Clone, Debug)]
@@ -47,6 +48,9 @@ pub struct SplitNodesOptions {
     pub always: bool,
     pub voids: bool,
     pub select: Option<bool>,
+    /// Keep the pre-split selection when `select` is false. Wrap/unwrap
+    /// disable this so they can track the transformed range themselves.
+    pub preserve_selection: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -56,6 +60,56 @@ pub struct InsertNodesOptions {
     pub mode: MatchMode,
     pub voids: bool,
     pub select: Option<bool>,
+}
+
+#[derive(Clone, Debug)]
+pub struct WrapNodesOptions {
+    pub at: Option<Location>,
+    pub match_kind: Option<NodeMatch>,
+    pub match_property: Option<String>,
+    pub mode: MatchMode,
+    pub split: bool,
+    pub hanging: bool,
+    pub voids: bool,
+}
+
+impl Default for WrapNodesOptions {
+    fn default() -> Self {
+        Self {
+            at: None,
+            match_kind: None,
+            match_property: None,
+            mode: MatchMode::Lowest,
+            split: false,
+            hanging: false,
+            voids: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct UnwrapNodesOptions {
+    pub at: Option<Location>,
+    pub match_kind: Option<NodeMatch>,
+    pub match_property: Option<String>,
+    pub mode: MatchMode,
+    pub split: bool,
+    pub hanging: bool,
+    pub voids: bool,
+}
+
+impl Default for UnwrapNodesOptions {
+    fn default() -> Self {
+        Self {
+            at: None,
+            match_kind: None,
+            match_property: None,
+            mode: MatchMode::Lowest,
+            split: false,
+            hanging: false,
+            voids: false,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -111,6 +165,7 @@ impl Default for SplitNodesOptions {
             always: false,
             voids: false,
             select: None,
+            preserve_selection: true,
         }
     }
 }
@@ -1826,6 +1881,438 @@ impl Editor {
         });
     }
 
+    /// Slate-compatible `Transforms.wrapNodes`.
+    pub fn wrap_nodes_with(&mut self, element: Element, options: WrapNodesOptions) -> Option<Path> {
+        self.transaction(|editor| editor.wrap_nodes_with_inner(element, options))
+    }
+
+    fn wrap_nodes_with_inner(
+        &mut self,
+        element: Element,
+        options: WrapNodesOptions,
+    ) -> Option<Path> {
+        let inline_wrapper = self.is_inline_element(&element);
+        let match_kind = options.match_kind.unwrap_or(if inline_wrapper {
+            NodeMatch::TextOrInline
+        } else {
+            NodeMatch::Block
+        });
+
+        let mut at = options
+            .at
+            .clone()
+            .or_else(|| self.selection.clone().map(Location::Range))?;
+
+        if let Location::Path(path) = &at {
+            return self.wrap_node_at_path(path, element);
+        }
+
+        let collapsed_point = match &at {
+            Location::Range(range) if range.is_collapsed() => Some(range.anchor.clone()),
+            Location::Point(point) => Some(point.clone()),
+            _ => None,
+        };
+        if let Some(point) = collapsed_point {
+            let target = if inline_wrapper {
+                point.path.clone()
+            } else {
+                self.leaf_block_path(&point)?
+            };
+            return self.wrap_node_at_path(&target, element);
+        }
+
+        if !options.hanging {
+            if let Location::Range(range) = &at {
+                at = Location::Range(self.unhang_range_end(range));
+            }
+        }
+
+        if options.split {
+            if let Location::Range(range) = at.clone() {
+                if range.is_expanded() {
+                    let start = range.start().clone();
+                    let end = range.end().clone();
+                    let start_block_index = self
+                        .leaf_block_path(&start)
+                        .and_then(|path| path.first().copied());
+                    let mut new_end = self.split_nodes_with_inner(SplitNodesOptions {
+                        at: Some(Location::Point(end)),
+                        match_kind,
+                        mode: options.mode,
+                        height: 0,
+                        always: false,
+                        voids: options.voids,
+                        select: Some(false),
+                        preserve_selection: false,
+                    })?;
+                    let new_start = self.split_nodes_with_inner(SplitNodesOptions {
+                        at: Some(Location::Point(start)),
+                        match_kind,
+                        mode: options.mode,
+                        height: 0,
+                        always: false,
+                        voids: options.voids,
+                        select: Some(false),
+                        preserve_selection: false,
+                    })?;
+                    if !inline_wrapper {
+                        if let Some(start_block_index) = start_block_index {
+                            if new_end
+                                .path
+                                .first()
+                                .is_some_and(|index| *index > start_block_index)
+                            {
+                                new_end.path[0] += 1;
+                            }
+                        }
+                    }
+                    at = Location::Range(Range::new(new_start, new_end));
+                }
+            }
+        }
+
+        let range = match at {
+            Location::Range(range) => range,
+            Location::Point(point) => Range::collapsed(point),
+            Location::Path(path) => self.range_covering_path(&path)?,
+        };
+        if range.is_collapsed() {
+            return None;
+        }
+
+        let mut matches = Vec::new();
+        collect_matching_paths(
+            self,
+            &self.children_as_node(),
+            &mut Vec::new(),
+            &range,
+            match_kind,
+            options.match_property.as_deref(),
+            &mut matches,
+        );
+        filter_match_mode(&mut matches, options.mode);
+        if matches.is_empty() {
+            return None;
+        }
+
+        matches.sort();
+        if !inline_wrapper {
+            return self.wrap_match_group(matches, element);
+        }
+
+        let mut groups: Vec<Vec<Path>> = Vec::new();
+        for path in matches {
+            let root = path[0];
+            if groups
+                .last()
+                .and_then(|group| group.first())
+                .is_some_and(|first| first[0] == root)
+            {
+                groups.last_mut().unwrap().push(path);
+            } else {
+                groups.push(vec![path]);
+            }
+        }
+
+        let mut inserted = None;
+        for group in groups {
+            inserted = self.wrap_match_group(group, element.clone());
+        }
+        inserted
+    }
+
+    fn wrap_match_group(&mut self, matches: Vec<Path>, element: Element) -> Option<Path> {
+        let first = matches.first()?.clone();
+        let last = matches.last()?.clone();
+        let common = if first == last {
+            path::parent(&first).unwrap_or_default()
+        } else {
+            path::common(&first, &last)
+        };
+        let parent = common.clone();
+        let start = *first.get(common.len())?;
+        let end = *last.get(common.len())?;
+        if end >= self.children_at(&parent)?.len() {
+            return None;
+        }
+
+        let span = self.children_at(&parent)?[start..=end].to_vec();
+        let wrapper_path = child_path(&parent, end + 1);
+        let count = span.len();
+        let mut wrapper = element;
+        wrapper.children = span;
+
+        let original_selection = self.selection.clone();
+        self.insert_nodes(&wrapper_path, vec![Node::Element(wrapper)]);
+        for index in (start..=end).rev() {
+            self.remove_nodes(&child_path(&parent, index), 1);
+        }
+
+        if let Some(selection) = original_selection {
+            let map = |point: &Point| {
+                if is_path_prefix(&parent, &point.path) {
+                    if let Some(index) = point.path.get(parent.len()) {
+                        if *index >= start && *index <= end {
+                            let mut mapped = child_path(&parent, start);
+                            mapped.push(index - start);
+                            mapped.extend_from_slice(&point.path[parent.len() + 1..]);
+                            return Point::new(mapped, point.offset);
+                        }
+                        if *index > end {
+                            let mut mapped = point.path.clone();
+                            mapped[parent.len()] -= count - 1;
+                            return Point::new(mapped, point.offset);
+                        }
+                    }
+                }
+                point.clone()
+            };
+            self.selection = Some(Range::new(map(&selection.anchor), map(&selection.focus)));
+        }
+
+        Some(child_path(&parent, start))
+    }
+
+    /// Slate-compatible `Transforms.unwrapNodes`.
+    pub fn unwrap_nodes_with(&mut self, options: UnwrapNodesOptions) -> Option<()> {
+        self.transaction(|editor| editor.unwrap_nodes_with_inner(options))
+    }
+
+    fn unwrap_nodes_with_inner(&mut self, options: UnwrapNodesOptions) -> Option<()> {
+        let path_only = match &options.at {
+            Some(Location::Path(path))
+                if options.match_kind.is_none() && options.match_property.is_none() =>
+            {
+                Some(path.clone())
+            }
+            _ => None,
+        };
+        let match_kind = if path_only.is_some() {
+            NodeMatch::Any
+        } else {
+            options.match_kind.unwrap_or(NodeMatch::Block)
+        };
+        let initial_selection = self.selection.clone();
+        let selection_from_options = options.at.is_some();
+        let mut at = options
+            .at
+            .clone()
+            .or_else(|| self.selection.clone().map(Location::Range))?;
+
+        if let Location::Path(path) = &at {
+            at = Location::Range(self.range_covering_path(path)?);
+        }
+
+        let mut range = match at {
+            Location::Range(range) => range,
+            Location::Point(point) => Range::collapsed(point),
+            Location::Path(_) => return None,
+        };
+
+        if !options.hanging {
+            range = self.unhang_range_end(&range);
+        }
+
+        if options.split && range.is_expanded() {
+            let split_kind = match &options.match_property {
+                Some(property) => self.property_match_kind(property),
+                None => NodeMatch::Inline,
+            };
+            let start = range.start().clone();
+            let end = range.end().clone();
+            let new_end = self.split_nodes_with_inner(SplitNodesOptions {
+                at: Some(Location::Point(end)),
+                match_kind: split_kind,
+                mode: options.mode,
+                height: 0,
+                always: false,
+                voids: options.voids,
+                select: Some(false),
+                preserve_selection: false,
+            })?;
+            let new_start = self.split_nodes_with_inner(SplitNodesOptions {
+                at: Some(Location::Point(start)),
+                match_kind: split_kind,
+                mode: options.mode,
+                height: 0,
+                always: false,
+                voids: options.voids,
+                select: Some(false),
+                preserve_selection: false,
+            })?;
+            range = Range::new(new_start, new_end);
+        }
+
+        let mut matches = Vec::new();
+        collect_matching_paths(
+            self,
+            &self.children_as_node(),
+            &mut Vec::new(),
+            &range,
+            match_kind,
+            options.match_property.as_deref(),
+            &mut matches,
+        );
+        if let Some(path) = &path_only {
+            matches.retain(|candidate| candidate == path);
+        }
+        filter_match_mode(&mut matches, options.mode);
+        if matches.is_empty() {
+            return None;
+        }
+
+        matches.sort();
+        let original_selection = if selection_from_options {
+            initial_selection
+        } else {
+            Some(range.clone())
+        };
+        let mut actions: Vec<(Path, usize)> = Vec::new();
+        for path in matches.into_iter().rev() {
+            let Some(node) = self.node(&path).cloned() else {
+                continue;
+            };
+            let Node::Element(element) = node else {
+                continue;
+            };
+            if element.children.is_empty() {
+                continue;
+            }
+            let count = element.children.len();
+            self.insert_nodes(&path, element.children);
+            self.remove_nodes(
+                &child_path(&path[..path.len() - 1], path.last().copied()? + count),
+                1,
+            );
+            actions.push((path, count));
+        }
+
+        if let Some(selection) = original_selection {
+            let map = |point: &Point| {
+                let mut path = point.path.clone();
+                for (unwrapped, count) in &actions {
+                    if is_path_prefix(unwrapped, &path) {
+                        if path.len() > unwrapped.len() {
+                            let wrapper_index = unwrapped[unwrapped.len() - 1];
+                            let child_index = path[unwrapped.len()];
+                            let mut mapped = unwrapped[..unwrapped.len() - 1].to_vec();
+                            mapped.push(wrapper_index + child_index);
+                            mapped.extend_from_slice(&path[unwrapped.len() + 1..]);
+                            path = mapped;
+                        }
+                        continue;
+                    }
+                    let parent = &unwrapped[..unwrapped.len() - 1];
+                    if is_path_prefix(parent, &path) {
+                        let index = parent.len();
+                        if path
+                            .get(index)
+                            .is_some_and(|value| *value > unwrapped[index])
+                        {
+                            path[index] += count - 1;
+                        }
+                    }
+                }
+                Point::new(path, point.offset)
+            };
+            self.selection = Some(Range::new(map(&selection.anchor), map(&selection.focus)));
+        }
+
+        Some(())
+    }
+
+    fn unhang_range_end(&self, range: &Range) -> Range {
+        if range.is_collapsed() {
+            return range.clone();
+        }
+        let end = self
+            .text_point(range.end())
+            .unwrap_or_else(|| range.end().clone());
+        let start = self
+            .text_point(range.start())
+            .unwrap_or_else(|| range.start().clone());
+        let Some(end_block) = self.leaf_block_path(&end) else {
+            return range.clone();
+        };
+        if self.first_text_point_in(&end_block).as_ref() != Some(&end) {
+            return range.clone();
+        }
+        let Some(start_block) = self.leaf_block_path(&start) else {
+            return range.clone();
+        };
+        if end_block.first() <= start_block.first() {
+            return range.clone();
+        }
+        let Some(previous) = path::previous(&end_block) else {
+            return range.clone();
+        };
+        let Some(target) = self.last_text_point_in(&previous) else {
+            return range.clone();
+        };
+        Range::new(range.anchor.clone(), target)
+    }
+
+    fn wrap_node_at_path(&mut self, path: &[usize], element: Element) -> Option<Path> {
+        let node = self.node(path)?.clone();
+        let index = *path.last()?;
+        let parent = path[..path.len() - 1].to_vec();
+        let mut wrapper = element;
+        wrapper.children = vec![node];
+        let insert_at = child_path(&parent, index);
+        let original_selection = self.selection.clone();
+        self.insert_nodes(&insert_at, vec![Node::Element(wrapper)]);
+        self.remove_nodes(&child_path(&parent, index + 1), 1);
+
+        if let Some(selection) = original_selection {
+            let map = |point: &Point| {
+                if is_path_prefix(path, &point.path) {
+                    let mut mapped = child_path(path, 0);
+                    mapped.extend_from_slice(&point.path[path.len()..]);
+                    Point::new(mapped, point.offset)
+                } else {
+                    point.clone()
+                }
+            };
+            self.selection = Some(Range::new(map(&selection.anchor), map(&selection.focus)));
+        }
+        Some(insert_at)
+    }
+
+    fn property_match_kind(&self, property: &str) -> NodeMatch {
+        fn find(editor: &Editor, nodes: &[Node], property: &str) -> Option<NodeMatch> {
+            for node in nodes {
+                if node.properties().get(property).is_some() {
+                    return Some(match node {
+                        Node::Text(_) => NodeMatch::Text,
+                        Node::Element(element) if editor.is_inline_element(element) => {
+                            NodeMatch::Inline
+                        }
+                        Node::Element(_) => NodeMatch::Block,
+                    });
+                }
+                if let Node::Element(element) = node {
+                    if let Some(kind) = find(editor, &element.children, property) {
+                        return Some(kind);
+                    }
+                }
+            }
+            None
+        }
+        find(self, &self.children, property).unwrap_or(NodeMatch::Block)
+    }
+
+    fn range_covering_path(&self, path: &[usize]) -> Option<Range> {
+        if let Some(text) = self.text(path) {
+            return Some(Range::new(
+                Point::new(path.to_vec(), 0),
+                Point::new(path.to_vec(), text.len()),
+            ));
+        }
+        let start = self.first_text_point_in(path)?;
+        let end = self.last_text_point_in(path)?;
+        Some(Range::new(start, end))
+    }
+
     /// Slate-compatible `Transforms.insertNodes`.
     pub fn insert_nodes_with(
         &mut self,
@@ -1912,6 +2399,7 @@ impl Editor {
             always: false,
             voids: options.voids,
             select: Some(false),
+            preserve_selection: true,
         };
         self.split_nodes_with_inner(split_options);
 
@@ -1974,7 +2462,6 @@ impl Editor {
 
     fn split_nodes_with_inner(&mut self, options: SplitNodesOptions) -> Option<Point> {
         let original_selection = self.selection.clone();
-        let select = options.select.unwrap_or(options.at.is_none());
         let mut path_match: Option<(Path, usize)> = None;
 
         let at_option = options
@@ -2108,7 +2595,8 @@ impl Editor {
             position = path.last().copied().unwrap_or(0) + usize::from(split || is_end);
         }
 
-        if !select {
+        let select = options.select.unwrap_or(options.at.is_none());
+        if !select && options.preserve_selection {
             self.selection = original_selection;
         }
 
@@ -3201,6 +3689,82 @@ fn node_matches(editor: &Editor, node: &Node, kind: NodeMatch) -> bool {
                     .is_some_and(|element| editor.is_inline_element(element))
         }
         NodeMatch::Any => true,
+    }
+}
+
+fn collect_matching_paths(
+    editor: &Editor,
+    node: &Node,
+    path: &mut Vec<usize>,
+    range: &Range,
+    kind: NodeMatch,
+    property: Option<&str>,
+    out: &mut Vec<Path>,
+) {
+    if !path.is_empty() && node_intersects_range(editor, node, path, range) {
+        let matched = match property {
+            Some(property) => node
+                .properties()
+                .get(property)
+                .is_some_and(|value| match value {
+                    Value::Bool(value) => *value,
+                    Value::Null => false,
+                    _ => true,
+                }),
+            None => node_matches(editor, node, kind),
+        };
+        if matched {
+            out.push(path.clone());
+        }
+    }
+
+    if let Node::Element(element) = node {
+        for (index, child) in element.children.iter().enumerate() {
+            path.push(index);
+            collect_matching_paths(editor, child, path, range, kind, property, out);
+            path.pop();
+        }
+    }
+}
+
+fn node_intersects_range(editor: &Editor, node: &Node, path: &[usize], range: &Range) -> bool {
+    let (start, end) = match node {
+        Node::Text(text) => (
+            Point::new(path.to_vec(), 0),
+            Point::new(path.to_vec(), text.len()),
+        ),
+        Node::Element(_) => (
+            editor
+                .first_text_point_in(path)
+                .unwrap_or_else(|| Point::new(path.to_vec(), 0)),
+            editor
+                .last_text_point_in(path)
+                .unwrap_or_else(|| Point::new(path.to_vec(), 0)),
+        ),
+    };
+    let (range_start, range_end) = range.edges();
+    start.compare(range_end) != std::cmp::Ordering::Greater
+        && end.compare(range_start) != std::cmp::Ordering::Less
+}
+
+fn filter_match_mode(matches: &mut Vec<Path>, mode: MatchMode) {
+    let snapshot = matches.clone();
+    match mode {
+        MatchMode::All => {}
+        MatchMode::Lowest => {
+            matches.retain(|candidate| {
+                !snapshot
+                    .iter()
+                    .any(|other| other != candidate && is_path_prefix(candidate, other))
+            });
+        }
+        MatchMode::Highest => {
+            matches.retain(|candidate| {
+                !snapshot
+                    .iter()
+                    .any(|other| other != candidate && is_path_prefix(other, candidate))
+            });
+        }
     }
 }
 

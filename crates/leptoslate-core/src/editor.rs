@@ -733,7 +733,7 @@ impl Editor {
         self.collect_text_between_node(&self.children_as_node(), &[], start, end, out);
     }
 
-    fn children_as_node(&self) -> Node {
+    pub(crate) fn children_as_node(&self) -> Node {
         Node::Element(Element::new("root", self.children.clone()))
     }
 
