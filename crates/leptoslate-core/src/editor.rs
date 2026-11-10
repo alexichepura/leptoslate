@@ -60,6 +60,9 @@ pub struct Editor {
     /// Per-endpoint affinities used while a transform is tracking a range with
     /// Slate's `inward` affinity (for example during `wrapNodes` splits).
     pub(crate) selection_affinities: Option<(Affinity, Affinity)>,
+    /// Collapse a range deletion to its end point (Slate's behaviour for
+    /// point deletes) instead of its start point.
+    pub(crate) collapse_to_end: bool,
 }
 
 impl Default for Editor {
@@ -97,6 +100,7 @@ impl Editor {
             batch: None,
             is_normalizing: false,
             selection_affinities: None,
+            collapse_to_end: false,
         };
 
         if editor.children.is_empty() {

@@ -149,6 +149,11 @@ fn run_category(category: &str) {
         if !relative.starts_with(category) {
             continue;
         }
+        if let Ok(only) = std::env::var("UPSTREAM_ONLY") {
+            if !relative.contains(&only) {
+                continue;
+            }
+        }
 
         let fixture: Fixture = match serde_json::from_str(
             &fs::read_to_string(&file).expect("fixture file is readable"),

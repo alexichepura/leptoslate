@@ -554,7 +554,10 @@ impl Editor {
             self.trim_non_editable_range_edges(range)
         };
         self.selection = Some(range);
+        let previous_collapse = self.collapse_to_end;
+        self.collapse_to_end = from_point;
         self.delete_selection_inner();
+        self.collapse_to_end = previous_collapse;
         self.selection.as_ref().map(|range| range.anchor.clone())
     }
 
@@ -618,6 +621,11 @@ impl Editor {
         let focus = self
             .text_point(&range.focus)
             .unwrap_or_else(|| range.focus.clone());
+        if self.non_editable_ancestor(&anchor).is_some()
+            || self.non_editable_ancestor(&focus).is_some()
+        {
+            return None;
+        }
         let anchor_block = self.leaf_block_path(&anchor)?;
         let focus_block = self.leaf_block_path(&focus)?;
         if anchor_block.len() != 1 || focus_block.len() != 1 {
@@ -960,7 +968,7 @@ impl Editor {
                     text,
                 });
             }
-            self.selection = Some(Range::collapsed(start));
+            self.selection = Some(Range::collapsed(start.clone()));
             return true;
         }
 
@@ -1062,9 +1070,14 @@ impl Editor {
                     text: removed,
                 });
             }
+            end = Point::new(start.path.clone(), start.offset);
         }
 
-        self.selection = Some(Range::collapsed(start));
+        self.selection = Some(Range::collapsed(if self.collapse_to_end {
+            end
+        } else {
+            start
+        }));
         true
     }
 
@@ -2295,7 +2308,11 @@ impl Editor {
             if element.children.is_empty() {
                 continue;
             }
-            if options.split && self.unwrap_partial_block(&path, &range, &element).is_some() {
+            if options.split
+                && self
+                    .unwrap_partial_block(&path, &range, &element, options.hanging)
+                    .is_some()
+            {
                 if lifted.is_none() {
                     lifted = self.selection.clone();
                 }
@@ -2415,7 +2432,7 @@ impl Editor {
                     self.previous_text_point(&probe)
                 };
                 if let (Some(outside), Some(selection)) = (outside, self.selection.clone()) {
-                    self.selection = Some(if edge_start {
+                    self.selection = Some(if use_anchor {
                         Range::new(outside, selection.focus)
                     } else {
                         Range::new(selection.anchor, outside)
@@ -2461,10 +2478,7 @@ impl Editor {
             .unwrap_or_else(|| range.start().clone());
         // Slate only unhangs ranges that start and end exactly at the start of
         // a text node, and leaves ranges touching non-editable nodes alone.
-        if start.offset != 0
-            || self.non_editable_ancestor(&start).is_some()
-            || self.non_editable_ancestor(&end).is_some()
-        {
+        if start.offset != 0 || self.non_editable_ancestor(&start).is_some() {
             return range.clone();
         }
         let Some(end_block) = self.leaf_block_path(&end) else {
@@ -2485,6 +2499,13 @@ impl Editor {
         let Some(target) = self.last_text_point_in(&previous) else {
             return range.clone();
         };
+        // Slate only unhangs to a preceding non-empty text leaf.
+        if self
+            .text(&target.path)
+            .is_none_or(|text| text.text.is_empty())
+        {
+            return range.clone();
+        }
         Range::new(range.anchor.clone(), target)
     }
 
@@ -2519,6 +2540,7 @@ impl Editor {
         path: &[usize],
         range: &Range,
         element: &Element,
+        hanging: bool,
     ) -> Option<()> {
         let start = range.start().clone();
         let end = range.end().clone();
@@ -2526,9 +2548,17 @@ impl Editor {
             return None;
         }
         let s = *start.path.get(path.len())?;
-        let e = *end.path.get(path.len())?;
+        let mut e = *end.path.get(path.len())?;
         if e >= element.children.len() || s > e {
             return None;
+        }
+        // A range ending exactly at the start of a child does not select that
+        // child, mirroring Slate's range/lift behaviour.
+        if !hanging
+            && e > s
+            && self.first_text_point_in(&child_path(path, e)).as_ref() == Some(&end)
+        {
+            e -= 1;
         }
 
         let covers_start = s == 0 && self.first_text_point_in(path).as_ref() == Some(&start);

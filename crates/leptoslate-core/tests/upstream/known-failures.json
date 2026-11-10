@@ -45,6 +45,10 @@
       "reason": "Cross-block selection deletion differs from Slate."
     },
     {
+      "source": "transforms/delete/selection/block-void-end.tsx",
+      "reason": "Deletion edge case differs from Slate."
+    },
+    {
       "source": "transforms/delete/unit-character/inline-before.tsx",
       "reason": "Inline/void-aware grapheme deletion differs from Slate."
     },
@@ -77,23 +81,15 @@
       "reason": "Void/read-only-aware deletion is not implemented."
     },
     {
-      "source": "transforms/delete/voids-false/block-both.tsx",
-      "reason": "Void/read-only-aware deletion is not implemented."
-    },
-    {
       "source": "transforms/delete/voids-false/block-cursor-nested-reverse.tsx",
       "reason": "Void/read-only-aware deletion is not implemented."
     },
     {
-      "source": "transforms/delete/voids-false/block-hanging-from.tsx",
-      "reason": "Void/read-only-aware deletion is not implemented."
+      "source": "transforms/delete/voids-false/block-hanging-into.tsx",
+      "reason": "Deletion edge case differs from Slate."
     },
     {
       "source": "transforms/delete/voids-false/block-point-reverse.tsx",
-      "reason": "Void/read-only-aware deletion is not implemented."
-    },
-    {
-      "source": "transforms/delete/voids-false/block-start-multiple.tsx",
       "reason": "Void/read-only-aware deletion is not implemented."
     },
     {
@@ -107,22 +103,6 @@
     {
       "source": "transforms/unwrapNodes/split-block/block-all-nested.tsx",
       "reason": "unwrapNodes split/inline edge case differs from Slate."
-    },
-    {
-      "source": "transforms/unwrapNodes/split-block/block-hanging.tsx",
-      "reason": "unwrapNodes split/inline edge case differs from Slate."
-    },
-    {
-      "source": "transforms/wrapNodes/split-inline/nested-unselected-end-backward.ts",
-      "reason": "wrapNodes split/inline edge case differs from Slate."
-    },
-    {
-      "source": "transforms/wrapNodes/split-inline/unselected-inline-at-end-backward.ts",
-      "reason": "wrapNodes split/inline edge case differs from Slate."
-    },
-    {
-      "source": "transforms/wrapNodes/split-inline/unselected-inline-at-start-backward.ts",
-      "reason": "wrapNodes split/inline edge case differs from Slate."
     }
   ]
 }
