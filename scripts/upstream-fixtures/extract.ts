@@ -295,9 +295,9 @@ function installInstrumentation(slate: any) {
     const object = slate[target]
     for (const method of Object.keys(object)) {
       // `withoutNormalizing` runs a callback; wrapping it would hide the
-      // Transforms call inside. Editor helpers are not the subject of the
-      // transform fixtures except `addMark`, so leave the rest untouched.
-      if (target === 'Editor' && method !== 'addMark') continue
+      // Transforms call inside. Other Editor helpers are recorded because
+      // history fixtures call them directly.
+      if (target === 'Editor' && method === 'withoutNormalizing') continue
       const original = object[method]
       if (typeof original !== 'function') continue
       object[method] = function (...args: unknown[]) {
@@ -657,6 +657,12 @@ async function main() {
           trace.length = 0
           instrumentEditorInstance(module.input)
           module.run(module.input)
+          const historyCalls = trace.filter(
+            call =>
+              call.target === 'EditorInstance' ||
+              call.target === 'Transforms' ||
+              call.target === 'Editor'
+          )
           module.input.undo()
           assert.deepEqual(
             {
@@ -668,12 +674,6 @@ async function main() {
               selection: module.output.selection ?? null,
             },
             `${relative}: fixture's own run/undo/output disagree`
-          )
-          const historyCalls = trace.filter(
-            call =>
-              call.target === 'EditorInstance' ||
-              call.target === 'Transforms' ||
-              (call.target === 'Editor' && call.method === 'addMark')
           )
           assert.ok(
             historyCalls.length > 0,

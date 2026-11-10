@@ -329,11 +329,11 @@ fn undo_a_block_split() {
 }
 
 #[test]
-fn normalization_wraps_stray_text() {
+fn normalization_drops_stray_root_text() {
+    // Slate only allows block nodes at the editor root and removes stray text.
     let editor = Editor::new(vec![Node::Text(Text::new("hello"))]);
-    assert_eq!(editor.children.len(), 1);
-    assert_eq!(editor.children[0].element_type(), Some("p"));
-    assert_eq!(editor.document_string(), "hello\n");
+    assert!(editor.children.is_empty());
+    assert_eq!(editor.document_string(), "");
 }
 
 #[test]

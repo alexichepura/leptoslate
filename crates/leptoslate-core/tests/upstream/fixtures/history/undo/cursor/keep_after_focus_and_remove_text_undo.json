@@ -63,11 +63,9 @@
       ]
     },
     {
-      "target": "EditorInstance",
+      "target": "Editor",
       "method": "deleteFragment",
-      "args": [
-        null
-      ]
+      "args": []
     },
     {
       "target": "Transforms",
@@ -85,43 +83,6 @@
               0
             ],
             "offset": 0
-          },
-          "focus": {
-            "path": [
-              0,
-              0
-            ],
-            "offset": 0
-          }
-        }
-      ]
-    },
-    {
-      "target": "Transforms",
-      "method": "transform",
-      "args": [
-        {
-          "type": "insert_text",
-          "path": [
-            0,
-            0
-          ],
-          "offset": 0,
-          "text": "Hello"
-        }
-      ]
-    },
-    {
-      "target": "Transforms",
-      "method": "select",
-      "args": [
-        {
-          "anchor": {
-            "path": [
-              0,
-              0
-            ],
-            "offset": 5
           },
           "focus": {
             "path": [

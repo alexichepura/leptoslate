@@ -799,9 +799,12 @@ impl Editor {
             Node::Text(text) => {
                 let leaf_start = Point::new(at.to_vec(), 0);
                 let leaf_end = Point::new(at.to_vec(), text.len());
-                if leaf_start.compare(end) == std::cmp::Ordering::Less
-                    && leaf_end.compare(start) == std::cmp::Ordering::Greater
-                {
+                let intersects = leaf_start.compare(end) == std::cmp::Ordering::Less
+                    && leaf_end.compare(start) == std::cmp::Ordering::Greater;
+                let empty_at_boundary = text.is_empty()
+                    && leaf_start.compare(start) != std::cmp::Ordering::Less
+                    && leaf_start.compare(end) != std::cmp::Ordering::Greater;
+                if intersects || empty_at_boundary {
                     out.push(at.to_vec());
                 }
             }
@@ -1350,13 +1353,7 @@ impl Editor {
 
         match (&previous_node, &node) {
             (Node::Text(_), Node::Text(_)) => {}
-            (Node::Element(previous_element), Node::Element(element)) => {
-                if previous_element.is_text_only() != element.is_text_only() {
-                    return Err(SlateError::InvalidOperation(
-                        "cannot merge blocks with different child kinds".into(),
-                    ));
-                }
-            }
+            (Node::Element(_), Node::Element(_)) => {}
             _ => {
                 return Err(SlateError::InvalidOperation(format!(
                     "cannot merge a {} node into a {} node",

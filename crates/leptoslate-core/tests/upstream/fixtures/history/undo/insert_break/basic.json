@@ -50,61 +50,6 @@
       "target": "EditorInstance",
       "method": "insertBreak",
       "args": []
-    },
-    {
-      "target": "Transforms",
-      "method": "transform",
-      "args": [
-        {
-          "type": "merge_node",
-          "path": [
-            0,
-            1
-          ],
-          "position": 1,
-          "properties": {}
-        }
-      ]
-    },
-    {
-      "target": "Transforms",
-      "method": "transform",
-      "args": [
-        {
-          "type": "merge_node",
-          "path": [
-            0,
-            0,
-            1
-          ],
-          "position": 2,
-          "properties": {}
-        }
-      ]
-    },
-    {
-      "target": "Transforms",
-      "method": "select",
-      "args": [
-        {
-          "anchor": {
-            "path": [
-              0,
-              0,
-              0
-            ],
-            "offset": 2
-          },
-          "focus": {
-            "path": [
-              0,
-              0,
-              0
-            ],
-            "offset": 2
-          }
-        }
-      ]
     }
   ],
   "output": {

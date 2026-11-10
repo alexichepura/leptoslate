@@ -39,43 +39,6 @@
       "args": [
         "text"
       ]
-    },
-    {
-      "target": "Transforms",
-      "method": "transform",
-      "args": [
-        {
-          "type": "remove_text",
-          "path": [
-            0,
-            0
-          ],
-          "offset": 3,
-          "text": "text"
-        }
-      ]
-    },
-    {
-      "target": "Transforms",
-      "method": "select",
-      "args": [
-        {
-          "anchor": {
-            "path": [
-              0,
-              0
-            ],
-            "offset": 3
-          },
-          "focus": {
-            "path": [
-              0,
-              0
-            ],
-            "offset": 3
-          }
-        }
-      ]
     }
   ],
   "output": {

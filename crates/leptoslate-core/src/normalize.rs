@@ -115,10 +115,7 @@ impl Editor {
 
         if children.is_empty() {
             if is_root {
-                return Some(Fix::InsertNode {
-                    path: vec![0],
-                    node: Node::Element(Element::empty(&self.schema.default_block)),
-                });
+                return None;
             }
             let mut insert_at = at.to_vec();
             insert_at.push(0);
@@ -128,11 +125,6 @@ impl Editor {
             });
         }
 
-        let has_block = children.iter().any(|child| {
-            child
-                .as_element()
-                .is_some_and(|element| !is_inline(self, element))
-        });
         let element_type = self
             .node(at)
             .and_then(Node::element_type)
@@ -144,11 +136,16 @@ impl Editor {
             .snapshot()
             .iter()
             .any(|feature| feature.inline_container(self, element_type));
+        let has_block = children.iter().any(|child| {
+            child
+                .as_element()
+                .is_some_and(|element| !is_inline(self, element))
+        });
         let should_have_inlines = if is_root {
             false
         } else if feature_inline_container {
             true
-        } else if has_block {
+        } else if element_type == "li" && has_block {
             false
         } else {
             self.element(at)
@@ -223,31 +220,37 @@ impl Editor {
                 }
             }
         } else {
-            // Block container: wrap runs of inline content.
-            let mut run_start: Option<usize> = None;
+            // Block container: allow only block children. Slate removes stray
+            // text and inline nodes instead of wrapping them.
             for (index, child) in children.iter().enumerate() {
                 let inline = child.is_text()
                     || child
                         .as_element()
                         .is_some_and(|element| is_inline(self, element));
                 if inline {
-                    if run_start.is_none() {
-                        run_start = Some(index);
+                    if element_type == "li" {
+                        let mut end = index + 1;
+                        while end < children.len() {
+                            let next = &children[end];
+                            let next_inline = next.is_text()
+                                || next
+                                    .as_element()
+                                    .is_some_and(|element| is_inline(self, element));
+                            if !next_inline {
+                                break;
+                            }
+                            end += 1;
+                        }
+                        return Some(Fix::WrapRun {
+                            parent: at.to_vec(),
+                            start: index,
+                            len: end - index,
+                        });
                     }
-                } else if let Some(start) = run_start.take() {
-                    return Some(Fix::WrapRun {
-                        parent: at.to_vec(),
-                        start,
-                        len: index - start,
+                    return Some(Fix::RemoveNode {
+                        path: child_path(at, index),
                     });
                 }
-            }
-            if let Some(start) = run_start {
-                return Some(Fix::WrapRun {
-                    parent: at.to_vec(),
-                    start,
-                    len: children.len() - start,
-                });
             }
         }
 
@@ -288,7 +291,6 @@ impl Editor {
                     path: insert_at,
                     node: wrapper,
                 })?;
-
                 for _ in 0..len {
                     let mut remove_at = parent.clone();
                     remove_at.push(start + 1);

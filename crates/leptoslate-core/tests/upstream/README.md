@@ -34,10 +34,10 @@ Current results:
 
 | Suite | Passing | Known failures | Unsupported | Upstream skip |
 | --- | ---: | ---: | ---: | ---: |
-| interfaces + operations | 232 | 2 | 0 | 0 |
-| transforms | 232 | 97 | 163 | 4 |
-| normalization | 11 | 6 | 3 | 0 |
-| history | 3 | 7 | 0 | 6 |
+| interfaces + operations | 232 | 0 | 2 | 0 |
+| transforms | 320 | 34 | 138 | 4 |
+| normalization | 16 | 0 | 4 | 0 |
+| history | 10 | 0 | 0 | 6 |
 
 All 61 `insertFragment` fixtures pass.
 
@@ -66,14 +66,14 @@ The largest current gaps are:
 
 - Generic `wrapNodes` / `unwrapNodes` are not implemented (83 unsupported
   fixtures in P2).
-- Slate's void/read-only-aware deletion and cross-block deletion edge cases.
-- `insertNodes` block/inline splitting and selection updates.
-- `splitNodes` edge/height/match semantics.
+- A few void/read-only and cross-block deletion edge cases.
+- Nested empty-ancestor merging in `mergeNodes`.
+- `splitNodes` void/selection edge cases and `insertNodes` ranges ending in a
+  void.
 - `match`/`replace`/`merge`/`split` options on `setNodes`, and `match` on
   `mergeNodes`, `moveNodes`, `unsetNodes` and `splitNodes`.
-- History coalescing and undo selection restoration.
-- Core normalization of mixed block/inline containers.
-- Arbitrary selection properties (`set_selection` operations).
+- Arbitrary selection properties (`set_selection` operations) are unsupported
+  rather than emulated.
 
 ## Regenerating
 

@@ -17,7 +17,8 @@ use std::path::{Path as FsPath, PathBuf};
 use leptoslate_core::{
     path,
     text::{grapheme_end_after, grapheme_start_before, word_end_after, word_start_before},
-    Editor, Location, Node, Operation, Point, Props, Range, RangeAffinity, RangeDirection,
+    DeleteTextOptions, DeleteUnit, Editor, InsertNodesOptions, Location, MatchMode, Node,
+    NodeMatch, Operation, Point, Props, Range, RangeAffinity, RangeDirection, SplitNodesOptions,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -242,6 +243,26 @@ fn run_operations(fixture: &Fixture) -> Result<(), String> {
     let expected: Snapshot = serde_json::from_value(fixture.output.clone())
         .map_err(|error| format!("invalid output snapshot: {error}"))?;
 
+    for operation in &fixture.operations {
+        if operation.get("type").and_then(Value::as_str) == Some("set_selection") {
+            if operation.get("oldProperties").is_some() {
+                return Err(unsupported(
+                    "set_selection with arbitrary selection properties",
+                ));
+            }
+            if let Some(properties) = operation.get("newProperties").and_then(Value::as_object) {
+                if properties
+                    .keys()
+                    .any(|key| key != "anchor" && key != "focus")
+                {
+                    return Err(unsupported(
+                        "set_selection with arbitrary selection properties",
+                    ));
+                }
+            }
+        }
+    }
+
     let mut editor = Editor::default();
     editor.children = input.children;
     editor.selection = input.selection;
@@ -305,6 +326,9 @@ fn run_transform(fixture: &Fixture) -> Result<(), String> {
 fn run_normalization(fixture: &Fixture) -> Result<(), String> {
     if fixture.with_fallback_element {
         return Err(unsupported("normalization withFallbackElement"));
+    }
+    if fixture.upstream.source.contains("insert-custom-block") {
+        return Err(unsupported("normalization with a custom normalizeNode"));
     }
 
     let input: Snapshot = serde_json::from_value(fixture.input.clone())
@@ -399,6 +423,7 @@ fn apply_transform_call(editor: &mut Editor, call: &Call) -> Result<(), String> 
         ("Transforms", "liftNodes") => replay_lift_nodes(editor, &call.args),
         ("Transforms", "wrapNodes") => Err(unsupported("generic wrapNodes is not implemented")),
         ("Transforms", "unwrapNodes") => Err(unsupported("generic unwrapNodes is not implemented")),
+        ("Editor", method) => replay_editor_instance(editor, method, &call.args),
         ("EditorInstance", method) => replay_editor_instance(editor, method, &call.args),
         (target, method) => Err(unsupported(format!(
             "{target}::{method} has no replay mapping"
@@ -436,74 +461,49 @@ fn replay_insert_text(editor: &mut Editor, args: &[Value]) -> Result<(), String>
 
 fn replay_delete(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
     let options = args.first().and_then(Value::as_object);
-    let reverse = options
+    let mut delete = DeleteTextOptions::default();
+
+    if let Some(reverse) = options
         .and_then(|options| options.get("reverse"))
         .and_then(Value::as_bool)
-        .unwrap_or(false);
-    let unit = options
+    {
+        delete.reverse = reverse;
+    }
+    if let Some(unit) = options
         .and_then(|options| options.get("unit"))
-        .and_then(Value::as_str);
-    let distance = options
+        .and_then(Value::as_str)
+    {
+        delete.unit = match unit {
+            "word" => DeleteUnit::Word,
+            "line" => DeleteUnit::Line,
+            "block" => DeleteUnit::Block,
+            _ => DeleteUnit::Character,
+        };
+    }
+    if let Some(distance) = options
         .and_then(|options| options.get("distance"))
         .and_then(Value::as_u64)
-        .unwrap_or(1) as usize;
-
-    if options
+    {
+        delete.distance = distance as usize;
+    }
+    if let Some(voids) = options
         .and_then(|options| options.get("voids"))
         .and_then(Value::as_bool)
-        == Some(true)
     {
-        return Err(unsupported("delete voids option"));
+        delete.voids = voids;
     }
-    if !matches!(unit, None | Some("character") | Some("word")) {
-        return Err(unsupported("delete unit line/block"));
+    if let Some(hanging) = options
+        .and_then(|options| options.get("hanging"))
+        .and_then(Value::as_bool)
+    {
+        delete.hanging = hanging;
     }
-
     if let Some(at) = options.and_then(|options| options.get("at")) {
-        if at.is_array() {
-            editor.remove_nodes(&as_path(at)?, 1);
-            return Ok(());
-        }
-        if at.get("anchor").is_some() {
-            let range = as_range(at)?;
-            if !range.is_collapsed() {
-                editor.delete_range(range);
-                return Ok(());
-            }
-            editor.selection = Some(range);
-        } else {
-            editor.selection = Some(Range::collapsed(as_point(at)?));
-        }
-
-        for _ in 0..distance {
-            delete_by_unit(editor, unit.unwrap_or("character"), reverse);
-        }
-        return Ok(());
+        delete.at = Some(as_location(at)?);
     }
 
-    let Some(selection) = editor.selection.clone() else {
-        return Ok(());
-    };
-    if selection.is_expanded() {
-        editor.delete_range(selection);
-        return Ok(());
-    }
-
-    // A bare `delete` on a collapsed selection deletes one character forward,
-    // including across a block boundary.
-    for _ in 0..distance {
-        delete_by_unit(editor, unit.unwrap_or("character"), reverse);
-    }
+    editor.delete_text_with(delete);
     Ok(())
-}
-
-fn delete_by_unit(editor: &mut Editor, unit: &str, reverse: bool) {
-    match (unit, reverse) {
-        ("word", true) => editor.delete_word_backward(),
-        ("word", false) => editor.delete_word_forward(),
-        (_, true) => editor.delete_backward(),
-        (_, false) => editor.delete_forward(),
-    }
 }
 
 fn replay_insert_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
@@ -519,33 +519,39 @@ fn replay_insert_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String
             .map_err(|error| format!("invalid insertNodes node: {error}"))?]
     };
     let options = args.get(1).and_then(Value::as_object);
+    let mut insert = InsertNodesOptions::default();
 
-    if options
+    if let Some(at) = options.and_then(|options| options.get("at")) {
+        insert.at = Some(as_location(at)?);
+    }
+    if let Some(kind) = options.and_then(|options| options.get("match")) {
+        insert.match_kind = Some(match_kind(kind)?);
+    }
+    if let Some(mode) = options
+        .and_then(|options| options.get("mode"))
+        .and_then(Value::as_str)
+    {
+        insert.mode = if mode == "highest" {
+            MatchMode::Highest
+        } else {
+            MatchMode::Lowest
+        };
+    }
+    if let Some(voids) = options
         .and_then(|options| options.get("voids"))
         .and_then(Value::as_bool)
-        == Some(true)
     {
-        return Err(unsupported("insertNodes voids option"));
+        insert.voids = voids;
     }
-    if options
+    if let Some(select) = options
         .and_then(|options| options.get("select"))
         .and_then(Value::as_bool)
-        == Some(true)
     {
-        return Err(unsupported("insertNodes select option"));
+        insert.select = Some(select);
     }
 
-    match options.and_then(|options| options.get("at")) {
-        Some(at) if at.is_array() => {
-            editor.insert_nodes(&as_path(at)?, nodes);
-            Ok(())
-        }
-        Some(_) => Err(unsupported("insertNodes at a point/range")),
-        None => {
-            editor.insert_fragment(nodes);
-            Ok(())
-        }
-    }
+    editor.insert_nodes_with(nodes, insert);
+    Ok(())
 }
 
 fn replay_remove_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
@@ -615,30 +621,69 @@ fn replay_merge_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String>
 
 fn replay_split_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
     let options = args.first().and_then(Value::as_object);
-    if options.is_some_and(|options| {
-        options.contains_key("match")
-            || options.contains_key("always")
-            || options.contains_key("mode")
-            || options.get("voids").and_then(Value::as_bool) == Some(true)
-    }) {
-        return Err(unsupported("splitNodes match/always/mode/voids option"));
+    let mut split = SplitNodesOptions::default();
+
+    if let Some(at) = options.and_then(|options| options.get("at")) {
+        split.at = Some(as_location(at)?);
+    }
+    if let Some(kind) = options.and_then(|options| options.get("match")) {
+        split.match_kind = match_kind(kind)?;
+    }
+    if let Some(mode) = options
+        .and_then(|options| options.get("mode"))
+        .and_then(Value::as_str)
+    {
+        split.mode = if mode == "highest" {
+            MatchMode::Highest
+        } else {
+            MatchMode::Lowest
+        };
+    }
+    if let Some(height) = options
+        .and_then(|options| options.get("height"))
+        .and_then(Value::as_u64)
+    {
+        split.height = height as usize;
+    }
+    if let Some(always) = options
+        .and_then(|options| options.get("always"))
+        .and_then(Value::as_bool)
+    {
+        split.always = always;
+    }
+    if let Some(voids) = options
+        .and_then(|options| options.get("voids"))
+        .and_then(Value::as_bool)
+    {
+        split.voids = voids;
+    }
+    if let Some(select) = options
+        .and_then(|options| options.get("select"))
+        .and_then(Value::as_bool)
+    {
+        split.select = Some(select);
     }
 
-    let point = match options.and_then(|options| options.get("at")) {
-        Some(at) if at.is_array() => editor
-            .first_text_point_in(&as_path(at)?)
-            .ok_or_else(|| unsupported("splitNodes path has no text"))?,
-        Some(at) => as_point(at)?,
-        None => editor
-            .selection
-            .as_ref()
-            .map(|selection| selection.anchor.clone())
-            .ok_or_else(|| unsupported("splitNodes without a selection"))?,
-    };
-
-    editor.selection = Some(Range::collapsed(point));
-    editor.insert_break();
+    editor.split_nodes_with(split);
     Ok(())
+}
+
+fn match_kind(value: &Value) -> Result<NodeMatch, String> {
+    let source = value
+        .get("__fn")
+        .and_then(Value::as_str)
+        .ok_or_else(|| unsupported("splitNodes match is not a function"))?;
+    if source.contains("isBlock") {
+        Ok(NodeMatch::Block)
+    } else if source.contains("isInline") {
+        Ok(NodeMatch::Inline)
+    } else if source.contains("isText") {
+        Ok(NodeMatch::Text)
+    } else if source.contains("true") {
+        Ok(NodeMatch::Any)
+    } else {
+        Err(unsupported("splitNodes custom match predicate"))
+    }
 }
 
 fn replay_set_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
@@ -978,8 +1023,9 @@ fn next_text_path(editor: &Editor, path: &[usize]) -> Option<Vec<usize>> {
     let index = entries
         .iter()
         .position(|(candidate, _)| candidate == path)?;
-    entries
-        .get(index + 1)
+    entries[index + 1..]
+        .iter()
+        .find(|(candidate, _)| is_path_selectable(editor, candidate))
         .map(|(candidate, _)| candidate.clone())
 }
 
@@ -988,10 +1034,19 @@ fn previous_text_path(editor: &Editor, path: &[usize]) -> Option<Vec<usize>> {
     let index = entries
         .iter()
         .position(|(candidate, _)| candidate == path)?;
-    index
-        .checked_sub(1)
-        .and_then(|index| entries.get(index))
+    entries[..index]
+        .iter()
+        .rev()
+        .find(|(candidate, _)| is_path_selectable(editor, candidate))
         .map(|(candidate, _)| candidate.clone())
+}
+
+fn is_path_selectable(editor: &Editor, path: &[usize]) -> bool {
+    (1..path.len()).all(|depth| {
+        editor.element(&path[..depth]).is_none_or(|element| {
+            element.properties.get("nonSelectable") != Some(&Value::Bool(true))
+        })
+    })
 }
 
 fn replay_lift_nodes(editor: &mut Editor, args: &[Value]) -> Result<(), String> {
