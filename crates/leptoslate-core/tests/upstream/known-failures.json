@@ -5,26 +5,6 @@
   },
   "fixtures": [
     {
-      "source": "transforms/delete/point/empty-table-cell-before-reverse.tsx",
-      "reason": "Cross-block and inline point deletion differs from Slate."
-    },
-    {
-      "source": "transforms/delete/selection/block-void-end.tsx",
-      "reason": "Deletion edge case differs from Slate."
-    },
-    {
-      "source": "transforms/delete/voids-false/block-across-backward.tsx",
-      "reason": "Void/read-only-aware deletion is not implemented."
-    },
-    {
-      "source": "transforms/delete/voids-false/block-cursor-nested-reverse.tsx",
-      "reason": "Void/read-only-aware deletion is not implemented."
-    },
-    {
-      "source": "transforms/delete/voids-false/block-hanging-into.tsx",
-      "reason": "Deletion edge case differs from Slate."
-    },
-    {
       "source": "transforms/unwrapNodes/mode-all/match-some-siblings-and-parent-split.tsx",
       "reason": "unwrapNodes split/inline edge case differs from Slate."
     },

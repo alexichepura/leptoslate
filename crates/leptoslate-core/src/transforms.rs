@@ -411,6 +411,7 @@ impl Editor {
     }
 
     fn delete_text_with_inner(&mut self, options: DeleteTextOptions) -> Option<Point> {
+        let original_anchor = self.selection.as_ref().map(|range| range.anchor.clone());
         let mut at = options
             .at
             .clone()
@@ -551,6 +552,16 @@ impl Editor {
                 self.selection = Some(Range::collapsed(Point::new(vec![0, 0], 0)));
                 return Some(Point::new(vec![0, 0], 0));
             }
+            if removed_void
+                && options.at.is_none()
+                && options.reverse
+                && path::previous(path).is_none()
+            {
+                if let Some(point) = original_anchor.clone() {
+                    self.selection = Some(Range::collapsed(point.clone()));
+                    return Some(point);
+                }
+            }
             if options.reverse {
                 let point = path::previous(path)
                     .and_then(|previous| self.last_text_point_in(&previous))
@@ -577,6 +588,7 @@ impl Editor {
             }
         }
 
+        let range_backward = range.is_backward();
         let range = if options.voids {
             range
         } else {
@@ -586,8 +598,10 @@ impl Editor {
         let previous_collapse = self.collapse_to_end;
         self.collapse_to_end = if from_point {
             !options.reverse
+        } else if options.at.is_none() {
+            !range_backward
         } else {
-            options.at.is_none()
+            false
         };
         self.delete_selection_inner();
         self.collapse_to_end = previous_collapse;
@@ -595,6 +609,14 @@ impl Editor {
     }
 
     fn collect_leaf_blocks(&self, path: &[usize], out: &mut Vec<Path>) {
+        if path.is_empty() {
+            if let Some(children) = self.children_at(path) {
+                for index in 0..children.len() {
+                    self.collect_leaf_blocks(&child_path(path, index), out);
+                }
+            }
+            return;
+        }
         let Some(element) = self.element(path) else {
             return;
         };
@@ -617,6 +639,14 @@ impl Editor {
     }
 
     fn collect_block_paths(&self, path: &[usize], out: &mut Vec<Path>) {
+        if path.is_empty() {
+            if let Some(children) = self.children_at(path) {
+                for index in 0..children.len() {
+                    self.collect_block_paths(&child_path(path, index), out);
+                }
+            }
+            return;
+        }
         let Some(element) = self.element(path) else {
             return;
         };
@@ -765,9 +795,7 @@ impl Editor {
         let focus = self
             .text_point(&range.focus)
             .unwrap_or_else(|| range.focus.clone());
-        if self.non_editable_ancestor(&anchor).is_some()
-            || self.non_editable_ancestor(&focus).is_some()
-        {
+        if self.non_editable_ancestor(&anchor).is_some() {
             return None;
         }
         let anchor_block = self.leaf_block_path(&anchor)?;
@@ -815,45 +843,57 @@ impl Editor {
         Some(point)
     }
 
-    fn trim_non_editable_range_edges(&mut self, mut range: Range) -> Range {
+    fn trim_non_editable_range_edges(&mut self, range: Range) -> Range {
+        let mut start = range.start().clone();
+        let mut end = range.end().clone();
         for _ in 0..16 {
-            let start_ancestor = self.non_editable_ancestor(&range.anchor);
-            let end_ancestor = self.non_editable_ancestor(&range.focus);
+            let start_ancestor = self.non_editable_ancestor(&start);
+            let end_ancestor = self.non_editable_ancestor(&end);
 
             let end_inside = end_ancestor.is_some();
             let start_inside = start_ancestor.is_some();
             let Some(path) = end_ancestor.or(start_ancestor) else {
                 break;
             };
+            let path_is_inline = self
+                .element(&path)
+                .is_some_and(|element| self.is_inline_element(element));
             let operation = Operation::RemoveNode { path: path.clone() };
             if self.apply(operation.clone()).is_err() {
                 break;
             }
 
-            let next_start = range.anchor.transform(&operation, Affinity::Forward);
-            let next_end = range.focus.transform(&operation, Affinity::Forward);
+            let next_start = start.transform(&operation, Affinity::Forward);
+            let next_end = end.transform(&operation, Affinity::Forward);
 
-            range.anchor = if start_inside {
+            start = if start_inside {
                 next_start
                     .or_else(|| self.first_text_point_in(&path))
                     .or_else(|| self.first_text_point_in(&[]))
-                    .unwrap_or_else(|| range.anchor.clone())
+                    .unwrap_or_else(|| start.clone())
             } else {
-                next_start.unwrap_or_else(|| range.anchor.clone())
+                next_start.unwrap_or_else(|| start.clone())
             };
 
-            range.focus = if end_inside {
+            end = if end_inside {
                 if start_inside {
-                    range.anchor.clone()
+                    start.clone()
+                } else if path_is_inline {
+                    let len = self.text_len_at(&start.path).unwrap_or(0);
+                    Point::new(start.path.clone(), len)
                 } else {
-                    let len = self.text_len_at(&range.anchor.path).unwrap_or(0);
-                    Point::new(range.anchor.path.clone(), len)
+                    path::previous(&path)
+                        .and_then(|previous| self.last_text_point_in(&previous))
+                        .unwrap_or_else(|| {
+                            let len = self.text_len_at(&start.path).unwrap_or(0);
+                            Point::new(start.path.clone(), len)
+                        })
                 }
             } else {
-                next_end.unwrap_or_else(|| range.focus.clone())
+                next_end.unwrap_or_else(|| end.clone())
             };
         }
-        range
+        Range::new(start, end)
     }
 
     fn point_inside_non_selectable(&self, point: &Point) -> bool {
@@ -2808,6 +2848,14 @@ impl Editor {
         // a text node, and leaves ranges touching non-editable nodes alone.
         if start.offset != 0 || self.non_editable_ancestor(&start).is_some() {
             return range.clone();
+        }
+        if let Some(path) = self.non_editable_ancestor(&end) {
+            if self
+                .element(&path)
+                .is_some_and(|element| !self.is_inline_element(element))
+            {
+                return range.clone();
+            }
         }
         let Some(end_block) = self.leaf_block_path(&end) else {
             return range.clone();
