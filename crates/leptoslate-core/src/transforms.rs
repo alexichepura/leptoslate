@@ -2664,6 +2664,45 @@ impl Editor {
         } else {
             Some(range.clone())
         };
+
+        if options.mode == MatchMode::All && options.split {
+            for wrapper in matches.into_iter().rev() {
+                let wrapper_range = self.range_covering_path(&wrapper)?;
+                let Some(current) = self.selection.clone() else {
+                    break;
+                };
+                let Some(intersection) = range_intersection(&current, &wrapper_range) else {
+                    continue;
+                };
+                let Some(element) = self.element(&wrapper).cloned() else {
+                    continue;
+                };
+                let mut targets = Vec::new();
+                for index in 0..element.children.len() {
+                    let child = child_path(&wrapper, index);
+                    let intersects =
+                        self.first_text_point_in(&child)
+                            .as_ref()
+                            .is_some_and(|first| {
+                                first.compare(intersection.end()) != Ordering::Greater
+                            })
+                            && self
+                                .last_text_point_in(&child)
+                                .as_ref()
+                                .is_some_and(|last| {
+                                    last.compare(intersection.start()) != Ordering::Less
+                                });
+                    if intersects {
+                        targets.push(child);
+                    }
+                }
+                for target in targets.into_iter().rev() {
+                    self.lift_node_once(&target);
+                }
+            }
+            return Some(());
+        }
+
         let mut actions: Vec<(Path, usize)> = Vec::new();
         let mut lifted = None;
         for path in matches.into_iter().rev() {
@@ -2909,6 +2948,35 @@ impl Editor {
             self.selection = Some(Range::new(map(&selection.anchor), map(&selection.focus)));
         }
         Some(insert_at)
+    }
+
+    fn lift_node_once(&mut self, path: &[usize]) {
+        let Some(parent_path) = path::parent(path) else {
+            return;
+        };
+        let Some(index) = path.last().copied() else {
+            return;
+        };
+        let length = self
+            .element(&parent_path)
+            .map(|parent| parent.children.len())
+            .unwrap_or(0);
+        if length == 1 {
+            let to = path::next(&parent_path);
+            self.move_nodes(path, &to);
+            self.remove_nodes(&parent_path, 1);
+        } else if index == 0 {
+            self.move_nodes(path, &parent_path);
+        } else if index + 1 == length {
+            let to = path::next(&parent_path);
+            self.move_nodes(path, &to);
+        } else {
+            let operation = self.split_operation_at(&parent_path, index + 1);
+            if self.apply(operation).is_ok() {
+                let to = path::next(&parent_path);
+                self.move_nodes(path, &to);
+            }
+        }
     }
 
     fn unwrap_partial_block(
@@ -4586,6 +4654,20 @@ impl Editor {
             });
         });
     }
+}
+
+fn range_intersection(a: &Range, b: &Range) -> Option<Range> {
+    let start = if a.start().compare(b.start()) == Ordering::Less {
+        b.start().clone()
+    } else {
+        a.start().clone()
+    };
+    let end = if a.end().compare(b.end()) == Ordering::Greater {
+        b.end().clone()
+    } else {
+        a.end().clone()
+    };
+    (start.compare(&end) != Ordering::Greater).then(|| Range::new(start, end))
 }
 
 fn node_matches(editor: &Editor, node: &Node, kind: NodeMatch) -> bool {

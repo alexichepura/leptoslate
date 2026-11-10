@@ -35,7 +35,7 @@ Current results:
 | Suite | Passing | Known failures | Unsupported | Upstream skip |
 | --- | ---: | ---: | ---: | ---: |
 | interfaces + operations | 232 | 0 | 2 | 0 |
-| transforms | 486 | 2 | 4 | 4 |
+| transforms | 488 | 0 | 4 | 4 |
 | normalization | 16 | 0 | 4 | 0 |
 | history | 10 | 0 | 0 | 6 |
 
@@ -49,7 +49,8 @@ history fixtures using APIs our test editor does not provide.
 
 Known divergences live in [`known-failures.json`](known-failures.json). Each
 entry has the upstream source path and a written reason. The runner groups the
-reasons in its output.
+reasons in its output. The file is currently empty: every fixture whose call
+shape is supported passes.
 
 The list is deliberately strict: if a known failure starts passing, the test
 fails until the entry is removed. Add a new entry only after deciding that the
@@ -62,9 +63,9 @@ predicates, `unit: 'line'`, or `voids` options) are not listed individually.
 The runner reports them as `unsupported` with a grouped reason and does not
 count them as failures.
 
-The largest current gaps are:
+The remaining gaps are all unsupported call shapes rather than failing
+behaviour:
 
-- Two `unwrapNodes` mode-all split ordering cases.
 - Custom `match`/`merge` functions and schema fallback normalizers are
   reported as unsupported rather than emulated.
 - Arbitrary selection properties (`set_selection` operations) are unsupported.

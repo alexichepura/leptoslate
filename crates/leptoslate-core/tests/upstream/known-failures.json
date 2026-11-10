@@ -3,14 +3,5 @@
     "repository": "ianstormtaylor/slate",
     "commit": "fd42a8046db8da329f4584dcf2a68ac7abd3137b"
   },
-  "fixtures": [
-    {
-      "source": "transforms/unwrapNodes/mode-all/match-some-siblings-and-parent-split.tsx",
-      "reason": "unwrapNodes split/inline edge case differs from Slate."
-    },
-    {
-      "source": "transforms/unwrapNodes/split-block/block-all-nested.tsx",
-      "reason": "unwrapNodes split/inline edge case differs from Slate."
-    }
-  ]
+  "fixtures": []
 }
