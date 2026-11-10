@@ -661,22 +661,22 @@ impl Editor {
                 });
                 if nested {
                     if let Some(previous_leaf) = self.previous_leaf_block(&block) {
-                        let new_path = path::next(&previous_leaf);
-                        let position = match self.node(&previous_leaf) {
-                            Some(Node::Text(text)) => text.len(),
-                            Some(Node::Element(element)) => element.children.len(),
-                            None => 0,
-                        };
-                        let move_op = Operation::MoveNode {
-                            path: block.clone(),
-                            new_path: new_path.clone(),
-                        };
-                        let _ = self.apply(move_op);
-                        let merge_op = Operation::MergeNode {
-                            path: new_path,
-                            position,
-                        };
-                        let _ = self.apply(merge_op);
+                        let children = self
+                            .element(&block)
+                            .map(|element| element.children.clone())
+                            .unwrap_or_default();
+                        let position = self
+                            .element(&previous_leaf)
+                            .map(|element| element.children.len())
+                            .unwrap_or(0);
+                        self.remove_nodes(&block, 1);
+                        for (offset, child) in children.into_iter().enumerate() {
+                            let insert_at = child_path(&previous_leaf, position + offset);
+                            let _ = self.apply(Operation::InsertNode {
+                                path: insert_at,
+                                node: child,
+                            });
+                        }
                         let target = self
                             .first_text_point_in(&previous_leaf)
                             .or_else(|| self.first_text_point_in(&[]));
