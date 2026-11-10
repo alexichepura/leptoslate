@@ -526,7 +526,23 @@ impl Editor {
         }
 
         if let Location::Path(path) = &at {
+            let removed_void = self
+                .element(path)
+                .is_some_and(|element| self.is_void_element(element));
             self.remove_nodes(path, 1);
+            if removed_void && options.at.is_some() {
+                let point = self.first_text_point_in(path).or_else(|| {
+                    if options.reverse {
+                        path::previous(path).and_then(|previous| self.last_text_point_in(&previous))
+                    } else {
+                        None
+                    }
+                });
+                if let Some(point) = &point {
+                    self.selection = Some(Range::collapsed(point.clone()));
+                }
+                return point;
+            }
             if self.children.is_empty() && options.at.is_none() {
                 let block = Node::Element(Element::new("", vec![Node::empty_text()]));
                 self.insert_nodes(&[0], vec![block]);
@@ -565,7 +581,7 @@ impl Editor {
         };
         self.selection = Some(range);
         let previous_collapse = self.collapse_to_end;
-        self.collapse_to_end = from_point;
+        self.collapse_to_end = from_point && !options.reverse;
         self.delete_selection_inner();
         self.collapse_to_end = previous_collapse;
         self.selection.as_ref().map(|range| range.anchor.clone())

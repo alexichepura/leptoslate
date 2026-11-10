@@ -81,10 +81,6 @@
       "reason": "Deletion edge case differs from Slate."
     },
     {
-      "source": "transforms/delete/voids-false/block-point-reverse.tsx",
-      "reason": "Void/read-only-aware deletion is not implemented."
-    },
-    {
       "source": "transforms/delete/voids-false/inline-into.tsx",
       "reason": "Void/read-only-aware deletion is not implemented."
     },
